@@ -23,7 +23,7 @@ By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Development setup
 
-Requirements: **Node.js 24+** (see `.nvmrc`) and **VS Code 1.140+**.
+Requirements: **Node.js 24+** (see `.nvmrc`) and **VS Code 1.144+**.
 
 ```sh
 git clone https://github.com/Division4Studios/multi-agent-local-team.git
@@ -32,6 +32,8 @@ npm ci          # installs exactly what package-lock.json says; install scripts 
 ```
 
 Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host with your changes.
+
+Read the [architecture guide](docs/architecture.md) before changing the review pipeline. For changes to editor decorations, hover cards, icons, or navigation, complete the [editor acceptance checks](docs/editor-testing.md) and record the tested themes and focus behavior in your PR. See the [design guide](docs/design.md) for asset conventions.
 
 ## The quality gate
 
@@ -86,6 +88,14 @@ MALT ships with **zero runtime dependencies**, and the development toolchain is 
 | `@vscode/vsce` | Packages the `.vsix` |
 
 `npm run check-deps` fails if any other package, any runtime dependency, any `overrides`/`resolutions`, or any non-exact version appears. **Proposals to add a dependency need an issue and maintainer approval before any code is written.** Prefer the Node.js standard library and the VS Code API.
+
+### VS Code API compatibility
+
+Keep `@types/vscode` and the minimum `engines.vscode` version aligned. MALT currently targets the VS Code 1.144 API. Newer definitions could allow APIs that do not exist in the oldest supported editor; `vsce` rejects that mismatch.
+
+Keep Dependabot updates enabled for `@types/vscode`. When a PR raises the API version, include the matching `engines.vscode` change, exact dependency pin, lockfile and documented VS Code requirements in the same update. These PRs are the prompt to advance the supported editor version and verify compatibility.
+
+Run `npm run verify` and `npx --no-install vsce ls --no-dependencies` before merging. CI runs the same packaging check; resolve a version mismatch by completing the coordinated update.
 
 ## Commit messages
 

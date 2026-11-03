@@ -91,8 +91,9 @@ export class HunkStore implements vscode.Disposable {
     return this.hunksFor(uri).find((tracked) => line >= tracked.hunk.startLine && line <= tracked.hunk.endLine);
   }
 
-  public get(id: string): TrackedHunk | undefined {
-    return this.allHunks().find((tracked) => tracked.id === id);
+  /** Resolve a specific occurrence when navigating; id-only callers retain shared review-cache semantics. */
+  public get(id: string, startLine?: number): TrackedHunk | undefined {
+    return this.allHunks().find((tracked) => tracked.id === id && (startLine === undefined || tracked.hunk.startLine === startLine));
   }
 
   public state(id: string): HunkState {

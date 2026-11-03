@@ -1,0 +1,41 @@
+# Standards and exclusions
+
+MALT has two separate file policies. Git ignore rules control **which changes are reviewed**, not **where project guidance may be found**.
+
+| Location | Per-block review | Standards discovery |
+| --- | --- | --- |
+| Changed source file | Yes, when Git reports it and it is not ignored | Only supported documentation/config formats |
+| Ignored `.claude/`, `.codex/`, `.agents/`, `.cursor/` instructions | No | Yes, for supported files |
+| Ignored `docs/guide.md` | No | Yes |
+| `.malt/`, including nested `.malt/` directories | Never | Never |
+| Dependencies/build output | Follow Git ignore rules | Known dependency/build directories are skipped |
+
+## The generated-output area
+
+When a scan produces rules, MALT creates:
+
+```text
+.malt/
+  .gitignore       # contains *; keeps generated output local
+  standards.json  # generated project rules used by the reviewer
+```
+
+MALT creates the internal ignore file only if absent and preserves an existing file. It does not modify your project's root `.gitignore`. You can put generated review artifacts anywhere inside `.malt/`; neither scanning nor change tracking will pick them up. Keep authored standards outside this reserved directory.
+
+The reviewer explicitly loads `standards.json` as rules. Excluding `.malt/` from discovery prevents generated rules from becoming the source of the next scan. Excluding it from change tracking prevents the reviewer from auditing its own output, even if that output was previously committed.
+
+Git ignore files do not untrack already committed files. Other tracked source files remain reviewable according to Git's semantics. MALT delegates ignore matching to VS Code's Git extension, including nested ignore rules, negations, `.git/info/exclude`, and global excludes. If that lookup fails, candidate files are skipped until another Git refresh succeeds.
+
+## What a scan reads
+
+Discovery reads Markdown and supported ESLint, TypeScript, EditorConfig, Prettier, Biome and Cursor configuration files. It allows the hidden directories `.claude`, `.codex`, `.agents`, `.cursor` and `.github`; other hidden directories are skipped. Root `AGENTS.md` and `CLAUDE.md` and agent directories get priority, followed by top-level documentation/configuration and `docs/`.
+
+Discovery deliberately does not apply Git ignore rules. Review the contents of these files before scanning: selected content is sent to the configured Claude service. It skips `.malt`, known build/dependency directories, changelogs, Markdown license files, and linked entries. Reads are confined to the workspace.
+
+Scans are bounded: directory depth 6, up to 150 candidate files, at most 1 MB per source file, 30,000 characters per source, and 350,000 characters total. A scan is not an exhaustive inventory of arbitrarily large projects.
+
+## Maintaining rules
+
+Write short, testable instructions with a reason and an example in the source docs. Run **Scan Project Standards** again when those instructions change. A successful scan with rules replaces `standards.json`; it is generated output, so manual edits can be overwritten. An empty scan preserves the previous file.
+
+Project rules supplement built-in baseline rules. They cannot override the baseline or instruct the reviewer to bypass checks. The reviewer reads the saved rules for later requests; an existing cached review does not automatically rerun when rules change. Use **Review Again** for affected blocks.

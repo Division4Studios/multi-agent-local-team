@@ -1,10 +1,12 @@
 <div align="center">
 
-# 🌾 MALT
+![MALT — Review changes as you code](media/banner.png)
+
+# MALT
 
 ### Multi-Agent Local Team
 
-**Get AI-assisted pull requests merged faster — without letting AI slop through the gate.**
+**Focused code reviews, project standards, and clear feedback inside VS Code.**
 
 A VS Code extension for teams who ship with AI and still care what lands in `main`.
 
@@ -18,7 +20,7 @@ A VS Code extension for teams who ship with AI and still care what lands in `mai
 [![GitHub issues](https://img.shields.io/github/issues/Division4Studios/multi-agent-local-team?style=flat)](https://github.com/Division4Studios/multi-agent-local-team/issues)
 [![Last commit](https://img.shields.io/github/last-commit/Division4Studios/multi-agent-local-team?style=flat)](https://github.com/Division4Studios/multi-agent-local-team/commits/main)
 
-[![VS Code](https://img.shields.io/badge/VS%20Code-%E2%89%A51.140-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
+[![VS Code](https://img.shields.io/badge/VS%20Code-%E2%89%A51.144-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strictest-3178C6?logo=typescript&logoColor=white)](tsconfig.base.json)
 [![ESLint](https://img.shields.io/badge/ESLint-0%20warnings%20allowed-4B32C3?logo=eslint&logoColor=white)](eslint.config.mjs)
 [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-22c55e)](SECURITY.md#supply-chain-policy)
@@ -40,6 +42,17 @@ A VS Code extension for teams who ship with AI and still care what lands in `mai
 > [!NOTE]
 > MALT is in **early development** (preview). Star and watch the repo to follow along.
 
+## Guides
+
+- [First review and installation](docs/getting-started.md)
+- [Settings and commands](docs/configuration.md)
+- [Standards, ignored instructions, and generated output](docs/standards.md)
+- [Troubleshooting and current limitations](docs/troubleshooting.md)
+- [Editor acceptance checks](docs/editor-testing.md)
+- [Architecture](docs/architecture.md) · [Visual design and assets](docs/design.md)
+
+**Two file policies:** micro-reviews skip Git-ignored changes; standards discovery still reads supported instructions in ignored folders. Generated `.malt/` output is excluded from both and gets its own `.gitignore` when standards are saved.
+
 ## 💡 Why MALT
 
 AI coding tools made it cheap to *open* pull requests and expensive to *review* them. Teams are drowning in large, plausible-looking, under-explained diffs, and reviewers become the bottleneck — or worse, the rubber stamp.
@@ -52,8 +65,8 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 |---|---|
 | 🔲 **Outlines every change as it lands** | When you or a coding agent edits a file, MALT brings it into view and draws a box around each changed block. No hunting through a giant diff. |
 | 🔬 **Surgical, per-block review** | Each block gets its own focused review against your project's standards, while it's still small, instead of one drifting review of a huge PR at the end. |
-| 💬 **Hover to understand** | Hover an outlined block to see **what** it does, **why** it's likely there, whether it's **needed**, and ✅/❌ for every check. |
-| 📏 **Standards from your own repo** | **Scan Project Standards** reads your `.claude`/`.codex` skills, docs and lint configs and distills short, checkable rules into `.malt/standards.json`. |
+| 💬 **Hover to understand** | Hover an outlined block to see **what** it does, **why** it's likely there, whether it's **needed**, and labeled pass/fail checks. |
+| 📏 **Standards from your own repo** | **Scan Project Standards** reads your `.claude`/`.codex`/`.agents` skills, docs and lint configs and distills short, checkable rules into `.malt/standards.json`. |
 | 🐳 **Always-hot, isolated reviewer** | The reviewer runs in a hardened Docker container (read-only workspace, no privileges, localhost-only), or as a local daemon when Docker isn't available. |
 | 🗂️ **Sidebar & status bar** | A MALT sidebar shows reviewer health and every changed block, and the status bar keeps a running pass/concern/fail count. |
 
@@ -61,7 +74,7 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 
 | | |
 |---|---|
-| 🏠 **Local first** | Runs on your machine, in your editor. Your code stays where it is. |
+| 🏠 **Local first** | The reviewer runs on your machine. Claude requests send selected code and context to the configured model service. |
 | 🛡️ **Safe by default** | Zero runtime dependencies. Every build step runs under Node's permission sandbox. |
 | 🔍 **Verifiable** | Nothing is "trust me". Every claim about a change should be checkable. |
 | ⚡ **Faster merges, not more PRs** | The goal is reviewer time saved, not AI output multiplied. |
@@ -71,7 +84,7 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 
 > MALT is not published to the VS Code Marketplace yet. To try the development build:
 
-**Prerequisites:** [Node.js 24+](https://nodejs.org/) and [VS Code 1.140+](https://code.visualstudio.com/).
+**Prerequisites:** [Node.js 24+](https://nodejs.org/) and [VS Code 1.144+](https://code.visualstudio.com/).
 
 ```sh
 git clone https://github.com/Division4Studios/multi-agent-local-team.git
@@ -90,6 +103,9 @@ Then open the folder in VS Code and press <kbd>F5</kbd>. A new **Extension Devel
 
 | Setting | Default | |
 |---|---|---|
+| `malt.reviewer.autoStart` | `true` | Start the reviewer when a workspace opens |
+| `malt.reviewer.claudePath` | `claude` | Host CLI executable path |
+| `malt.docker.socketPath` | empty | Docker socket/pipe override |
 | `malt.reviewer.backend` | `auto` | `auto` (Docker if ready, else host), `docker` or `host` |
 | `malt.reviewer.reviewModel` | `sonnet` | Model for per-block reviews |
 | `malt.reviewer.standardsModel` | `opus` | Model for **Scan Project Standards** |

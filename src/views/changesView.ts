@@ -43,6 +43,8 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<Node>, vscod
     const first = hunks[0];
     const item = new vscode.TreeItem(first?.uri ?? vscode.Uri.file(''), vscode.TreeItemCollapsibleState.Expanded);
     if (first !== undefined) {
+      item.id = first.uri.toString();
+      item.iconPath = vscode.ThemeIcon.File;
       const directory = posix.dirname(first.relativePath);
       item.description = directory === '.' ? '' : directory;
     }
@@ -55,13 +57,16 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<Node>, vscod
     const state = this.store.state(tracked.id);
     const visual = visualFor(state);
     const item = new vscode.TreeItem(`Lines ${String(tracked.hunk.startLine + 1)}–${String(tracked.hunk.endLine + 1)}`);
-    item.description = statusLabel(state);
+    // Review identity is content-based; tree identity must distinguish each occurrence of that content.
+    item.id = JSON.stringify(['hunk', tracked.uri.toString(), tracked.id, tracked.hunk.startLine, tracked.hunk.endLine]);
+    item.description = state.review?.summary ?? statusLabel(state);
+    item.accessibilityInformation = { label: `${tracked.relativePath}, lines ${String(tracked.hunk.startLine + 1)} to ${String(tracked.hunk.endLine + 1)}, ${statusLabel(state)}` };
     item.iconPath = state.status === 'reviewing'
       ? new vscode.ThemeIcon('sync~spin')
       : new vscode.ThemeIcon(ICONS[visual], new vscode.ThemeColor(COLOR_IDS[visual]));
     item.tooltip = buildReviewMarkdown(tracked, state);
     item.contextValue = 'malt.hunk';
-    item.command = { command: 'malt.revealHunk', title: 'Reveal change', arguments: [tracked.id] };
+    item.command = { command: 'malt.revealHunk', title: 'Reveal change', arguments: [tracked.id, tracked.hunk.startLine] };
     return item;
   }
 }

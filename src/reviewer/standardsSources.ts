@@ -22,7 +22,7 @@ const MAX_DEPTH = 6;
 const SKIPPED_DIRECTORIES: ReadonlySet<string> = new Set([
   'node_modules', '.git', 'out', 'dist', 'build', 'coverage', '.vscode-test', '.next', 'target', 'vendor', '.malt',
 ]);
-const ALLOWED_DOT_DIRECTORIES: ReadonlySet<string> = new Set(['.claude', '.codex', '.github', '.cursor']);
+const ALLOWED_DOT_DIRECTORIES: ReadonlySet<string> = new Set(['.claude', '.codex', '.agents', '.github', '.cursor']);
 const CONFIG_FILE = /^(?:eslint\.config\.[cm]?[jt]s|\.eslintrc(?:\.\w+)?|tsconfig(?:\.\w+)?\.json|\.editorconfig|\.prettierrc(?:\.\w+)?|biome\.jsonc?|\.cursorrules)$/u;
 const SKIPPED_MARKDOWN: ReadonlySet<string> = new Set(['CHANGELOG.md', 'LICENSE.md']);
 
@@ -34,7 +34,7 @@ const shouldDescend = (name: string): boolean =>
 
 /** Lower ranks are read first: agent instructions, then top-level docs, then everything else. */
 const rank = (path: string): number => {
-  if (/^\.(?:claude|codex|cursor)\//u.test(path) || /^(?:CLAUDE|AGENTS)\.md$/u.test(path)) {
+  if (/^\.(?:claude|codex|agents|cursor)\//u.test(path) || /^(?:CLAUDE|AGENTS)\.md$/u.test(path)) {
     return 0;
   }
   if (CONFIG_FILE.test(path) || /^(?:README|CONTRIBUTING|ARCHITECTURE)\.md$/iu.test(path)) {
