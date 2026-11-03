@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Give repeated identical blocks distinct sidebar identities and navigate to the selected occurrence while retaining content-based review caching.
+
 - Check Git ignore rules before generating review or auto-open events; remove blocks when files become ignored.
 - Exclude generated `.malt/` output from micro-reviews, even when tracked, to prevent standards self-review loops.
 - Create `.malt/` before saving standards and add a local `.gitignore` without overwriting existing policy.

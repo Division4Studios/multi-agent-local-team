@@ -5,7 +5,7 @@ import type { Credentials } from './backend/credentials';
 import type { HunkStore, TrackedHunk } from './review/hunkStore';
 import type { ReviewQueue } from './review/reviewQueue';
 import { scanStandards } from './standards/scanStandards';
-import { isRecord, isString } from './shared/guards';
+import { isNonNegativeInteger, isRecord, isString } from './shared/guards';
 
 export interface CommandDeps {
   readonly store: HunkStore;
@@ -30,6 +30,18 @@ export const revealHunk = async (tracked: TrackedHunk): Promise<void> => {
   const range = new vscode.Range(tracked.hunk.startLine, 0, tracked.hunk.startLine, 0);
   const editor = await vscode.window.showTextDocument(tracked.uri, { preview: true, preserveFocus: true, selection: range });
   editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+};
+
+/** Resolve command arguments against current tracked blocks; never trust a caller-supplied file or range. */
+export const revealTrackedHunk = async (store: HunkStore, arg: unknown, startLine?: unknown): Promise<void> => {
+  const id = hunkIdFrom(arg);
+  if (id === undefined || (startLine !== undefined && !isNonNegativeInteger(startLine))) {
+    return;
+  }
+  const tracked = store.get(id, startLine);
+  if (tracked !== undefined) {
+    await revealHunk(tracked);
+  }
 };
 
 export const startReviewer = async (deps: CommandDeps): Promise<void> => {
@@ -109,11 +121,7 @@ export const registerCommands = (deps: CommandDeps): vscode.Disposable =>
         deps.queue.enqueue(tracked, true);
       }
     }),
-    vscode.commands.registerCommand('malt.revealHunk', async (arg: unknown) => {
-      const id = hunkIdFrom(arg);
-      const tracked = id === undefined ? undefined : deps.store.get(id);
-      if (tracked !== undefined) {
-        await revealHunk(tracked);
-      }
+    vscode.commands.registerCommand('malt.revealHunk', async (arg: unknown, startLine: unknown) => {
+      await revealTrackedHunk(deps.store, arg, startLine);
     }),
   );

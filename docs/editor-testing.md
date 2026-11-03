@@ -12,6 +12,7 @@ Press **F5**, then open a disposable Git repository in the new window. Start wit
 | Save a multiline change and separate block | Correct top/side/bottom edges; no doubled rounded corners between lines |
 | Hover a reviewed block | Verdict and summary first, then what/why/necessity and labeled checks; retry link works |
 | Select a sidebar block | Correct file and line revealed; file icons follow the selected icon theme |
+| Create an untracked file of 160 identical nonblank lines | Two independent rows (lines 1–80 and 81–160); selecting each reveals its own block |
 | Collapse a file, then update review status | Stable tree identity preserves navigation state |
 | Edit another file on disk | Preview opens without moving keyboard focus when auto-open is enabled |
 | Disable auto-open, edit another file | Sidebar updates; editor stays where it was |
