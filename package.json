@@ -292,7 +292,7 @@
     "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "4.1.0",
     "eslint": "10.14.0",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "typescript-eslint": "8.72.1"
   },
   "icon": "media/icon.png",
