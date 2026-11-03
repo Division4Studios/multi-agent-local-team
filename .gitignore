@@ -14,3 +14,6 @@ dist/
 .DS_Store
 Thumbs.db
 *.log
+
+# Generated local review standards
+.malt/

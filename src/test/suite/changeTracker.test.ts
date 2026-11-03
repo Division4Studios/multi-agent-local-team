@@ -38,6 +38,7 @@ export const tests: readonly TestCase[] = [
         rootUri: folder.uri,
         state,
         diffWithHEAD: async (): Promise<string> => await Promise.resolve(currentPatch),
+        checkIgnore: async (): Promise<Set<string>> => await Promise.resolve(new Set<string>()),
       };
       const git: GitApi = { repositories: [repository], onDidOpenRepository: new vscode.EventEmitter<GitRepository>().event };
       const store = new HunkStore(new MemoryStorage());
