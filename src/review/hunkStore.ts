@@ -1,7 +1,15 @@
 /** In-memory state of changed blocks per file and their review status, with results cached by block id. */
 import * as vscode from 'vscode';
 import type { DiffHunk } from '../diff/unifiedDiff';
+import { parseHunkReview } from '../shared/protocol';
 import type { HunkReview } from '../shared/protocol';
+import { isRecord } from '../shared/guards';
+
+/** The subset of `vscode.Memento` the store needs (workspaceState satisfies it). */
+export interface ReviewCacheStorage {
+  get: (key: string) => unknown;
+  update: (key: string, value: unknown) => Thenable<void>;
+}
 
 export type HunkStatus = 'pending' | 'queued' | 'reviewing' | 'reviewed' | 'error';
 
@@ -27,13 +35,20 @@ export class HunkStore implements vscode.Disposable {
   private readonly states = new Map<string, HunkState>();
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   public readonly onDidChange = this.changeEmitter.event;
-  private readonly memento: vscode.Memento;
+  private readonly memento: ReviewCacheStorage;
 
-  public constructor(memento: vscode.Memento) {
+  public constructor(memento: ReviewCacheStorage) {
     this.memento = memento;
-    const persisted = memento.get<Record<string, HunkReview>>(PERSIST_KEY, {});
-    for (const [id, review] of Object.entries(persisted)) {
-      this.states.set(id, { status: 'reviewed', review });
+    const persisted = memento.get(PERSIST_KEY);
+    if (!isRecord(persisted)) {
+      return;
+    }
+    // Persisted state is untrusted input: only entries that pass protocol validation are restored.
+    for (const [id, value] of Object.entries(persisted)) {
+      const review = parseHunkReview(value);
+      if (review !== undefined) {
+        this.states.set(id, { status: 'reviewed', review });
+      }
     }
   }
 

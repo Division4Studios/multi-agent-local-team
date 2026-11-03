@@ -114,7 +114,10 @@ export class ChangeTracker implements vscode.Disposable {
       return [];
     }
     const key = change.uri.toString();
-    const version = `${String(change.status)}:${String(stat.mtime)}:${String(stat.size)}`;
+    // The diff depends on both sides: the file on disk (status/mtime/size) and the HEAD baseline. A commit,
+    // checkout, reset or rebase changes HEAD without touching the file, so it must invalidate the cache too.
+    const baseline = repository.state.HEAD?.commit ?? 'no-head';
+    const version = `${baseline}:${String(change.status)}:${String(stat.mtime)}:${String(stat.size)}`;
     const cached = this.cache.get(key);
     if (cached?.version === version) {
       return cached.hunks;

@@ -8,7 +8,7 @@ import { Credentials } from './backend/credentials';
 import { ReviewerManager } from './backend/reviewerManager';
 import { HunkStore } from './review/hunkStore';
 import { ReviewQueue } from './review/reviewQueue';
-import type { ReviewerClient } from './review/reviewerClient';
+import type { HunkReviewer } from './review/reviewQueue';
 import { ChangeTracker } from './review/changeTracker';
 import type { NewHunksEvent } from './review/changeTracker';
 import { getGitApi } from './git/gitApi';
@@ -79,7 +79,7 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
   const manager = new ReviewerManager(context.extensionUri.fsPath, credentials, output);
   const queue = new ReviewQueue({
     store,
-    client: (): ReviewerClient | undefined => manager.client,
+    client: (): HunkReviewer | undefined => manager.client,
     concurrency: (): number => readSettings().maxConcurrentReviews,
   });
   const deps: CommandDeps = { store, manager, queue, credentials, output };

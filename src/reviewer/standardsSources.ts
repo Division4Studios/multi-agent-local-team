@@ -1,9 +1,12 @@
 /**
  * Collects the files a standards scan reads: agent skills and instructions, Markdown docs and lint/format configs.
  * Bounded by file count, per-file size and total size so a large repository cannot blow up the prompt.
+ * Symlinked files and directories are never followed (Dirent reports them as links, not files/directories),
+ * and every read goes through the confined reader.
  */
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+import { readWorkspaceFile } from './workspace';
 
 export interface SourceFile {
   readonly path: string;
@@ -12,6 +15,7 @@ export interface SourceFile {
 
 const MAX_FILES = 150;
 const MAX_FILE_CHARS = 30_000;
+const MAX_SOURCE_BYTES = 1_000_000;
 const MAX_TOTAL_CHARS = 350_000;
 const MAX_DEPTH = 6;
 
@@ -54,15 +58,28 @@ const walk = async (root: string, directory: string, depth: number, found: strin
   }
 };
 
+/** Reads a source through the confined reader; unsafe (linked/outside) or oversized files are skipped. */
+const readSource = async (root: string, path: string): Promise<string | undefined> => {
+  try {
+    return (await readWorkspaceFile(root, path, MAX_SOURCE_BYTES))?.slice(0, MAX_FILE_CHARS);
+  } catch {
+    return undefined;
+  }
+};
+
 export const collectStandardsSources = async (root: string): Promise<SourceFile[]> => {
+  const realRoot = await realpath(root);
   const paths: string[] = [];
-  await walk(root, root, 0, paths);
+  await walk(realRoot, realRoot, 0, paths);
   paths.sort((a, b) => (rank(a) === rank(b) ? a.localeCompare(b) : rank(a) - rank(b)));
 
   const sources: SourceFile[] = [];
   let total = 0;
   for (const path of paths.slice(0, MAX_FILES)) {
-    const content = (await readFile(join(root, path), 'utf8')).slice(0, MAX_FILE_CHARS);
+    const content = await readSource(realRoot, path);
+    if (content === undefined) {
+      continue;
+    }
     if (total + content.length > MAX_TOTAL_CHARS) {
       break;
     }

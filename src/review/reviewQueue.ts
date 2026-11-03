@@ -1,35 +1,47 @@
-/** Sends changed blocks to the reviewer with bounded concurrency; one isolated review per block. */
-import type { ReviewerClient } from './reviewerClient';
+/**
+ * Sends changed blocks to the reviewer with bounded concurrency; one isolated review per block.
+ *
+ * The queue is the source of truth for what is waiting and in flight (`waitingIds` / `inFlightIds`); the store's
+ * status is only a display of it. "Busy" is never inferred from a displayed status, so a block whose status went
+ * stale (e.g. it vanished while waiting) can always be queued again.
+ */
+import type { HunkReview, ReviewRequest } from '../shared/protocol';
 import type { HunkStore, TrackedHunk } from './hunkStore';
+
+/** The one capability the queue needs from the reviewer. */
+export interface HunkReviewer {
+  review: (request: ReviewRequest) => Promise<HunkReview>;
+}
 
 export interface QueueOptions {
   readonly store: HunkStore;
-  readonly client: () => ReviewerClient | undefined;
+  readonly client: () => HunkReviewer | undefined;
   readonly concurrency: () => number;
 }
 
 export class ReviewQueue {
   private readonly waiting: TrackedHunk[] = [];
-  private active = 0;
+  private readonly waitingIds = new Set<string>();
+  private readonly inFlightIds = new Set<string>();
   private readonly options: QueueOptions;
 
   public constructor(options: QueueOptions) {
     this.options = options;
   }
 
-  /** Queues a block unless it already has (or is getting) a review. `force` re-reviews it. */
+  /** Queues a block unless it is already waiting or in flight. Reviewed blocks are skipped unless `force`. */
   public enqueue(tracked: TrackedHunk, force = false): void {
-    const { status } = this.options.store.state(tracked.id);
-    const busy = status === 'queued' || status === 'reviewing';
-    if (busy || (!force && status === 'reviewed')) {
+    const busy = this.waitingIds.has(tracked.id) || this.inFlightIds.has(tracked.id);
+    if (busy || (!force && this.options.store.state(tracked.id).status === 'reviewed')) {
       return;
     }
     if (this.options.client() === undefined) {
       this.options.store.setState(tracked.id, { status: 'pending' });
       return;
     }
-    this.options.store.setState(tracked.id, { status: 'queued' });
+    this.waitingIds.add(tracked.id);
     this.waiting.push(tracked);
+    this.options.store.setState(tracked.id, { status: 'queued' });
     this.pump();
   }
 
@@ -44,15 +56,22 @@ export class ReviewQueue {
   }
 
   private pump(): void {
-    while (this.active < this.options.concurrency() && this.waiting.length > 0) {
+    while (this.inFlightIds.size < this.options.concurrency()) {
       const next = this.waiting.shift();
-      if (next !== undefined && this.options.store.get(next.id) !== undefined) {
-        this.active += 1;
-        void this.run(next).finally(() => {
-          this.active -= 1;
-          this.pump();
-        });
+      if (next === undefined) {
+        return;
       }
+      this.waitingIds.delete(next.id);
+      if (this.options.store.get(next.id) === undefined) {
+        // The block vanished while waiting. Leave it reviewable if the same change comes back.
+        this.options.store.setState(next.id, { status: 'pending' });
+        continue;
+      }
+      this.inFlightIds.add(next.id);
+      void this.run(next).finally(() => {
+        this.inFlightIds.delete(next.id);
+        this.pump();
+      });
     }
   }
 
