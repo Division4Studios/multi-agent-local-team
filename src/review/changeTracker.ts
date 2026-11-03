@@ -68,7 +68,7 @@ export class ChangeTracker implements vscode.Disposable {
   private async refresh(): Promise<void> {
     const seen = new Set<string>();
     for (const repository of this.git.repositories) {
-      for (const change of this.relevantChanges(repository)) {
+      for (const change of await this.relevantChanges(repository)) {
         const key = change.uri.toString();
         if (!seen.has(key)) {
           seen.add(key);
@@ -77,14 +77,31 @@ export class ChangeTracker implements vscode.Disposable {
       }
     }
     this.store.retainFiles(seen);
+    for (const key of this.cache.keys()) {
+      if (!seen.has(key)) {
+        this.cache.delete(key);
+      }
+    }
     this.initial = false;
   }
 
-  private relevantChanges(repository: GitRepository): GitChange[] {
+  private async relevantChanges(repository: GitRepository): Promise<GitChange[]> {
     const { workingTreeChanges, indexChanges, untrackedChanges = [] } = repository.state;
-    return [...workingTreeChanges, ...indexChanges, ...untrackedChanges].filter(
-      (change) => !SKIPPED_STATUSES.has(change.status) && this.relativePath(change.uri) !== undefined,
-    );
+    const candidates = [...workingTreeChanges, ...indexChanges, ...untrackedChanges].filter((change) => {
+      const path = this.relativePath(change.uri);
+      return !SKIPPED_STATUSES.has(change.status) && path !== undefined && !path.split('/').includes('.malt');
+    });
+    if (candidates.length === 0) {
+      return [];
+    }
+    // Ask Git so nested ignore files, negation, global excludes and .git/info/exclude all agree with SCM.
+    // Do not review candidates when ignore resolution fails; retry on the next repository change.
+    try {
+      const ignored = await repository.checkIgnore([...new Set(candidates.map((change) => change.uri.fsPath))]);
+      return candidates.filter((change) => !ignored.has(change.uri.fsPath));
+    } catch {
+      return [];
+    }
   }
 
   private relativePath(uri: vscode.Uri): string | undefined {

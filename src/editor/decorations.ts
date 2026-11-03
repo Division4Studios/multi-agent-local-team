@@ -4,7 +4,7 @@
  */
 import * as vscode from 'vscode';
 import type { HunkStore, TrackedHunk } from '../review/hunkStore';
-import { COLOR_IDS, EMOJI, VISUALS, statusLabel, visualFor } from './visuals';
+import { COLOR_IDS, VISUALS, statusLabel, visualFor } from './visuals';
 import type { Visual } from './visuals';
 
 type Edge = 'single' | 'top' | 'middle' | 'bottom';
@@ -63,7 +63,8 @@ export class HunkDecorations implements vscode.Disposable {
       borderColor: color,
       borderStyle: visual === 'pending' || visual === 'error' ? 'dashed' : 'solid',
       borderWidth: BORDER_WIDTHS[edge],
-      borderRadius: '2px',
+      borderRadius: edge === 'single' ? '3px' : '0',
+      rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
       overviewRulerColor: color,
       overviewRulerLane: vscode.OverviewRulerLane.Right,
     });
@@ -81,7 +82,7 @@ export class HunkDecorations implements vscode.Disposable {
         list.push(range);
         ranges.set(key(visual, edge), list);
       }
-      const label = `${EMOJI[visual]} MALT · ${statusLabel(state)}`;
+      const label = `MALT · ${statusLabel(state)}`;
       const line = Math.min(tracked.hunk.startLine, lastLine);
       labels.push({
         range: new vscode.Range(line, Number.MAX_SAFE_INTEGER, line, Number.MAX_SAFE_INTEGER),
