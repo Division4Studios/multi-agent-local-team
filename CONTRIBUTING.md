@@ -33,6 +33,8 @@ npm ci          # installs exactly what package-lock.json says; install scripts 
 
 Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host with your changes.
 
+Read the [architecture guide](docs/architecture.md) before changing the review pipeline. For changes to editor decorations, hover cards, icons, or navigation, complete the [editor acceptance checks](docs/editor-testing.md) and record the tested themes and focus behavior in your PR. See the [design guide](docs/design.md) for asset conventions.
+
 ## The quality gate
 
 Before pushing, run:

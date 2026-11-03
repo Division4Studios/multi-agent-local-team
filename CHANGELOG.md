@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Check Git ignore rules before generating review or auto-open events; remove blocks when files become ignored.
+- Exclude generated `.malt/` output from micro-reviews, even when tracked, to prevent standards self-review loops.
+- Create `.malt/` before saving standards and add a local `.gitignore` without overwriting existing policy.
+
+### Changed
+
+- Standards discovery continues to read ignored instructions and now includes `.agents/`.
+- Consistent native status icons, concise inline verdicts, clearer hover hierarchy, and stable sidebar identities.
+- New barley-inspired identity, extension PNG icon, repository banner, and extension listing metadata.
+- Added setup, settings, standards/exclusion, troubleshooting, architecture, design, and editor testing guides.
+
+
 ### Added
 
 - MALT activity-bar sidebar with **Reviewer** (health, backend, standards, queue) and **Changes** (files → changed blocks) views, plus a status bar summary.

@@ -29,12 +29,10 @@ export const ICONS: Readonly<Record<Visual, string>> = {
   error: 'debug-disconnect',
 };
 
-export const EMOJI: Readonly<Record<Visual, string>> = {
-  pending: '⏳',
-  pass: '✅',
-  concerns: '⚠️',
-  fail: '❌',
-  error: '🔌',
+export const VERDICT_LABELS = {
+  pass: 'Passed',
+  concerns: 'Needs attention',
+  fail: 'Changes requested',
 };
 
 export const statusLabel = (state: HunkState): string => {
@@ -48,6 +46,6 @@ export const statusLabel = (state: HunkState): string => {
     case 'error':
       return 'Review failed';
     case 'reviewed':
-      return state.review?.summary ?? 'Reviewed';
+      return state.review === undefined ? 'Reviewed' : VERDICT_LABELS[state.review.verdict];
   }
 };

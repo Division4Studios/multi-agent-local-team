@@ -1,7 +1,7 @@
 {
   "name": "malt",
   "displayName": "MALT",
-  "description": "A local multi-agent layer that helps teams get AI-assisted pull requests merged faster and more safely.",
+  "description": "Review changes as you code. Inline block reviews, project standards, and a local Claude reviewer for VS Code.",
   "version": "0.0.1",
   "publisher": "division4studios",
   "license": "MIT",
@@ -18,6 +18,7 @@
     "node": ">=24"
   },
   "categories": [
+    "Linters",
     "Other"
   ],
   "activationEvents": [
@@ -52,7 +53,7 @@
     "viewsWelcome": [
       {
         "view": "malt.changes",
-        "contents": "No changes under review yet.\nWhen files in this workspace change, MALT outlines each changed block and reviews it against your project standards. Hover over an outlined block to see what it does, why, and which checks it passes.\n[Start Reviewer](command:malt.startReviewer)\n[Scan Project Standards](command:malt.scanStandards)"
+        "contents": "Your next change starts here.\nSave a file in a Git repository to see its changed blocks. MALT skips Git-ignored files and its own .malt folder. Select a block to jump to it; hover in the editor for the review.\n[Start Reviewer](command:malt.startReviewer)\n[Scan Project Standards](command:malt.scanStandards)"
       }
     ],
     "commands": [
@@ -95,7 +96,8 @@
       {
         "command": "malt.clearCredentials",
         "title": "Clear Claude Credentials",
-        "category": "MALT"
+        "category": "MALT",
+        "icon": "$(trash)"
       },
       {
         "command": "malt.reviewAgain",
@@ -106,7 +108,8 @@
       {
         "command": "malt.revealHunk",
         "title": "Reveal Change",
-        "category": "MALT"
+        "category": "MALT",
+        "icon": "$(go-to-file)"
       }
     ],
     "menus": {
@@ -291,5 +294,18 @@
     "eslint": "10.14.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1"
+  },
+  "icon": "media/icon.png",
+  "keywords": [
+    "code review",
+    "AI",
+    "Claude",
+    "git",
+    "standards",
+    "developer tools"
+  ],
+  "galleryBanner": {
+    "color": "#191D24",
+    "theme": "dark"
   }
 }

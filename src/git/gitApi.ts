@@ -35,6 +35,7 @@ export interface GitRepository {
   readonly rootUri: vscode.Uri;
   readonly state: GitRepositoryState;
   diffWithHEAD: (path: string) => Promise<string>;
+  checkIgnore: (paths: string[]) => Promise<Set<string>>;
 }
 
 export interface GitApi {
