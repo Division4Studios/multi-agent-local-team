@@ -1,15 +1,15 @@
 /**
  * Claude Code provider: runs `claude -p` as an isolated, tool-less, settings-less call.
  * - `--tools ""` and `--strict-mcp-config`: the model cannot run tools or MCP servers.
- * - `--setting-sources ""` plus a scratch working directory: no project or user settings, hooks or CLAUDE.md
- *   from the reviewed repository are loaded, so a reviewed repo cannot run code through the reviewer.
+ * - `--setting-sources ""` plus a private, empty working directory: no project or user settings, hooks or
+ *   CLAUDE.md from the reviewed repository are loaded, so a reviewed repo cannot run code through the reviewer.
+ * - The system prompt is static and trusted (no repository text), so it is passed as an argument; no temp files.
  * - `--json-schema`: output is validated by the CLI, and again by MALT's own parsers.
  */
 import { spawn } from 'node:child_process';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { isRecord, isString } from '../../shared/guards';
 import type { ReviewProvider, StructuredCall } from './provider';
 
@@ -21,10 +21,16 @@ interface ProcessResult {
   readonly stderr: string;
 }
 
-const runProcess = async (command: string, args: readonly string[], input: string, timeoutMs: number): Promise<ProcessResult> =>
+interface ProcessOptions {
+  readonly input: string;
+  readonly timeoutMs: number;
+  readonly cwd: string;
+}
+
+const runProcess = async (command: string, args: readonly string[], options: ProcessOptions): Promise<ProcessResult> =>
   await new Promise((resolvePromise, reject) => {
-    const scratch = join(tmpdir(), 'malt-reviewer');
-    const child = spawn(command, args, { cwd: scratch, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const { input, timeoutMs, cwd } = options;
+    const child = spawn(command, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let size = 0;
@@ -76,14 +82,13 @@ export class ClaudeCodeProvider implements ReviewProvider {
   }
 
   public async callStructured(call: StructuredCall): Promise<unknown> {
-    const scratch = join(tmpdir(), 'malt-reviewer');
-    await mkdir(scratch, { recursive: true });
-    const systemPromptFile = join(scratch, `system-${randomUUID()}.md`);
-    await writeFile(systemPromptFile, call.systemPrompt, 'utf8');
+    // A private (0700), unpredictably named, empty working directory per call: nothing from the reviewed repo is
+    // in scope, and no other local user can pre-create or read it. MALT writes no files into it.
+    const workDir = await mkdtemp(join(tmpdir(), 'malt-reviewer-'));
     const args = [
       '-p',
       '--model', call.model,
-      '--system-prompt-file', systemPromptFile,
+      '--system-prompt', call.systemPrompt,
       '--tools', '',
       '--strict-mcp-config',
       '--setting-sources', '',
@@ -92,10 +97,10 @@ export class ClaudeCodeProvider implements ReviewProvider {
       '--json-schema', JSON.stringify(call.schema),
     ];
     try {
-      const result = await runProcess(this.claudePath, args, call.userPrompt, call.timeoutMs);
+      const result = await runProcess(this.claudePath, args, { input: call.userPrompt, timeoutMs: call.timeoutMs, cwd: workDir });
       return extractStructuredOutput(result);
     } finally {
-      await rm(systemPromptFile, { force: true });
+      await rm(workDir, { recursive: true, force: true });
     }
   }
 }
