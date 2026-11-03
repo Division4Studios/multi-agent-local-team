@@ -37,7 +37,14 @@ MALT sends changed code to a reviewer service that calls an AI model. It's desig
 
 - **Docker backend (preferred):** the workspace is mounted **read-only**, with a read-only root filesystem, all Linux capabilities dropped, `no-new-privileges`, memory and PID limits, and the API port published on **127.0.0.1 only**. The extension manages Docker through the Engine API (`node:http` over the local socket or named pipe) and never runs the Docker CLI.
 - **Host backend (fallback):** the same service runs as a local process bound to 127.0.0.1. The model CLI it calls runs with your user's permissions, which is why Docker is preferred.
-- **Per-start bearer token** on every request, compared in constant time. Request paths are confined to the workspace root.
+- **Per-start bearer token** on every request, compared in constant time.
+- **Workspace confinement by real path.** Every file the reviewer reads is opened and then verified:
+  - its real path (after following symlinks and junctions) is inside the real workspace root;
+  - the opened handle is the same file as that path, so it can't be swapped mid-read;
+  - it is a regular file with a single link (no hard links);
+  - it was opened non-blocking, so a named pipe can't hang the reviewer.
+
+  A repository therefore can't use links to pull files from elsewhere on the machine into a prompt. Regression tests cover junctions, hard links and the standards scan.
 - **Model calls have no tools.** Each call to `claude -p` uses `--tools ""`, `--strict-mcp-config`, `--setting-sources ""` and a temporary working directory, so no tools, MCP servers, hooks, settings or `CLAUDE.md` from the reviewed repository are loaded. Output must match a JSON schema and is validated again by MALT.
 - **Untrusted output stays inert.** Review text is escaped when rendered in hovers; the only command link enabled is MALT's own "Review again".
 - **Credentials** live in VS Code SecretStorage (your OS keychain) and are passed only to the reviewer.

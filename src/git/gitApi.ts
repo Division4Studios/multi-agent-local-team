@@ -18,7 +18,13 @@ export interface GitChange {
   readonly status: number;
 }
 
+/** The branch/ref HEAD points at; `commit` is the baseline that `diffWithHEAD` compares against. */
+export interface GitHeadRef {
+  readonly commit?: string;
+}
+
 export interface GitRepositoryState {
+  readonly HEAD: GitHeadRef | undefined;
   readonly workingTreeChanges: readonly GitChange[];
   readonly indexChanges: readonly GitChange[];
   readonly untrackedChanges?: readonly GitChange[];

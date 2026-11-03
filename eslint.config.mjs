@@ -10,6 +10,15 @@ import tseslint from 'typescript-eslint';
  *   Changing a rule means changing this file, which is CODEOWNERS-protected and visible in review.
  */
 
+const NAMING_CONVENTION = [
+  { selector: 'default', format: ['camelCase'], leadingUnderscore: 'forbid' },
+  { selector: 'import', format: ['camelCase', 'PascalCase'] },
+  { selector: 'variable', modifiers: ['const'], format: ['camelCase', 'UPPER_CASE'] },
+  { selector: 'typeLike', format: ['PascalCase'] },
+  { selector: 'enumMember', format: ['PascalCase'] },
+  { selector: 'objectLiteralProperty', format: null },
+];
+
 const PROCESS_IMPORTS = [
   { name: 'child_process', message: 'Process execution needs a security review; discuss in an issue first.' },
   { name: 'node:child_process', message: 'Process execution needs a security review; discuss in an issue first.' },
@@ -103,15 +112,7 @@ export default asErrors(
         '@typescript-eslint/no-import-type-side-effects': 'error',
         '@typescript-eslint/consistent-type-imports': 'error',
         '@typescript-eslint/consistent-type-exports': 'error',
-        '@typescript-eslint/naming-convention': [
-          'error',
-          { selector: 'default', format: ['camelCase'], leadingUnderscore: 'forbid' },
-          { selector: 'import', format: ['camelCase', 'PascalCase'] },
-          { selector: 'variable', modifiers: ['const'], format: ['camelCase', 'UPPER_CASE'] },
-          { selector: 'typeLike', format: ['PascalCase'] },
-          { selector: 'enumMember', format: ['PascalCase'] },
-          { selector: 'objectLiteralProperty', format: null },
-        ],
+        '@typescript-eslint/naming-convention': ['error', ...NAMING_CONVENTION],
 
         // Security-sensitive patterns.
         'no-eval': 'error',
@@ -147,6 +148,18 @@ export default asErrors(
         'max-params': ['error', 4],
         'max-lines-per-function': ['error', { max: 60, skipBlankLines: true, skipComments: true }],
         'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
+      },
+    },
+    {
+      // VS Code's Git extension API names its baseline property `HEAD`; we must match that external contract.
+      // Exactly that one type-property name, in exactly this file. All other naming rules still apply.
+      files: ['src/git/gitApi.ts'],
+      rules: {
+        '@typescript-eslint/naming-convention': [
+          'error',
+          { selector: 'typeProperty', filter: { regex: '^HEAD$', match: true }, format: null },
+          ...NAMING_CONVENTION,
+        ],
       },
     },
     {
