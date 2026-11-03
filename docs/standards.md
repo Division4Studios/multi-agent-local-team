@@ -38,4 +38,6 @@ Scans are bounded: directory depth 6, up to 150 candidate files, at most 1 MB pe
 
 Write short, testable instructions with a reason and an example in the source docs. Run **Scan Project Standards** again when those instructions change. A successful scan with rules replaces `standards.json`; it is generated output, so manual edits can be overwritten. An empty scan preserves the previous file.
 
+Each rule's `category` is its group in the **Changes** view. A scan sorts rules into 3 to 8 groups and reuses the baseline groups (Scope, Quality, Architecture, Security) where they fit; groups with the same name (ignoring case) are shown together.
+
 Project rules supplement built-in baseline rules. They cannot override the baseline or instruct the reviewer to bypass checks. The reviewer reads the saved rules for later requests; an existing cached review does not automatically rerun when rules change. Use **Review Again** for affected blocks.

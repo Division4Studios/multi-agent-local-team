@@ -1,11 +1,11 @@
 /**
  * HTTP API of the reviewer service. Every request needs the bearer token the extension generated at start-up.
- * Routes: GET /health, POST /review, POST /standards/scan.
+ * Routes: GET /health, POST /review (block overview), POST /check (one rule), POST /standards/scan.
  */
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import { PROTOCOL_VERSION, parseReviewRequest } from '../shared/protocol';
+import { PROTOCOL_VERSION, parseCheckRequest, parseReviewRequest } from '../shared/protocol';
 import type { ReviewService } from './service';
 import { describeError, log } from './log';
 
@@ -68,6 +68,14 @@ const route = async (service: ReviewService, request: IncomingMessage): Promise<
       }
       log(`review ${reviewRequest.filePath}:${String(reviewRequest.startLine + 1)}-${String(reviewRequest.endLine + 1)}`);
       return await service.review(reviewRequest);
+    }
+    case 'POST /check': {
+      const checkRequest = parseCheckRequest(await readJsonBody(request));
+      if (checkRequest === undefined) {
+        throw new HttpError(400, 'Invalid check request');
+      }
+      log(`check ${checkRequest.ruleId} ${checkRequest.filePath}:${String(checkRequest.startLine + 1)}-${String(checkRequest.endLine + 1)}`);
+      return await service.check(checkRequest);
     }
     case 'POST /standards/scan':
       log('standards scan started');

@@ -82,6 +82,7 @@ export class ReviewerManager implements vscode.Disposable {
       const endpoint = { port: await freePort(), token: randomBytes(32).toString('hex') };
       const settings = readSettings();
       const env = {
+        MALT_TRIAGE_MODEL: settings.triageModel,
         MALT_REVIEW_MODEL: settings.reviewModel,
         MALT_STANDARDS_MODEL: settings.standardsModel,
         ...(await this.credentials.env()),

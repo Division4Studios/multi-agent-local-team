@@ -6,9 +6,10 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | --- | --- | --- |
 | `malt.reviewer.backend` | `auto` | `auto`, `docker`, or `host`; restart reviewer after changing |
 | `malt.reviewer.autoStart` | `true` | Start when a workspace opens |
-| `malt.reviewer.reviewModel` | `sonnet` | Model alias or ID for block reviews; restart reviewer |
+| `malt.reviewer.triageModel` | `sonnet` | Model alias or ID for each block's overview (purpose, technical, design) and for sorting out which rules apply; `haiku` is cheaper but argues design less well; restart reviewer |
+| `malt.reviewer.reviewModel` | `sonnet` | Model alias or ID for the per-rule checks (one call per applicable rule); restart reviewer |
 | `malt.reviewer.standardsModel` | `opus` | Model alias or ID for standards scans; restart reviewer |
-| `malt.reviewer.maxConcurrentReviews` | `2` | Parallel review requests, from 1 to 8 |
+| `malt.reviewer.maxConcurrentReviews` | `2` | Parallel reviewer calls (overviews and rule checks), from 1 to 8 |
 | `malt.reviewer.claudePath` | `claude` | Host CLI executable; restart reviewer |
 | `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise `DOCKER_HOST` or platform default; restart reviewer |
 | `malt.changes.autoOpen` | `true` | Show newly changed files in preview tabs, preserving keyboard focus |
@@ -42,4 +43,4 @@ All commands below have the **MALT:** prefix.
 
 ## Theme customization
 
-Use `workbench.colorCustomizations` for `malt.hunkPending`, `malt.hunkPass`, `malt.hunkConcerns`, and `malt.hunkFail`. Defaults cover dark, light, and both high-contrast themes. Status icons and text explain the state without requiring color recognition.
+Use `workbench.colorCustomizations` for `malt.hunkPending`, `malt.hunkPass`, and `malt.hunkFail`. Defaults cover dark, light, and both high-contrast themes. Status icons and text explain the state without requiring color recognition.

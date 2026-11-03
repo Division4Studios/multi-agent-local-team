@@ -2,15 +2,16 @@ import assert from 'node:assert/strict';
 import { parseHunkReview, parseReviewRequest, parseStandardsDocument } from '../../shared/protocol';
 import type { TestCase } from './harness';
 
-const CHECK = { ruleId: 'reuse-existing', title: 'Reuses existing code', status: 'fail', note: 'Duplicates retry()' };
-const REVIEW = {
-  verdict: 'concerns',
+const CHECK = { ruleId: 'reuse-existing', title: 'Reuses existing code', status: 'fail', note: 'Duplicates retry()', detail: 'Lines 3-9 copy retry().' };
+const RULE = { id: 'reuse-existing', title: 'Reuses existing code', check: 'Reuses?', category: 'Architecture', source: 'MALT baseline' };
+const OVERVIEW = {
   summary: 'Adds retry without backoff',
-  what: 'Retries the request.',
-  why: 'Flaky network.',
-  necessity: 'Needed, but should reuse the existing retry helper.',
-  checks: [CHECK],
+  purpose: 'Uploads survive flaky networks.',
+  technical: 'Retries the request.',
+  design: 'Should reuse the existing retry helper.',
+  applicable: ['reuse-existing'],
 };
+const REVIEW = { overview: OVERVIEW, rules: [RULE], checks: [CHECK] };
 
 export const tests: readonly TestCase[] = [
   {
@@ -20,11 +21,12 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
-    name: 'parseHunkReview: rejects unknown verdicts, statuses and missing fields',
+    name: 'parseHunkReview: rejects unknown statuses and missing fields',
     run: (): void => {
-      assert.equal(parseHunkReview({ ...REVIEW, verdict: 'great' }), undefined);
+      assert.equal(parseHunkReview({ ...REVIEW, overview: { ...OVERVIEW, applicable: [1] } }), undefined);
       assert.equal(parseHunkReview({ ...REVIEW, checks: [{ ...CHECK, status: 'maybe' }] }), undefined);
-      assert.equal(parseHunkReview({ ...REVIEW, why: 42 }), undefined);
+      assert.equal(parseHunkReview({ ...REVIEW, checks: [{ ...CHECK, detail: undefined }] }), undefined);
+      assert.equal(parseHunkReview({ ...REVIEW, overview: { ...OVERVIEW, purpose: 42 } }), undefined);
       assert.equal(parseHunkReview('not an object'), undefined);
     },
   },

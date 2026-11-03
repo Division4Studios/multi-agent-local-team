@@ -5,6 +5,7 @@ import type { Credentials } from './backend/credentials';
 import type { HunkStore, TrackedHunk } from './review/hunkStore';
 import type { ReviewQueue } from './review/reviewQueue';
 import { scanStandards } from './standards/scanStandards';
+import { showRuleCheck } from './views/ruleDetailPanel';
 import { isNonNegativeInteger, isRecord, isString } from './shared/guards';
 
 export interface CommandDeps {
@@ -123,5 +124,8 @@ export const registerCommands = (deps: CommandDeps): vscode.Disposable =>
     }),
     vscode.commands.registerCommand('malt.revealHunk', async (arg: unknown, startLine: unknown) => {
       await revealTrackedHunk(deps.store, arg, startLine);
+    }),
+    vscode.commands.registerCommand('malt.showRuleCheck', (id: unknown, startLine: unknown, ruleId: unknown) => {
+      showRuleCheck(deps.store, id, startLine, ruleId);
     }),
   );

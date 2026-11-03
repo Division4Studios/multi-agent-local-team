@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Review each applicable rule in its own isolated call. One overview call per block writes the business purpose, a technical description and a skeptical design assessment (should a new abstraction exist, or extend existing code?) and sorts out which rules apply; the new `malt.reviewer.triageModel` setting picks its model.
+- Expand a block in **Changes** to see its rules in collapsible groups, sorted running → failed → passed → not run → not applicable; selecting a checked rule opens a full-page explanation.
+- Standards scans sort rules into 3 to 8 groups. New baseline rules `justified-abstraction` and a stricter `reuse-existing` push back on new components that should extend existing code.
+- Drop the amber "Needs attention" verdict: a block fails as soon as one rule fails and passes once every applicable rule passes. Retrying a failed block reruns only its missing rule checks. Reviewer protocol version 2.
+
 - Raise the minimum VS Code version and API definitions together to 1.144; retain Dependabot API updates.
 
 - Standards discovery continues to read ignored instructions and now includes `.agents/`.

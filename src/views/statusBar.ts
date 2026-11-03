@@ -12,12 +12,12 @@ export const createStatusBar = (manager: ReviewerManager, store: HunkStore): vsc
   item.name = 'MALT';
   item.command = 'workbench.view.extension.malt';
   const update = (): void => {
-    const counts: Record<Visual, number> = { pending: 0, pass: 0, concerns: 0, fail: 0, error: 0 };
+    const counts: Record<Visual, number> = { pending: 0, pass: 0, fail: 0, error: 0 };
     for (const tracked of store.allHunks()) {
       counts[visualFor(store.state(tracked.id))] += 1;
     }
     const { state, detail } = manager.status;
-    item.text = `${STATE_ICON[state]} MALT  $(pass) ${String(counts.pass)}  $(warning) ${String(counts.concerns)}  $(error) ${String(counts.fail)}  $(clock) ${String(counts.pending + counts.error)}`;
+    item.text = `${STATE_ICON[state]} MALT  $(pass) ${String(counts.pass)}  $(error) ${String(counts.fail)}  $(clock) ${String(counts.pending + counts.error)}`;
     item.tooltip = `MALT reviewer: ${state} (${detail})`;
     item.show();
   };
