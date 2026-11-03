@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    // VS Code loads extensions as CommonJS. verbatimModuleSyntax would force `import x = require()`,
+    // which erasableSyntaxOnly forbids, so it is off here; the consistent-type-imports lint rule covers it.
+    "verbatimModuleSyntax": false,
+    "types": ["node", "vscode"],
+    "rootDir": "src",
+    "outDir": "out",
+    "sourceMap": true
+  },
+  "include": ["src"]
+}

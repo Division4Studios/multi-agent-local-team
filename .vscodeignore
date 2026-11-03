@@ -1,0 +1,19 @@
+# Allowlist: the published .vsix contains only what is explicitly re-included below.
+# (vsce applies "!" re-includes over excludes regardless of order, so list shipped folders explicitly.)
+**
+!out/*.js
+!out/backend/**/*.js
+!out/diff/**/*.js
+!out/editor/**/*.js
+!out/git/**/*.js
+!out/review/**/*.js
+!out/reviewer/**/*.js
+!out/shared/**/*.js
+!out/standards/**/*.js
+!out/views/**/*.js
+!media/**
+!docker/Dockerfile
+!package.json
+!README.md
+!CHANGELOG.md
+!LICENSE
