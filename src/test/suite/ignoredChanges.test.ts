@@ -45,6 +45,9 @@ const exerciseExclusions = async (failIgnoreCheck: boolean): Promise<void> => {
   const subscription = tracker.onDidFindNewHunks((event) => { emitted.push(...event.hunks.map((hunk) => hunk.relativePath)); });
   try {
     await waitFor(() => calls > 0, 'ignore check completed');
+    if (!failIgnoreCheck) {
+      await waitFor(() => emitted.length > 0, 'allowed file finishes loading');
+    }
     assert.deepEqual(emitted, failIgnoreCheck ? [] : ['visible.ts']);
     assert.ok(checked.every((path) => !path.includes('.malt') && !path.endsWith('status-ignored.ts')));
     ignoreVisible = true;
