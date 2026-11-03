@@ -1,0 +1,16 @@
+# Dependencies and build output
+node_modules/
+out/
+dist/
+*.vsix
+
+# VS Code test instance downloaded by @vscode/test-electron
+.vscode-test/
+
+# Local VS Code workspace files
+*.code-workspace
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log

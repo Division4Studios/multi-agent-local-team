@@ -1,0 +1,13 @@
+# Every change needs maintainer review.
+* @Division4Studios
+
+# Policy and supply-chain files: changes here alter what the project trusts.
+/package.json            @Division4Studios
+/package-lock.json       @Division4Studios
+/.npmrc                  @Division4Studios
+/eslint.config.mjs       @Division4Studios
+/tsconfig*.json          @Division4Studios
+/scripts/                @Division4Studios
+/.github/                @Division4Studios
+/SECURITY.md             @Division4Studios
+/LICENSE                 @Division4Studios

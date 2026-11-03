@@ -1,0 +1,14 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "eslint.useFlatConfig": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "never"
+  },
+  "files.exclude": {
+    "out": false
+  },
+  "search.exclude": {
+    "out": true,
+    ".vscode-test": true
+  }
+}

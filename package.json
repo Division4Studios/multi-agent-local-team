@@ -1,0 +1,295 @@
+{
+  "name": "malt",
+  "displayName": "MALT",
+  "description": "A local multi-agent layer that helps teams get AI-assisted pull requests merged faster and more safely.",
+  "version": "0.0.1",
+  "publisher": "division4studios",
+  "license": "MIT",
+  "homepage": "https://github.com/Division4Studios/multi-agent-local-team#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Division4Studios/multi-agent-local-team.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Division4Studios/multi-agent-local-team/issues"
+  },
+  "engines": {
+    "vscode": "^1.140.0",
+    "node": ">=24"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "malt",
+          "title": "MALT",
+          "icon": "media/malt.svg"
+        }
+      ]
+    },
+    "views": {
+      "malt": [
+        {
+          "id": "malt.reviewer",
+          "name": "Reviewer"
+        },
+        {
+          "id": "malt.changes",
+          "name": "Changes"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "malt.changes",
+        "contents": "No changes under review yet.\nWhen files in this workspace change, MALT outlines each changed block and reviews it against your project standards. Hover over an outlined block to see what it does, why, and which checks it passes.\n[Start Reviewer](command:malt.startReviewer)\n[Scan Project Standards](command:malt.scanStandards)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "malt.startReviewer",
+        "title": "Start Reviewer",
+        "category": "MALT",
+        "icon": "$(play)"
+      },
+      {
+        "command": "malt.stopReviewer",
+        "title": "Stop Reviewer",
+        "category": "MALT",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "malt.scanStandards",
+        "title": "Scan Project Standards",
+        "category": "MALT",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "malt.reviewAll",
+        "title": "Review All Unreviewed Changes",
+        "category": "MALT",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "malt.showReviewerLogs",
+        "title": "Show Reviewer Logs",
+        "category": "MALT",
+        "icon": "$(output)"
+      },
+      {
+        "command": "malt.setCredentials",
+        "title": "Set Claude Credentials",
+        "category": "MALT",
+        "icon": "$(key)"
+      },
+      {
+        "command": "malt.clearCredentials",
+        "title": "Clear Claude Credentials",
+        "category": "MALT"
+      },
+      {
+        "command": "malt.reviewAgain",
+        "title": "Review Again",
+        "category": "MALT",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "malt.revealHunk",
+        "title": "Reveal Change",
+        "category": "MALT"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "malt.startReviewer",
+          "when": "view == malt.reviewer && malt.reviewerState != running && malt.reviewerState != starting",
+          "group": "navigation@1"
+        },
+        {
+          "command": "malt.stopReviewer",
+          "when": "view == malt.reviewer && malt.reviewerState == running",
+          "group": "navigation@1"
+        },
+        {
+          "command": "malt.scanStandards",
+          "when": "view == malt.reviewer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "malt.showReviewerLogs",
+          "when": "view == malt.reviewer",
+          "group": "navigation@3"
+        },
+        {
+          "command": "malt.setCredentials",
+          "when": "view == malt.reviewer",
+          "group": "settings"
+        },
+        {
+          "command": "malt.clearCredentials",
+          "when": "view == malt.reviewer",
+          "group": "settings"
+        },
+        {
+          "command": "malt.reviewAll",
+          "when": "view == malt.changes",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "malt.reviewAgain",
+          "when": "view == malt.changes && viewItem == malt.hunk",
+          "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "malt.reviewAgain",
+          "when": "false"
+        },
+        {
+          "command": "malt.revealHunk",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MALT",
+      "properties": {
+        "malt.reviewer.backend": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "docker",
+            "host"
+          ],
+          "enumDescriptions": [
+            "Docker container when Docker is running and Claude credentials are stored; otherwise the host daemon.",
+            "Always use the Docker container (isolated, read-only workspace).",
+            "Always run the reviewer as a process on this machine."
+          ],
+          "default": "auto",
+          "markdownDescription": "Where the reviewer runs. Restart the reviewer after changing."
+        },
+        "malt.reviewer.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Start the reviewer automatically when a workspace opens."
+        },
+        "malt.reviewer.reviewModel": {
+          "type": "string",
+          "default": "sonnet",
+          "markdownDescription": "Claude model for per-block reviews (alias like `sonnet`, `haiku`, `opus`, or a full model id). Restart the reviewer after changing."
+        },
+        "malt.reviewer.standardsModel": {
+          "type": "string",
+          "default": "opus",
+          "markdownDescription": "Claude model for **Scan Project Standards**. Restart the reviewer after changing."
+        },
+        "malt.reviewer.maxConcurrentReviews": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "How many changed blocks are reviewed in parallel."
+        },
+        "malt.reviewer.claudePath": {
+          "type": "string",
+          "default": "claude",
+          "description": "Path to the Claude Code CLI, used by the host backend."
+        },
+        "malt.docker.socketPath": {
+          "type": "string",
+          "default": "",
+          "description": "Docker Engine socket or named pipe. Empty uses DOCKER_HOST or the platform default."
+        },
+        "malt.changes.autoOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Bring a file into view (without taking focus) when new changes appear in it."
+        },
+        "malt.changes.autoReview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Review each new changed block automatically."
+        }
+      }
+    },
+    "colors": [
+      {
+        "id": "malt.hunkPending",
+        "description": "Outline of a changed block waiting for review.",
+        "defaults": {
+          "dark": "#8b949e",
+          "light": "#6e7781",
+          "highContrast": "#ffffff",
+          "highContrastLight": "#000000"
+        }
+      },
+      {
+        "id": "malt.hunkPass",
+        "description": "Outline of a changed block that passed review.",
+        "defaults": {
+          "dark": "#3fb950",
+          "light": "#1a7f37",
+          "highContrast": "#3fb950",
+          "highContrastLight": "#1a7f37"
+        }
+      },
+      {
+        "id": "malt.hunkConcerns",
+        "description": "Outline of a changed block with review concerns.",
+        "defaults": {
+          "dark": "#d29922",
+          "light": "#9a6700",
+          "highContrast": "#d29922",
+          "highContrastLight": "#9a6700"
+        }
+      },
+      {
+        "id": "malt.hunkFail",
+        "description": "Outline of a changed block that failed review.",
+        "defaults": {
+          "dark": "#f85149",
+          "light": "#cf222e",
+          "highContrast": "#f85149",
+          "highContrastLight": "#cf222e"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "node -e \"require('node:fs').mkdirSync('out',{recursive:true})\" && node --permission --allow-fs-read=\"*\" --allow-fs-write=./out node_modules/typescript/bin/tsc -p .",
+    "watch": "tsc -p . --watch",
+    "check-types": "node --permission --allow-fs-read=\"*\" node_modules/typescript/bin/tsc -p . --noEmit && node --permission --allow-fs-read=\"*\" node_modules/typescript/bin/tsc -p scripts",
+    "lint": "node --permission --allow-fs-read=\"*\" node_modules/eslint/bin/eslint.js . --max-warnings 0",
+    "check-deps": "node --permission --allow-fs-read=\"*\" scripts/check-deps.mts",
+    "audit": "npm audit --omit=dev --audit-level=low && npm audit --audit-level=high && npm audit signatures",
+    "verify": "npm run check-deps && npm run check-types && npm run lint && npm test",
+    "test": "npm run compile && node out/test/runTest.js",
+    "vscode:prepublish": "npm run compile",
+    "vsix": "npm run compile && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
+    "@types/vscode": "1.140.0",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.1.0",
+    "eslint": "10.14.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
+  }
+}
