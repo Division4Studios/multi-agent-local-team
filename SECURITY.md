@@ -16,7 +16,6 @@ MALT is pre-1.0. Only the latest release (and `main`) receives security fixes.
 Report privately through either:
 
 - GitHub's [private vulnerability reporting](https://github.com/Division4Studios/multi-agent-local-team/security/advisories/new) (**Security** tab → **Report a vulnerability**), or
-- email to **ernest@division4studios.com** with `[MALT security]` in the subject.
 
 Please include:
 
