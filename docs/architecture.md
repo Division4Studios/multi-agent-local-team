@@ -38,6 +38,8 @@ Git events debounce for 600 ms. The tracker filters deleted/ignored statuses and
 
 New blocks trigger optional review and file opening. The review queue limits concurrency and deduplicates waiting/in-flight block IDs. Completed reviews persist in VS Code workspace state, bounded to 2,000 cached states. The UI subscribes to store changes. Automatic navigation uses preview tabs and preserves focus.
 
+Review IDs identify content and deliberately ignore line numbers. Identical blocks can share a cached verdict, but each sidebar row includes its URI and line range in its identity. Navigation carries the content ID and start line and resolves them against the current store; stale or invalid locations do not fall back to a different occurrence. Line shifts preserve cached reviews while updating row locations.
+
 Standards discovery is independent of Git change filtering. It can read ignored project instructions, but skips generated `.malt/` directories. The save operation creates an internal `.gitignore` only when absent. The reviewer reads the resulting rules file explicitly and sanitizes rules before combining them with immutable baseline checks.
 
 The service validates request/response shapes and confines workspace reads. Claude calls are tool-less, use an isolated working directory, and disable project/user settings and MCP configuration loading. Model results and repository text are untrusted; hover text is escaped and only the MALT retry command is enabled. See [SECURITY.md](../SECURITY.md) for the security and dependency policy.
