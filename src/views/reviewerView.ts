@@ -14,7 +14,7 @@ const STATE_ICONS: Readonly<Record<ReviewerStatus['state'], vscode.ThemeIcon>> =
   stopped: new vscode.ThemeIcon('circle-slash'),
   starting: new vscode.ThemeIcon('loading~spin'),
   running: new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('malt.hunkPass')),
-  unhealthy: new vscode.ThemeIcon('warning', new vscode.ThemeColor('malt.hunkConcerns')),
+  unhealthy: new vscode.ThemeIcon('warning', new vscode.ThemeColor('problemsWarningIcon.foreground')),
   error: new vscode.ThemeIcon('error', new vscode.ThemeColor('malt.hunkFail')),
 };
 

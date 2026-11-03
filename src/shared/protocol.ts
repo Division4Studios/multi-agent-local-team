@@ -4,13 +4,12 @@
  */
 import { isNonNegativeInteger, isRecord, isString, parseArray, readStrings } from './guards';
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 export const STANDARDS_FILE = '.malt/standards.json';
 
-export type Verdict = 'pass' | 'concerns' | 'fail';
 export type CheckStatus = 'pass' | 'fail' | 'not-applicable';
 
-/** A short, checkable project standard extracted from docs, skills and configs. */
+/** A short, checkable project standard extracted from docs, skills and configs. `category` is its group. */
 export interface Rule {
   readonly id: string;
   readonly title: string;
@@ -19,20 +18,34 @@ export interface Rule {
   readonly source: string;
 }
 
+/** The result of reviewing one block against one rule, in its own isolated call. */
 export interface RuleCheck {
   readonly ruleId: string;
   readonly title: string;
   readonly status: CheckStatus;
+  /** One sentence for the tree and hover. */
   readonly note: string;
+  /** The full explanation, shown on the rule's detail page. */
+  readonly detail: string;
 }
 
-/** The reviewer's answer for one changed block. */
-export interface HunkReview {
-  readonly verdict: Verdict;
+/** The reviewer's description of one changed block, and the ids of the rules that could concern it. */
+export interface BlockOverview {
   readonly summary: string;
-  readonly what: string;
-  readonly why: string;
-  readonly necessity: string;
+  readonly purpose: string;
+  readonly technical: string;
+  readonly design: string;
+  readonly applicable: readonly string[];
+}
+
+/** Answer to POST /review: the overview plus the rules it was sorted against (baseline first). */
+export interface OverviewResponse {
+  readonly overview: BlockOverview;
+  readonly rules: readonly Rule[];
+}
+
+/** A block's review as the extension keeps it; `checks` fill in one rule at a time. */
+export interface HunkReview extends OverviewResponse {
   readonly checks: readonly RuleCheck[];
 }
 
@@ -44,6 +57,11 @@ export interface ReviewRequest {
   readonly endLine: number;
   /** Unified-diff text of the block (header and body). */
   readonly patch: string;
+}
+
+/** POST /check: one block against one rule, named by id; the reviewer looks the rule up itself. */
+export interface CheckRequest extends ReviewRequest {
+  readonly ruleId: string;
 }
 
 export interface StandardsDocument {
@@ -59,10 +77,8 @@ export interface HealthResponse {
   readonly rulesLoaded: number;
 }
 
-const VERDICTS: readonly string[] = ['pass', 'concerns', 'fail'];
 const CHECK_STATUSES: readonly string[] = ['pass', 'fail', 'not-applicable'];
 
-const isVerdict = (value: unknown): value is Verdict => isString(value) && VERDICTS.includes(value);
 const isCheckStatus = (value: unknown): value is CheckStatus => isString(value) && CHECK_STATUSES.includes(value);
 
 export const parseRule = (value: unknown): Rule | undefined => {
@@ -72,24 +88,40 @@ export const parseRule = (value: unknown): Rule | undefined => {
   return readStrings(value, ['id', 'title', 'check', 'category', 'source']);
 };
 
+export const parseRules = (value: unknown): Rule[] | undefined => parseArray(value, parseRule);
+
 export const parseRuleCheck = (value: unknown): RuleCheck | undefined => {
   if (!isRecord(value) || !isCheckStatus(value['status'])) {
     return undefined;
   }
-  const strings = readStrings(value, ['ruleId', 'title', 'note']);
+  const strings = readStrings(value, ['ruleId', 'title', 'note', 'detail']);
   return strings === undefined ? undefined : { ...strings, status: value['status'] };
 };
 
+const parseString = (value: unknown): string | undefined => (isString(value) ? value : undefined);
+
+export const parseBlockOverview = (value: unknown): BlockOverview | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const strings = readStrings(value, ['summary', 'purpose', 'technical', 'design']);
+  const applicable = parseArray(value['applicable'], parseString);
+  return strings === undefined || applicable === undefined ? undefined : { ...strings, applicable };
+};
+
+export const parseOverviewResponse = (value: unknown): OverviewResponse | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const overview = parseBlockOverview(value['overview']);
+  const rules = parseRules(value['rules']);
+  return overview === undefined || rules === undefined ? undefined : { overview, rules };
+};
+
 export const parseHunkReview = (value: unknown): HunkReview | undefined => {
-  if (!isRecord(value) || !isVerdict(value['verdict'])) {
-    return undefined;
-  }
-  const strings = readStrings(value, ['summary', 'what', 'why', 'necessity']);
-  const checks = parseArray(value['checks'], parseRuleCheck);
-  if (strings === undefined || checks === undefined) {
-    return undefined;
-  }
-  return { ...strings, verdict: value['verdict'], checks };
+  const response = parseOverviewResponse(value);
+  const checks = isRecord(value) ? parseArray(value['checks'], parseRuleCheck) : undefined;
+  return response === undefined || checks === undefined ? undefined : { ...response, checks };
 };
 
 export const parseReviewRequest = (value: unknown): ReviewRequest | undefined => {
@@ -104,7 +136,11 @@ export const parseReviewRequest = (value: unknown): ReviewRequest | undefined =>
   return endLine < startLine ? undefined : { ...strings, startLine, endLine };
 };
 
-export const parseRules = (value: unknown): Rule[] | undefined => parseArray(value, parseRule);
+export const parseCheckRequest = (value: unknown): CheckRequest | undefined => {
+  const request = parseReviewRequest(value);
+  const ruleId = isRecord(value) ? value['ruleId'] : undefined;
+  return request === undefined || !isString(ruleId) ? undefined : { ...request, ruleId };
+};
 
 export const parseStandardsDocument = (value: unknown): StandardsDocument | undefined => {
   if (!isRecord(value) || value['version'] !== 1 || !isString(value['generatedAt'])) {

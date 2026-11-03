@@ -1,16 +1,18 @@
-/** Regression test for the P2 finding: a block that vanishes while waiting must be reviewable when it returns. */
+/** Review queue: one overview call per block, then one call per applicable rule, with resumable progress. */
 import assert from 'node:assert/strict';
 import * as vscode from 'vscode';
 import { HunkStore } from '../../review/hunkStore';
 import type { TrackedHunk } from '../../review/hunkStore';
 import { ReviewQueue } from '../../review/reviewQueue';
 import type { HunkReviewer } from '../../review/reviewQueue';
-import type { HunkReview, ReviewRequest } from '../../shared/protocol';
-import { MemoryStorage, deferred, waitFor } from './testUtils';
+import { ruleRows } from '../../review/reviewProgress';
+import type { CheckRequest, OverviewResponse, ReviewRequest, RuleCheck } from '../../shared/protocol';
+import { MemoryStorage, deferred, testCheck, testReview, testRule, waitFor } from './testUtils';
 import type { Deferred } from './testUtils';
 import type { TestCase } from './harness';
 
-const REVIEW: HunkReview = { verdict: 'pass', summary: 's', what: 'w', why: 'y', necessity: 'n', checks: [] };
+const RULES = [testRule('a'), testRule('b'), testRule('skipped')];
+const OVERVIEW: OverviewResponse = { overview: testReview(RULES, ['a', 'b']).overview, rules: RULES };
 
 const trackedHunk = (id: string, path: string): TrackedHunk => ({
   id,
@@ -19,27 +21,43 @@ const trackedHunk = (id: string, path: string): TrackedHunk => ({
   hunk: { header: '@@ -1 +1 @@', body: `+${id}`, startLine: 0, endLine: 0, added: 1, removed: 0 },
 });
 
-/** A reviewer whose first call blocks until released, so other blocks pile up in the waiting list. */
+/** A reviewer whose first overview blocks until released, so other blocks pile up in the waiting list. */
 class GatedReviewer implements HunkReviewer {
   public readonly requests: ReviewRequest[] = [];
+  public readonly checks: CheckRequest[] = [];
   public readonly gate: Deferred<undefined> = deferred<undefined>();
+  public failRule: string | undefined;
 
-  public async review(request: ReviewRequest): Promise<HunkReview> {
+  public async review(request: ReviewRequest): Promise<OverviewResponse> {
     this.requests.push(request);
     if (this.requests.length === 1) {
       await this.gate.promise;
     }
-    return REVIEW;
+    return OVERVIEW;
+  }
+
+  public async check(request: CheckRequest): Promise<RuleCheck> {
+    this.checks.push(request);
+    const rule = RULES.find((candidate) => candidate.id === request.ruleId);
+    if (rule === undefined || rule.id === this.failRule) {
+      throw new Error('check failed');
+    }
+    return await Promise.resolve(testCheck(rule, rule.id === 'a' ? 'fail' : 'pass'));
   }
 }
+
+const setup = (concurrency = 1): { store: HunkStore; reviewer: GatedReviewer; queue: ReviewQueue } => {
+  const store = new HunkStore(new MemoryStorage());
+  const reviewer = new GatedReviewer();
+  const queue = new ReviewQueue({ store, client: (): HunkReviewer => reviewer, concurrency: (): number => concurrency });
+  return { store, reviewer, queue };
+};
 
 export const tests: readonly TestCase[] = [
   {
     name: 'review queue: a block that vanished while waiting is reviewed when it comes back',
     run: async (): Promise<void> => {
-      const store = new HunkStore(new MemoryStorage());
-      const reviewer = new GatedReviewer();
-      const queue = new ReviewQueue({ store, client: (): HunkReviewer => reviewer, concurrency: (): number => 1 });
+      const { store, reviewer, queue } = setup();
       const blocking = trackedHunk('blocking', 'a.ts');
       const vanishing = trackedHunk('vanishing', 'b.ts');
       store.setFileHunks(blocking.uri, [blocking]);
@@ -64,9 +82,7 @@ export const tests: readonly TestCase[] = [
   {
     name: 'review queue: never sends the same block twice while it is waiting or in flight',
     run: async (): Promise<void> => {
-      const store = new HunkStore(new MemoryStorage());
-      const reviewer = new GatedReviewer();
-      const queue = new ReviewQueue({ store, client: (): HunkReviewer => reviewer, concurrency: (): number => 1 });
+      const { store, reviewer, queue } = setup();
       const block = trackedHunk('once', 'a.ts');
       store.setFileHunks(block.uri, [block]);
       queue.enqueue(block);
@@ -78,12 +94,52 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
-    name: 'hunk store: ignores persisted reviews that fail validation',
+    name: 'review queue: checks each applicable rule in its own call and sorts the results',
+    run: async (): Promise<void> => {
+      const { store, reviewer, queue } = setup(2);
+      const block = trackedHunk('rules', 'a.ts');
+      store.setFileHunks(block.uri, [block]);
+      reviewer.gate.resolve(undefined);
+      queue.enqueue(block);
+      await waitFor(() => store.state(block.id).status === 'reviewed', 'block reviewed');
+      assert.deepEqual(reviewer.checks.map((request) => request.ruleId).sort(), ['a', 'b'], 'not-applicable rule is never checked');
+      const { review } = store.state(block.id);
+      assert.ok(review !== undefined);
+      assert.deepEqual(ruleRows(review).map((row) => [row.rule.id, row.run]), [['a', 'fail'], ['b', 'pass'], ['skipped', 'not-applicable']]);
+      store.dispose();
+    },
+  },
+  {
+    name: 'review queue: a failed rule check leaves the block in error and a retry runs only that rule',
+    run: async (): Promise<void> => {
+      const { store, reviewer, queue } = setup();
+      const block = trackedHunk('retry', 'a.ts');
+      store.setFileHunks(block.uri, [block]);
+      reviewer.gate.resolve(undefined);
+      reviewer.failRule = 'b';
+      queue.enqueue(block);
+      await waitFor(() => store.state(block.id).status === 'error', 'block errored');
+      assert.equal(store.state(block.id).review?.checks.length, 1, 'the successful check is kept');
+      reviewer.failRule = undefined;
+      queue.enqueueUnreviewed();
+      await waitFor(() => store.state(block.id).status === 'reviewed', 'block reviewed');
+      assert.equal(reviewer.requests.length, 1, 'no second overview');
+      assert.deepEqual(reviewer.checks.map((request) => request.ruleId), ['a', 'b', 'b']);
+      store.dispose();
+    },
+  },
+  {
+    name: 'hunk store: ignores persisted reviews that fail validation and resumes partial ones',
     run: (): void => {
       const storage = new MemoryStorage();
-      void storage.update('malt.reviews.v1', { good: REVIEW, bad: { verdict: 'great' } });
+      const [first] = RULES;
+      assert.ok(first !== undefined);
+      const complete = testReview(RULES, ['a'], [testCheck(first, 'pass')]);
+      void storage.update('malt.reviews.v1', { good: complete, partial: testReview(RULES, ['a']), bad: { verdict: 'great' } });
       const store = new HunkStore(storage);
       assert.equal(store.state('good').status, 'reviewed');
+      assert.equal(store.state('partial').status, 'pending');
+      assert.ok(store.state('partial').review !== undefined);
       assert.equal(store.state('bad').status, 'pending');
       store.dispose();
     },

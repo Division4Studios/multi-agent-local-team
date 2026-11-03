@@ -26,6 +26,7 @@ const main = (): void => {
   const service = new ReviewService(
     {
       workspaceRoot: required('MALT_WORKSPACE'),
+      triageModel: optional('MALT_TRIAGE_MODEL', 'sonnet'),
       reviewModel: optional('MALT_REVIEW_MODEL', 'sonnet'),
       standardsModel: optional('MALT_STANDARDS_MODEL', 'opus'),
     },

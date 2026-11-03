@@ -6,6 +6,7 @@ export type BackendSetting = 'auto' | 'docker' | 'host';
 export interface MaltSettings {
   readonly backend: BackendSetting;
   readonly autoStart: boolean;
+  readonly triageModel: string;
   readonly reviewModel: string;
   readonly standardsModel: string;
   readonly maxConcurrentReviews: number;
@@ -22,6 +23,7 @@ export const readSettings = (): MaltSettings => {
   return {
     backend: readBackend(config.get<string>('reviewer.backend', 'auto')),
     autoStart: config.get<boolean>('reviewer.autoStart', true),
+    triageModel: config.get<string>('reviewer.triageModel', 'sonnet'),
     reviewModel: config.get<string>('reviewer.reviewModel', 'sonnet'),
     standardsModel: config.get<string>('reviewer.standardsModel', 'opus'),
     maxConcurrentReviews: Math.max(1, config.get<number>('reviewer.maxConcurrentReviews', 2)),

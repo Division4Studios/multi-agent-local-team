@@ -4,27 +4,25 @@
  */
 import * as vscode from 'vscode';
 import type { HunkState, TrackedHunk } from '../review/hunkStore';
-import type { CheckStatus } from '../shared/protocol';
-import { ICONS, VERDICT_LABELS, statusLabel, visualFor } from './visuals';
-
-const CHECK_ICONS: Readonly<Record<CheckStatus, string>> = { pass: '$(pass)', fail: '$(error)', 'not-applicable': '$(dash)' };
+import { RULE_RUN_ORDER, ruleRows } from '../review/reviewProgress';
+import { ICONS, RUN_LABELS, statusLabel, visualFor } from './visuals';
 
 const appendSection = (markdown: vscode.MarkdownString, title: string, text: string): void => {
   markdown.appendMarkdown(`\n\n**${title}** `);
   markdown.appendText(text);
 };
 
+/** Counts per standing, then each failing rule with its note. Full details live in the Changes view. */
 const appendChecks = (markdown: vscode.MarkdownString, state: HunkState): void => {
-  const checks = state.review?.checks ?? [];
-  const relevant = checks.filter((check) => check.status !== 'not-applicable');
-  markdown.appendMarkdown('\n\n---\n\n**Checks**');
-  for (const check of relevant) {
-    markdown.appendMarkdown(`\n\n${CHECK_ICONS[check.status]} **${check.status === 'pass' ? 'Pass' : 'Fail'}** · `);
-    markdown.appendText(`${check.title} — ${check.note}`);
-  }
-  const skipped = checks.length - relevant.length;
-  if (skipped > 0) {
-    markdown.appendMarkdown(`\n\n${CHECK_ICONS['not-applicable']} ${String(skipped)} rule(s) not applicable`);
+  const rows = state.review === undefined ? [] : ruleRows(state.review, state.running);
+  const counts = RULE_RUN_ORDER.flatMap((run) => {
+    const count = rows.filter((row) => row.run === run).length;
+    return count === 0 ? [] : [`${String(count)} ${RUN_LABELS[run]}`];
+  });
+  markdown.appendMarkdown(`\n\n---\n\n**Rules** · ${counts.join(' · ')}`);
+  for (const row of rows.filter((candidate) => candidate.run === 'fail')) {
+    markdown.appendMarkdown('\n\n$(error) **Fail** · ');
+    markdown.appendText(`${row.rule.title} — ${row.check?.note ?? ''}`);
   }
 };
 
@@ -35,15 +33,14 @@ export const buildReviewMarkdown = (tracked: TrackedHunk, state: HunkState): vsc
   const lines = `lines ${String(tracked.hunk.startLine + 1)}–${String(tracked.hunk.endLine + 1)}`;
   const review = state.review;
 
-  if (review === undefined) {
-    markdown.appendMarkdown(`**MALT** · $(${ICONS[visual]}) `);
-    markdown.appendText(state.status === 'error' ? `Review failed: ${state.error ?? 'unknown error'}` : statusLabel(state));
-  } else {
-    markdown.appendMarkdown(`**MALT** · $(${ICONS[visual]}) **${VERDICT_LABELS[review.verdict]}**\n\n`);
-    markdown.appendText(review.summary);
-    appendSection(markdown, 'What', review.what);
-    appendSection(markdown, 'Why', review.why);
-    appendSection(markdown, 'Needed?', review.necessity);
+  markdown.appendMarkdown(`**MALT** · $(${ICONS[visual]}) `);
+  markdown.appendText(state.status === 'error' ? `Review failed: ${state.error ?? 'unknown error'}` : statusLabel(state));
+  if (review !== undefined) {
+    markdown.appendMarkdown('\n\n');
+    markdown.appendText(review.overview.summary);
+    appendSection(markdown, 'Purpose', review.overview.purpose);
+    appendSection(markdown, 'Technical', review.overview.technical);
+    appendSection(markdown, 'Design', review.overview.design);
     appendChecks(markdown, state);
   }
 

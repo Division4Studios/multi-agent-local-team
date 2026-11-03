@@ -25,17 +25,16 @@ The sidebar should show **Reviewer: running**. Clicking the reviewer row opens i
 1. Run **MALT: Scan Project Standards**. This reads project documentation, agent instructions and supported lint/config files, including instructions in ignored agent folders.
 2. Inspect the generated `.malt/standards.json` using **Open Rules**. Generated rules are project guidance; built-in baseline checks remain active.
 3. Edit and **save** a text file, or let a coding agent edit it on disk. After Git refreshes, MALT outlines the changed blocks.
-4. Hover a block for its verdict, summary, what/why/necessity, and individual checks. Select a block in **Changes** to reveal it. Use **Review Again** to retry a completed or failed review.
+4. Hover a block for its summary, business purpose, technical description, design assessment and rule results. Select a block in **Changes** to reveal it, and expand it to see its rules by group: running first, then failed, passed, not run and not applicable. Select a checked rule for its full explanation. Use **Review Again** to rerun a block from the start; reviewing a failed block again only reruns the rules that are missing.
 
 | State | Meaning |
 | --- | --- |
-| Waiting / queued / reviewing | No completed verdict yet; the outline is dashed |
+| Waiting / queued / reviewing | No failure yet and rules still to check; the outline is dashed |
 | Passed | Green outline; checks passed |
-| Needs attention | Amber outline; concerns need human judgment |
-| Changes requested | Red outline; review found failures |
+| Changes requested | Red outline; at least one rule failed (shown as soon as it fails, even while other rules run) |
 | Review failed | The request failed, not a verdict on the code; check logs and retry |
 
-Text and icons accompany color. Your theme can override the four `malt.hunk*` colors.
+Text and icons accompany color. Your theme can override the three `malt.hunk*` colors.
 
 ## Keep the editor quiet
 

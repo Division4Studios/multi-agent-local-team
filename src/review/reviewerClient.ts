@@ -1,13 +1,15 @@
 /** HTTP client for the reviewer service, bound to 127.0.0.1 and authenticated with a per-start token. */
 import { request as httpRequest } from 'node:http';
 import { isRecord, isString } from '../shared/guards';
-import { parseHealthResponse, parseHunkReview, parseRules } from '../shared/protocol';
-import type { HealthResponse, HunkReview, ReviewRequest, Rule } from '../shared/protocol';
+import { parseHealthResponse, parseOverviewResponse, parseRuleCheck, parseRules } from '../shared/protocol';
+import type { CheckRequest, HealthResponse, OverviewResponse, ReviewRequest, Rule, RuleCheck } from '../shared/protocol';
 
 export interface ReviewerEndpoint {
   readonly port: number;
   readonly token: string;
 }
+
+const REVIEW_TIMEOUT_MS = 240_000;
 
 interface CallOptions {
   readonly method: 'GET' | 'POST';
@@ -73,14 +75,24 @@ export class ReviewerClient {
     return health;
   }
 
-  public async review(request: ReviewRequest): Promise<HunkReview> {
-    const review = parseHunkReview(
-      await call(this.endpoint, { method: 'POST', path: '/review', body: request, timeoutMs: 240_000 }),
+  public async review(request: ReviewRequest): Promise<OverviewResponse> {
+    const response = parseOverviewResponse(
+      await call(this.endpoint, { method: 'POST', path: '/review', body: request, timeoutMs: REVIEW_TIMEOUT_MS }),
     );
-    if (review === undefined) {
-      throw new Error('Reviewer returned an invalid review');
+    if (response === undefined) {
+      throw new Error('Reviewer returned an invalid overview');
     }
-    return review;
+    return response;
+  }
+
+  public async check(request: CheckRequest): Promise<RuleCheck> {
+    const check = parseRuleCheck(
+      await call(this.endpoint, { method: 'POST', path: '/check', body: request, timeoutMs: REVIEW_TIMEOUT_MS }),
+    );
+    if (check?.ruleId !== request.ruleId) {
+      throw new Error('Reviewer returned an invalid check');
+    }
+    return check;
   }
 
   public async scanStandards(): Promise<{ readonly rules: readonly Rule[]; readonly sources: readonly string[] }> {
