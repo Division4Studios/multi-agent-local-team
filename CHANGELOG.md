@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Raise the minimum VS Code version and API definitions together to 1.144; retain Dependabot API updates.
+
 - Standards discovery continues to read ignored instructions and now includes `.agents/`.
 - Consistent native status icons, concise inline verdicts, clearer hover hierarchy, and stable sidebar identities.
 - New barley-inspired identity, extension PNG icon, repository banner, and extension listing metadata.

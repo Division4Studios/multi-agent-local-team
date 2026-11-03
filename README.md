@@ -20,7 +20,7 @@ A VS Code extension for teams who ship with AI and still care what lands in `mai
 [![GitHub issues](https://img.shields.io/github/issues/Division4Studios/multi-agent-local-team?style=flat)](https://github.com/Division4Studios/multi-agent-local-team/issues)
 [![Last commit](https://img.shields.io/github/last-commit/Division4Studios/multi-agent-local-team?style=flat)](https://github.com/Division4Studios/multi-agent-local-team/commits/main)
 
-[![VS Code](https://img.shields.io/badge/VS%20Code-%E2%89%A51.140-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
+[![VS Code](https://img.shields.io/badge/VS%20Code-%E2%89%A51.144-007ACC?logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strictest-3178C6?logo=typescript&logoColor=white)](tsconfig.base.json)
 [![ESLint](https://img.shields.io/badge/ESLint-0%20warnings%20allowed-4B32C3?logo=eslint&logoColor=white)](eslint.config.mjs)
 [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-22c55e)](SECURITY.md#supply-chain-policy)
@@ -84,7 +84,7 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 
 > MALT is not published to the VS Code Marketplace yet. To try the development build:
 
-**Prerequisites:** [Node.js 24+](https://nodejs.org/) and [VS Code 1.140+](https://code.visualstudio.com/).
+**Prerequisites:** [Node.js 24+](https://nodejs.org/) and [VS Code 1.144+](https://code.visualstudio.com/).
 
 ```sh
 git clone https://github.com/Division4Studios/multi-agent-local-team.git
