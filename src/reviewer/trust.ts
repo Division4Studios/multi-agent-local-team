@@ -44,9 +44,20 @@ export const sanitizeProjectRules = (rules: readonly Rule[], trusted: readonly R
 
 export const createNonce = (): string => randomBytes(12).toString('hex');
 
-/** Wraps untrusted content in nonce-tagged delimiters; content cannot close the block without the nonce. */
-export const dataBlock = (nonce: string, label: string, content: string): string =>
-  `<<<MALT-DATA-${nonce} ${label}>>>\n${content}\n<<<END-MALT-DATA-${nonce}>>>`;
+/** Block labels are trusted constants written by MALT: lowercase words, hyphens and parentheses only. */
+const SAFE_LABEL = /^[a-z][a-z0-9 ()-]{0,60}$/u;
+
+/**
+ * Wraps untrusted content in nonce-tagged delimiters; content cannot close the block without the nonce.
+ * The label is part of the framing, so it must be a trusted constant. Repository-controlled text (including
+ * file paths) belongs in `content`. Unsafe labels are rejected so this cannot regress.
+ */
+export const dataBlock = (nonce: string, label: string, content: string): string => {
+  if (!SAFE_LABEL.test(label)) {
+    throw new Error('dataBlock labels must be trusted constants; put untrusted text in the content');
+  }
+  return `<<<MALT-DATA-${nonce} ${label}>>>\n${content}\n<<<END-MALT-DATA-${nonce}>>>`;
+};
 
 const failClosed = (rule: Rule): RuleCheck => ({
   ruleId: rule.id,
