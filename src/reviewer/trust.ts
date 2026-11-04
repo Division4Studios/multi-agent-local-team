@@ -10,6 +10,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import type { ArchitectureModule, BlockOverview, Finding, FindingAnchor, Rule, RuleCheck } from '../shared/protocol';
+import type { Understanding } from '../shared/understanding';
 
 const RULE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const MAX_PROJECT_RULES = 60;
@@ -17,6 +18,7 @@ const FIELD_LIMITS = { title: 120, check: 300, category: 32, source: 200 };
 const NOTE_LIMIT = 500;
 const DETAIL_LIMIT = 6_000;
 const MODULE_LIMITS = { purpose: 200, exportName: 80, exports: 30 };
+const UNDERSTANDING_LIMITS = { text: 800, question: 400, evidence: 600, confirmed: 1_600 };
 const MAX_FINDINGS = 20;
 
 /** The baseline rule that catches prompt injection; it is checked on every block, whatever the sorting says. */
@@ -89,6 +91,24 @@ export const enforceCheckPolicy = (check: RuleCheck, rule: Rule): RuleCheck => (
 });
 
 /**
+ * A module's understanding is repository-controlled (a saved map, including the developer's `confirmed` text) and
+ * goes back to the model as data, so every field is sanitized and capped. Evidence keeps its line breaks and
+ * spacing so a verbatim quote still matches its source; it only loses invisible and control characters, and a
+ * quote that needed them stops matching (fails closed).
+ */
+const sanitizeQuote = (value: string): string =>
+  value.replace(/[\p{Cf}]|[^\P{Cc}\n\r\t]/gu, ' ').slice(0, UNDERSTANDING_LIMITS.evidence);
+
+const sanitizeUnderstanding = (value: Understanding): Understanding => ({
+  what: sanitizeText(value.what, UNDERSTANDING_LIMITS.text),
+  whatEvidence: sanitizeQuote(value.whatEvidence),
+  why: sanitizeText(value.why, UNDERSTANDING_LIMITS.text),
+  whyEvidence: sanitizeQuote(value.whyEvidence),
+  question: sanitizeText(value.question, UNDERSTANDING_LIMITS.question),
+  ...(value.confirmed === undefined ? {} : { confirmed: sanitizeText(value.confirmed, UNDERSTANDING_LIMITS.confirmed) }),
+});
+
+/**
  * Keeps one entry per scanned source file (the model cannot add paths it was not shown), with sanitized,
  * capped text. The map is fed back to later reviews as data, so it gets the same treatment as project rules.
  */
@@ -101,7 +121,7 @@ export const sanitizeModules = (modules: readonly ArchitectureModule[], scanned:
       const names = module.exports.map((name) => sanitizeText(name, MODULE_LIMITS.exportName)).filter((name) => name !== '');
       result.push({
         path: module.path,
-        ...(module.understanding === undefined ? {} : { understanding: sanitizeText(module.understanding, MODULE_LIMITS.purpose) }),
+        ...(module.understanding === undefined ? {} : { understanding: sanitizeUnderstanding(module.understanding) }),
         ...(module.fingerprint === undefined ? {} : { fingerprint: module.fingerprint }),
         purpose: sanitizeText(module.purpose, MODULE_LIMITS.purpose),
         exports: [...new Set(names)].slice(0, MODULE_LIMITS.exports),
