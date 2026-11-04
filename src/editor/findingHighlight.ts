@@ -66,6 +66,34 @@ export const findDeclarationLine = (text: string, symbol: string): number | unde
   return line >= 0 ? line : undefined;
 };
 
+/**
+ * The lines a verbatim quote occupies in `text`: its non-blank lines must appear in order (indentation and blank
+ * lines ignored). Returns zero-based first and last line, or undefined if the quote is not in the text.
+ */
+export const findQuoteLines = (text: string, quote: string): { readonly start: number; readonly end: number } | undefined => {
+  const wanted = quote.split(/\r?\n/u).map((line) => line.trim()).filter((line) => line !== '');
+  const lines = text.split(/\r?\n/u).map((line) => line.trim());
+  const [first] = wanted;
+  if (first === undefined) {
+    return undefined;
+  }
+  for (let start = lines.indexOf(first); start >= 0; start = lines.indexOf(first, start + 1)) {
+    let matched = 0;
+    let line = start;
+    for (; line < lines.length && matched < wanted.length; line += 1) {
+      if (lines[line] === wanted[matched]) {
+        matched += 1;
+      } else if (lines[line] !== '') {
+        break;
+      }
+    }
+    if (matched === wanted.length) {
+      return { start, end: line - 1 };
+    }
+  }
+  return undefined;
+};
+
 export const resolveAnchor = async (document: vscode.TextDocument, symbol: string): Promise<vscode.Range | undefined> => {
   const range = await fromSymbols(document.uri, symbol);
   if (range !== undefined) {
@@ -73,6 +101,14 @@ export const resolveAnchor = async (document: vscode.TextDocument, symbol: strin
   }
   const line = findDeclarationLine(document.getText(), symbol);
   return line === undefined ? undefined : document.lineAt(line).range;
+};
+
+const locate = async (document: vscode.TextDocument, anchor: { readonly symbol: string; readonly quote?: string }): Promise<vscode.Range | undefined> => {
+  const quoted = anchor.quote === undefined ? undefined : findQuoteLines(document.getText(), anchor.quote);
+  if (quoted !== undefined) {
+    return new vscode.Range(quoted.start, 0, quoted.end, document.lineAt(quoted.end).text.length);
+  }
+  return anchor.symbol === '' ? undefined : await resolveAnchor(document, anchor.symbol);
 };
 
 interface Focus {
@@ -109,13 +145,22 @@ export class FindingHighlight implements vscode.Disposable, vscode.HoverProvider
   }
 
   /** Opens the anchor's file and outlines the declaration. Returns false if it cannot be shown. */
-  public async show(folder: vscode.WorkspaceFolder, finding: Finding, anchor: FindingAnchor, kind: string): Promise<boolean> {
+  /**
+   * Opens the anchor's file and outlines what it points at: the quoted lines if a quote is given and found, else
+   * the named declaration, else the first line. Returns false if the file cannot be shown safely.
+   */
+  public async show(
+    folder: vscode.WorkspaceFolder,
+    finding: Finding,
+    anchor: FindingAnchor & { readonly quote?: string },
+    kind: string,
+  ): Promise<boolean> {
     const uri = await workspaceFile(folder, anchor.file);
     if (uri === undefined || !finding.files.includes(anchor.file)) {
       return false;
     }
     const document = await vscode.workspace.openTextDocument(uri);
-    const range = (await resolveAnchor(document, anchor.symbol)) ?? document.lineAt(0).range;
+    const range = (await locate(document, anchor)) ?? document.lineAt(0).range;
     this.focus = { uri, range, finding, kind, anchor };
     const editor = await vscode.window.showTextDocument(document, { preview: true, selection: new vscode.Range(range.start, range.start) });
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
@@ -135,8 +180,8 @@ export class FindingHighlight implements vscode.Disposable, vscode.HoverProvider
     markdown.appendText(focus.finding.note);
     markdown.appendMarkdown('\n\n---\n\n');
     markdown.appendText(focus.finding.detail);
-    markdown.appendMarkdown('\n\n---\n\n*Declaration:* ');
-    markdown.appendText(`${focus.anchor.symbol} · ${focus.finding.files.join(', ')}`);
+    markdown.appendMarkdown(focus.anchor.symbol === '' ? '\n\n---\n\n*File:* ' : '\n\n---\n\n*Declaration:* ');
+    markdown.appendText(focus.anchor.symbol === '' ? focus.anchor.file : `${focus.anchor.symbol} · ${focus.anchor.file}`);
     return new vscode.Hover(markdown, focus.range);
   }
 

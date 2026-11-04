@@ -17,6 +17,9 @@ import { Credentials } from '../../backend/credentials';
 import { HunkStore } from '../../review/hunkStore';
 import { hunkId, newFileHunks } from '../../diff/unifiedDiff';
 import { MemoryStorage, testReview } from './testUtils';
+import { gapId } from '../../shared/investigation';
+import type { GapInvestigation } from '../../shared/investigation';
+import { readInvestigations, saveInvestigation } from '../../standards/investigations';
 import type { TestCase } from './harness';
 
 const RUST = ['use crate::config::parse_config;', '', '/// Reads the config.', 'pub fn parse_config(path: &str) -> Config {', '    todo!()', '}', ''].join('\n');
@@ -88,8 +91,8 @@ const assertRows = (tree: ReviewerTree): void => {
     'Standards and Architecture open pages; nothing here rescans');
   const [, modelsNode, standardsNode, gapsNode] = roots;
   const types = tree.getChildren(modelsNode).map((node) => tree.getTreeItem(node));
-  assert.deepEqual(labels(types), ['Block overview', 'Rule checks', 'Consolidation', 'Standards scan']);
-  assert.deepEqual(types.map((type) => type.description), ['sonnet · low effort', 'haiku · low effort', 'sonnet · low effort', 'opus · medium effort'], 'the defaults');
+  assert.deepEqual(labels(types), ['Block overview', 'Rule checks', 'Consolidation', 'Standards scan', 'Gap investigation']);
+  assert.deepEqual(types.map((type) => type.description), ['sonnet · low effort', 'haiku · low effort', 'sonnet · low effort', 'opus · medium effort', 'sonnet · medium effort'], 'the defaults');
   assert.deepEqual(types[1]?.command?.arguments, ['check'], 'selecting a type opens its model and effort pickers');
   const groups = tree.getChildren(standardsNode);
   assert.deepEqual(labels(groups.map((node) => tree.getTreeItem(node))), ['Architecture', 'Style']);
@@ -223,6 +226,52 @@ export const tests: readonly TestCase[] = [
         tree.dispose();
         model.dispose();
         store.dispose();
+        manager.dispose();
+        output.dispose();
+        await vscode.workspace.fs.delete(vscode.Uri.joinPath(root.uri, '.malt'), { recursive: true });
+      }
+    },
+  },
+  {
+    name: 'gap investigation: saved results show the verdict in the tray, with the summary and evidence beneath',
+    run: async (): Promise<void> => {
+      const root = folder();
+      await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root.uri, '.malt', 'standards.json'), Buffer.from(JSON.stringify(STANDARDS)));
+      const investigation: GapInvestigation = {
+        gapId: gapId(GAP),
+        investigatedAt: '2026-11-04T00:00:00.000Z',
+        verdict: 'partly',
+        confidence: 'medium',
+        plainSummary: 'Errors are handled two ways.',
+        whatTheCodeDoes: 'w',
+        evidence: [{ file: 'src/lib.rs', symbol: 'parse_config', quote: 'pub fn parse_config(path: &str) -> Config {', observation: 'Returns Config directly.' }],
+        counterpoints: 'c',
+        whyItMatters: 'm',
+        recommendation: 'r',
+        filesRead: ['src/lib.rs'],
+      };
+      const stale: GapInvestigation = { ...investigation, gapId: 'b'.repeat(24) };
+      const model = new StandardsModel(root);
+      const output = vscode.window.createOutputChannel('MALT test', { log: true });
+      const manager = new ReviewerManager(root.uri.fsPath, new Credentials(fakeSecrets()), output);
+      const tree = new ReviewerTreeProvider(manager, new HunkStore(new MemoryStorage()), model);
+      try {
+        await saveInvestigation(root, stale, []);
+        await saveInvestigation(root, investigation, STANDARDS.gaps);
+        await model.reload();
+        const saved = await readInvestigations(root);
+        assert.deepEqual(saved?.investigations.map((item) => item.gapId), [gapId(GAP)], 'investigations of gaps no longer recorded are pruned');
+        const gapsNode = tree.getChildren().find((node) => tree.getTreeItem(node).label === 'Gaps');
+        const [gapNode] = tree.getChildren(gapsNode);
+        assert.ok(gapNode !== undefined);
+        assert.equal(tree.getTreeItem(gapNode).description, 'Partly a gap · medium confidence');
+        const children = tree.getChildren(gapNode).map((node) => tree.getTreeItem(node));
+        assert.deepEqual(labels(children), ['In plain English', 'parse_config']);
+        assert.deepEqual(children.map((child) => child.command?.command), ['malt.showInvestigation', 'malt.showEvidence']);
+        assert.deepEqual(children[1]?.command?.arguments, [0, 0]);
+      } finally {
+        tree.dispose();
+        model.dispose();
         manager.dispose();
         output.dispose();
         await vscode.workspace.fs.delete(vscode.Uri.joinPath(root.uri, '.malt'), { recursive: true });

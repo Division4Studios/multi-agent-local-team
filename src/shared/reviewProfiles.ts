@@ -3,7 +3,7 @@
  * the tray), the reviewer manager (which passes them to the reviewer as environment variables) and the reviewer
  * (which uses them per call). Values are validated on both sides; invalid ones fall back to the defaults.
  */
-export type ReviewType = 'overview' | 'check' | 'consolidation' | 'standards';
+export type ReviewType = 'overview' | 'check' | 'consolidation' | 'standards' | 'investigation';
 
 /** `default` passes no effort flag, leaving the CLI's built-in default. */
 export type Effort = 'default' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
@@ -25,14 +25,15 @@ export interface ReviewTypeInfo {
   readonly defaults: CallProfile;
 }
 
-export const REVIEW_TYPES: readonly ReviewType[] = ['overview', 'check', 'consolidation', 'standards'];
+export const REVIEW_TYPES: readonly ReviewType[] = ['overview', 'check', 'consolidation', 'standards', 'investigation'];
 
 export const EFFORTS: readonly Effort[] = ['default', 'low', 'medium', 'high', 'xhigh', 'max'];
 
 /**
  * Defaults favour low usage: rule checks (most calls) are narrow yes/no questions on a small block, so they run on
  * Haiku at low effort; the overview and consolidation need judgment, so Sonnet at low effort; the rare standards
- * scan reads the whole project, so Opus at medium effort.
+ * scan reads the whole project, so Opus at medium effort; a gap investigation (on request) weighs real code, so
+ * Sonnet at medium effort.
  */
 export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
   overview: {
@@ -63,6 +64,13 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     effortSetting: 'reviewer.standardsEffort',
     defaults: { model: 'opus', effort: 'medium' },
   },
+  investigation: {
+    label: 'Gap investigation',
+    detail: 'Reads the real code behind one standards gap and decides if it is real. Only when you ask.',
+    modelSetting: 'reviewer.investigationModel',
+    effortSetting: 'reviewer.investigationEffort',
+    defaults: { model: 'sonnet', effort: 'medium' },
+  },
 };
 
 /** A model alias (`haiku`) or full id (`claude-sonnet-5-5`, `claude-opus-5-5[1m]`); never anything flag-like. */
@@ -92,7 +100,7 @@ export const profilesToEnv = (profiles: ReviewProfiles): Record<string, string> 
 
 export const profilesFromEnv = (env: Readonly<Record<string, string | undefined>>): ReviewProfiles => {
   const read = (type: ReviewType): CallProfile => profileFrom(type, env[envKey('MODEL', type)], env[envKey('EFFORT', type)]);
-  return { overview: read('overview'), check: read('check'), consolidation: read('consolidation'), standards: read('standards') };
+  return { overview: read('overview'), check: read('check'), consolidation: read('consolidation'), standards: read('standards'), investigation: read('investigation') };
 };
 
 export const describeProfile = ({ model, effort }: CallProfile): string =>

@@ -14,7 +14,7 @@ export const tests: readonly TestCase[] = [
     run: (): void => {
       assert.deepEqual(
         REVIEW_TYPES.map((type) => [type, REVIEW_TYPE_INFO[type].defaults.model, REVIEW_TYPE_INFO[type].defaults.effort]),
-        [['overview', 'sonnet', 'low'], ['check', 'haiku', 'low'], ['consolidation', 'sonnet', 'low'], ['standards', 'opus', 'medium']],
+        [['overview', 'sonnet', 'low'], ['check', 'haiku', 'low'], ['consolidation', 'sonnet', 'low'], ['standards', 'opus', 'medium'], ['investigation', 'sonnet', 'medium']],
       );
     },
   },
@@ -37,6 +37,7 @@ export const tests: readonly TestCase[] = [
         check: { model: 'haiku', effort: 'low' },
         consolidation: { model: 'opus', effort: 'default' },
         standards: { model: 'claude-opus-5-5', effort: 'high' },
+        investigation: { model: 'opus', effort: 'xhigh' },
       };
       assert.deepEqual(profilesFromEnv(profilesToEnv(profiles)), profiles);
       assert.deepEqual(profilesFromEnv({ MALT_MODEL_CHECK: '--evil', MALT_EFFORT_CHECK: 'nope' }).check, REVIEW_TYPE_INFO.check.defaults);

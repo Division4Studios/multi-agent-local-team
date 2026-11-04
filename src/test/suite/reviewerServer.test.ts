@@ -18,6 +18,7 @@ const TEST_PROFILES: ReviewProfiles = {
   check: { model: 'check-model', effort: 'low' },
   consolidation: { model: 'consolidation-model', effort: 'medium' },
   standards: { model: 'standards-model', effort: 'high' },
+  investigation: { model: 'investigation-model', effort: 'max' },
 };
 import {
   ARCHITECTURE_SCHEMA,

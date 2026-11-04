@@ -50,6 +50,16 @@ After reading the documents and mapping the code, the scan makes one more call t
 - **Inferred rules** are conventions the code clearly follows in at least three files that no documented rule covers, such as where components or data access live. They are saved with the documented rules, grouped the same way, and MALT marks their source as `Inferred from code: <paths>`. They never replace a baseline or documented rule. If one is wrong, write the real convention down in your docs and rescan; documented rules take precedence.
 - **Gaps** are what neither settles: no architecture document, two competing patterns for the same concern, a documented rule the code mostly ignores. They are not enforced. They are saved in `standards.json` and listed under the **Gaps** row in the Reviewer view, each with the decision the team should write down. Each gap names the declaration it is about; selecting it opens that file at the declaration, outlined, with the gap shown on hover. MALT finds the declaration in the real file (language symbols, then a declaration search), so it never relies on line numbers from the model. **Show Standards Gaps** shows them all on one page.
 
+### Investigating a gap
+
+The scan finds gaps from a map with one line per file (its purpose and exports). That is enough to notice that two files export the same names, but not to tell whether the code is duplicated or whether both import and implement one shared definition. Before acting on a gap, select the search icon next to it (**Investigate Gap**):
+
+1. MALT reads the real code: the files the gap names, their local imports, and other files that export the same names. Reads stay inside the workspace.
+2. One reviewer call (the **Gap investigation** profile, Sonnet at medium effort by default) checks the claim against the code.
+3. The result is a verdict, *Confirmed*, *Partly* or *Not a gap*, with a confidence level, a plain-English summary, what the code actually does, quoted evidence, the strongest case that it is not a gap, why it matters and what to do.
+
+Every quote is checked word for word against the files (whitespace aside). Quotes MALT cannot find are discarded, and a verdict that the gap is real with no verified evidence is marked low confidence. The verdict appears on the gap in the Reviewer view; expand it for the summary and evidence (each opens the quoted lines). Results are saved in `.malt/investigations.json` and stay with the gap until its description changes. **Investigate All Standards Gaps** investigates the rest, after saying how many calls it will make.
+
 Architecture documents (`ARCHITECTURE.md`, `DESIGN.md`, and anything under `adr/`, `adrs/`, `decisions/`, `architecture/` or `design/` folders) are read right after agent instructions, so their layering and placement decisions become rules first.
 
 ## Maintaining rules

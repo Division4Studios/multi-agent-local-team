@@ -11,21 +11,22 @@
 import * as vscode from 'vscode';
 import type { ReviewerManager, ReviewerStatus } from '../backend/reviewerManager';
 import type { HunkStore } from '../review/hunkStore';
-import type { Finding, FindingAnchor, Rule } from '../shared/protocol';
+import type { Rule } from '../shared/protocol';
 import { INFERRED_SOURCE_PREFIX } from '../shared/protocol';
 import type { RuleGroup, StandardsModel } from '../standards/standardsModel';
 import { readSettings } from '../config';
 import { REVIEW_TYPES, REVIEW_TYPE_INFO, describeProfile } from '../shared/reviewProfiles';
 import type { ReviewType } from '../shared/reviewProfiles';
 import { affectsReviewProfiles } from './reviewSettings';
+import { gapChildren, gapNodeItem, isGapNode } from './gapItems';
+import type { GapNode } from './gapItems';
 
 type Node =
   | { readonly kind: 'reviewer' | 'models' | 'standards' | 'gaps' | 'architecture' | 'queue' }
   | { readonly kind: 'reviewType'; readonly type: ReviewType }
   | { readonly kind: 'group'; readonly group: RuleGroup }
   | { readonly kind: 'rule'; readonly rule: Rule }
-  | { readonly kind: 'gap'; readonly gap: Finding; readonly index: number }
-  | { readonly kind: 'anchor'; readonly anchor: FindingAnchor; readonly gapIndex: number; readonly anchorIndex: number };
+  | GapNode;
 
 const STATE_ICONS: Readonly<Record<ReviewerStatus['state'], vscode.ThemeIcon>> = {
   stopped: new vscode.ThemeIcon('circle-slash'),
@@ -118,8 +119,8 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
     if (node.kind === 'gaps') {
       return this.standards.gaps.map((gap, index) => ({ kind: 'gap', gap, index }));
     }
-    if (node.kind === 'gap' && node.gap.anchors.length > 1) {
-      return node.gap.anchors.map((anchor, anchorIndex) => ({ kind: 'anchor', anchor, gapIndex: node.index, anchorIndex }));
+    if (node.kind === 'gap') {
+      return gapChildren(node.gap, node.index, this.standards.investigationFor(node.gap));
     }
     return [];
   }
@@ -134,11 +135,8 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
     if ('rule' in node) {
       return ruleItem(node.rule);
     }
-    if ('gap' in node) {
-      return gapItem(node.gap, node.index);
-    }
-    if ('anchor' in node) {
-      return anchorItem(node.anchor, node.gapIndex, node.anchorIndex);
+    if (isGapNode(node)) {
+      return gapNodeItem(node, (gap) => this.standards.investigationFor(gap));
     }
     return this.rowItem(node.kind);
   }
@@ -196,12 +194,17 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
 
   private gapsItem(): vscode.TreeItem {
     const gaps = this.standards.gaps;
+    const investigated = gaps.filter((gap) => this.standards.investigationFor(gap) !== undefined).length;
+    const progress = investigated === 0 ? '' : ` · ${String(investigated)} investigated`;
     const result = item('Gaps', {
-      description: this.standards.standards === undefined ? 'not scanned' : gaps.length === 0 ? 'none recorded' : `${plural(gaps.length, 'gap')} to decide`,
+      description: this.standards.standards === undefined ? 'not scanned' : gaps.length === 0 ? 'none recorded' : `${plural(gaps.length, 'gap')} to decide${progress}`,
       icon: new vscode.ThemeIcon('question'),
       ...(gaps.length > 0 ? { collapsed: false } : {}),
     });
-    result.tooltip = 'Missing or contradictory standards found by the last scan. Select one to see where it applies.';
+    if (gaps.length > 0) {
+      result.contextValue = 'malt.gaps';
+    }
+    result.tooltip = 'Possible gaps in the standards, found by the last scan. Investigate one (search icon) to have MALT read the real code and decide whether it is an actual gap.';
     return result;
   }
 
@@ -264,31 +267,5 @@ const ruleItem = (rule: Rule): vscode.TreeItem => {
   });
   result.id = JSON.stringify(['standards-rule', rule.id]);
   result.tooltip = `${rule.check}\n\n${inferred ? 'Inferred from code' : 'Documented'} · ${rule.source}`;
-  return result;
-};
-
-const gapItem = (gap: Finding, index: number): vscode.TreeItem => {
-  const first = gap.anchors[0];
-  const result = item(gap.title, {
-    description: first === undefined ? gap.files.join(', ') : `${first.symbol} · ${first.file}`,
-    icon: new vscode.ThemeIcon(first === undefined ? 'circle-large-outline' : 'go-to-file'),
-    command: { command: 'malt.showGap', title: 'Show where this gap applies', arguments: [index, 0] },
-    ...(gap.anchors.length > 1 ? { collapsed: true } : {}),
-  });
-  result.id = JSON.stringify(['gap', index, gap.title]);
-  result.contextValue = 'malt.gap';
-  const tooltip = new vscode.MarkdownString();
-  tooltip.appendText(`${gap.note}\n\n${gap.detail}`);
-  result.tooltip = tooltip;
-  return result;
-};
-
-const anchorItem = (anchor: FindingAnchor, gapIndex: number, anchorIndex: number): vscode.TreeItem => {
-  const result = item(anchor.symbol, {
-    description: anchor.file,
-    icon: new vscode.ThemeIcon('symbol-field'),
-    command: { command: 'malt.showGap', title: 'Show where this gap applies', arguments: [gapIndex, anchorIndex] },
-  });
-  result.id = JSON.stringify(['gap-anchor', gapIndex, anchorIndex, anchor.file, anchor.symbol]);
   return result;
 };

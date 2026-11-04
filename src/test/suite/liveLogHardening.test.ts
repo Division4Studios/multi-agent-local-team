@@ -19,7 +19,7 @@ import { ReviewService } from '../../reviewer/service';
 import { LiveLogConnection } from '../../views/conversationPanel';
 import type { LiveLogMessage, LiveLogSource } from '../../views/conversationPanel';
 import type { ConversationEvent, ConversationText } from '../../shared/conversation';
-import { REVIEW_TYPE_INFO } from '../../shared/reviewProfiles';
+import { REVIEW_TYPE_INFO, profilesFromEnv } from '../../shared/reviewProfiles';
 import { waitFor } from './testUtils';
 import type { TestCase } from './harness';
 
@@ -151,7 +151,7 @@ export const tests: readonly TestCase[] = [
     name: 'lifecycle: shutting down the reviewer closes open live-log streams',
     run: async (): Promise<void> => {
       const service = new ReviewService(
-        { workspaceRoot: '.', profiles: { overview: REVIEW_TYPE_INFO.overview.defaults, check: REVIEW_TYPE_INFO.check.defaults, consolidation: REVIEW_TYPE_INFO.consolidation.defaults, standards: REVIEW_TYPE_INFO.standards.defaults } },
+        { workspaceRoot: '.', profiles: profilesFromEnv({}) },
         { name: 'fake', callStructured: async (): Promise<unknown> => await Promise.resolve({}) },
       );
       const server: Server = createReviewerServer(service, 'token-0123456789');

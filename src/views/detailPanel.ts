@@ -43,7 +43,10 @@ nav a, a { color: var(--vscode-textLink-foreground); text-decoration: none; }
 .tags { margin-top: 0.4rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .tag { font-size: 0.8em; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground); }
-code { font-family: var(--vscode-editor-font-family); font-size: 0.9em; }`;
+code { font-family: var(--vscode-editor-font-family); font-size: 0.9em; }
+pre.code { white-space: pre-wrap; word-break: break-word; margin: 0.5rem 0 0; padding: 0.5rem 0.65rem; border-radius: 4px;
+  background: var(--vscode-textCodeBlock-background); }
+.verdict { display: inline-block; font-weight: 600; padding: 0.1rem 0.55rem; border-radius: 999px; }`;
 
 const renderPage = (page: DetailPage, nonce: string): string => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}';">
@@ -71,21 +74,26 @@ const showPage = (page: DetailPage): void => {
   showHtml(page.title, renderPage(page, randomBytes(16).toString('hex')));
 };
 
+/** One card on a list page. `code` (optional) is shown as a monospace block, escaped like everything else. */
+export interface ListItem {
+  readonly title: string;
+  readonly body: readonly string[];
+  readonly tags: readonly string[];
+  readonly code?: string;
+}
+
 /** A document-style page: groups of cards with a table of contents. Every value is escaped when rendered. */
 export interface ListPage {
   readonly title: string;
   readonly meta: readonly string[];
   readonly empty: string;
-  readonly groups: readonly {
-    readonly heading: string;
-    readonly items: readonly { readonly title: string; readonly body: readonly string[]; readonly tags: readonly string[] }[];
-  }[];
+  readonly groups: readonly { readonly heading: string; readonly items: readonly ListItem[] }[];
 }
 
-const renderItem = (item: ListPage['groups'][number]['items'][number]): string =>
+const renderItem = (item: ListItem): string =>
   `<div class="card"><h3>${escapeHtml(item.title)}</h3>${item.body.map((text) => `<p>${escapeHtml(text)}</p>`).join('')}${
-    item.tags.length === 0 ? '' : `<div class="tags">${item.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>`
-  }</div>`;
+    item.code === undefined ? '' : `<pre class="code"><code>${escapeHtml(item.code)}</code></pre>`
+  }${item.tags.length === 0 ? '' : `<div class="tags">${item.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>`}</div>`;
 
 const renderListPage = (page: ListPage, nonce: string): string => {
   const toc = page.groups.map((group, index) => `<li><a href="#g${String(index)}">${escapeHtml(group.heading)} <span class="muted">(${String(group.items.length)})</span></a></li>`);

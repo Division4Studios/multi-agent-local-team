@@ -31,6 +31,7 @@ const readProfiles = (config: vscode.WorkspaceConfiguration): ReviewProfiles => 
   check: readProfile(config, 'check'),
   consolidation: readProfile(config, 'consolidation'),
   standards: readProfile(config, 'standards'),
+  investigation: readProfile(config, 'investigation'),
 });
 
 const readBackend = (value: string): BackendSetting => (value === 'docker' || value === 'host' ? value : 'auto');

@@ -3,12 +3,14 @@
  * are checked against the current saved data; nothing a caller passes is trusted as content.
  */
 import * as vscode from 'vscode';
-import { isNonNegativeInteger, isRecord, isString } from '../shared/guards';
+import { isNonNegativeInteger, isString } from '../shared/guards';
 import type { Finding } from '../shared/protocol';
 import { showGaps, showListPage } from '../views/detailPanel';
 import type { FindingHighlight } from '../editor/findingHighlight';
 import type { StandardsModel } from './standardsModel';
 import { architecturePage, rulePage, standardsPage } from './standardsPages';
+import { gapIndexFrom, registerInvestigationCommands } from './investigationCommands';
+import type { ReviewerClient } from '../review/reviewerClient';
 
 export interface StandardsCommandDeps {
   readonly standards: StandardsModel;
@@ -17,6 +19,8 @@ export interface StandardsCommandDeps {
   readonly scan: () => Promise<void>;
   /** The user opened something to look at: auto-open should leave them alone for a while. */
   readonly onUserFocus: () => void;
+  /** The running reviewer, starting it if needed (for gap investigations). */
+  readonly reviewer: () => Promise<ReviewerClient | undefined>;
 }
 
 const offerScan = async (deps: StandardsCommandDeps, what: string): Promise<void> => {
@@ -39,15 +43,6 @@ export const showFindingLocation = async (
   if (!shown) {
     fallback();
   }
-};
-
-/** Accepts a gap index (from a command link) or a gap tree node (from its inline action). */
-const gapIndexFrom = (arg: unknown): number | undefined => {
-  if (isNonNegativeInteger(arg)) {
-    return arg;
-  }
-  const index = isRecord(arg) ? arg['index'] : undefined;
-  return isNonNegativeInteger(index) ? index : undefined;
 };
 
 /** Every command here opens something for the user, so each one notes their focus first. */
@@ -95,4 +90,8 @@ export const registerStandardsCommands = (deps: StandardsCommandDeps): vscode.Di
         showGaps([gap]);
       }
     }),
+    registerInvestigationCommands(
+      { standards: deps.standards, highlight: deps.highlight, reviewer: deps.reviewer },
+      (id, handler) => register(deps, id, handler),
+    ),
   );

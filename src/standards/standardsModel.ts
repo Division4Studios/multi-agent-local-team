@@ -8,6 +8,8 @@ import * as vscode from 'vscode';
 import { ARCHITECTURE_FILE, STANDARDS_FILE, parseArchitectureDocument, parseStandardsDocument } from '../shared/protocol';
 import type { ArchitectureDocument, Finding, Rule, StandardsDocument } from '../shared/protocol';
 import { enforceAnchors } from '../reviewer/trust';
+import { INVESTIGATIONS_FILE, gapId, parseInvestigationsDocument } from '../shared/investigation';
+import type { GapInvestigation } from '../shared/investigation';
 
 export interface RuleGroup {
   readonly name: string;
@@ -44,6 +46,7 @@ export class StandardsModel implements vscode.Disposable {
   private readonly folder: vscode.WorkspaceFolder | undefined;
   private standardsDocument: StandardsDocument | undefined;
   private architectureDocument: ArchitectureDocument | undefined;
+  private investigationsById = new Map<string, GapInvestigation>();
 
   public constructor(folder: vscode.WorkspaceFolder | undefined) {
     this.folder = folder;
@@ -77,14 +80,22 @@ export class StandardsModel implements vscode.Disposable {
     return this.standardsDocument?.gaps ?? [];
   }
 
+  /** The saved investigation of a gap, if it has been investigated since its description last changed. */
+  public investigationFor(gap: Finding): GapInvestigation | undefined {
+    return this.investigationsById.get(gapId(gap));
+  }
+
   public async reload(): Promise<void> {
     if (this.folder === undefined) {
       return;
     }
-    const [standards, architecture] = await Promise.all([
+    const [standards, architecture, investigations] = await Promise.all([
       readJson(vscode.Uri.joinPath(this.folder.uri, STANDARDS_FILE)),
       readJson(vscode.Uri.joinPath(this.folder.uri, ARCHITECTURE_FILE)),
+      readJson(vscode.Uri.joinPath(this.folder.uri, INVESTIGATIONS_FILE)),
     ]);
+    const saved = parseInvestigationsDocument(investigations)?.investigations ?? [];
+    this.investigationsById = new Map(saved.map((investigation) => [investigation.gapId, investigation]));
     const document = parseStandardsDocument(standards);
     this.standardsDocument = document === undefined ? undefined : {
       ...document,

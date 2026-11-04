@@ -181,6 +181,30 @@
         "title": "Change Review Model and Effort",
         "category": "MALT",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "malt.investigateGap",
+        "title": "Investigate Gap (Read the Code)",
+        "category": "MALT",
+        "icon": "$(search)"
+      },
+      {
+        "command": "malt.investigateAllGaps",
+        "title": "Investigate All Standards Gaps",
+        "category": "MALT",
+        "icon": "$(search-fuzzy)"
+      },
+      {
+        "command": "malt.showInvestigation",
+        "title": "Show Gap Investigation",
+        "category": "MALT",
+        "icon": "$(book)"
+      },
+      {
+        "command": "malt.showEvidence",
+        "title": "Show Evidence in the Code",
+        "category": "MALT",
+        "icon": "$(quote)"
       }
     ],
     "menus": {
@@ -240,11 +264,21 @@
         {
           "command": "malt.showGapDetails",
           "when": "view == malt.reviewer && viewItem == malt.gap",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "malt.showFinding",
           "when": "view == malt.changes && viewItem == malt.finding",
+          "group": "inline"
+        },
+        {
+          "command": "malt.investigateGap",
+          "when": "view == malt.reviewer && viewItem == malt.gap",
+          "group": "inline@1"
+        },
+        {
+          "command": "malt.investigateAllGaps",
+          "when": "view == malt.reviewer && viewItem == malt.gaps",
           "group": "inline"
         }
       ],
@@ -283,6 +317,18 @@
         },
         {
           "command": "malt.configureReviewType",
+          "when": "false"
+        },
+        {
+          "command": "malt.investigateGap",
+          "when": "false"
+        },
+        {
+          "command": "malt.showInvestigation",
+          "when": "false"
+        },
+        {
+          "command": "malt.showEvidence",
           "when": "false"
         }
       ]
@@ -413,6 +459,32 @@
           ],
           "default": "medium",
           "markdownDescription": "Reasoning effort for **Scan Project Standards**. Lower uses less. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
+        },
+        "malt.reviewer.investigationModel": {
+          "type": "string",
+          "default": "sonnet",
+          "markdownDescription": "Claude model for **gap investigations** (one call per gap you investigate; reads the real code behind the gap). An alias (`haiku`, `sonnet`, `opus`) or a full model id. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
+        },
+        "malt.reviewer.investigationEffort": {
+          "type": "string",
+          "enum": [
+            "default",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "enumDescriptions": [
+            "Claude Code's own default (no --effort flag)",
+            "Quickest, least usage",
+            "Balanced",
+            "Deeper reasoning, more usage",
+            "Much deeper reasoning",
+            "Most thorough, most usage"
+          ],
+          "default": "medium",
+          "markdownDescription": "Reasoning effort for **gap investigations**. Lower uses less. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
         },
         "malt.reviewer.maxConcurrentReviews": {
           "type": "integer",

@@ -67,7 +67,7 @@ export const dataBlock = (nonce: string, label: string, content: string): string
 };
 
 /** Like `sanitizeText`, but keeps line breaks so a longer explanation stays readable. */
-const sanitizeDetail = (value: string): string =>
+export const sanitizeDetail = (value: string): string =>
   value.replace(/\r\n?/gu, '\n').replace(/[\p{Cf}]|[^\P{Cc}\n]/gu, ' ').trim().slice(0, DETAIL_LIMIT);
 
 /**
@@ -129,6 +129,9 @@ export const enforceFindingPolicy = (findings: readonly Finding[], known: Readon
     .slice(0, MAX_FINDINGS);
 
 /** A declaration name as languages write it: identifiers joined by `.` or `::` (e.g. `Store.get`, `cache::Store`). */
+/** A plain declaration name (identifiers joined by `.` or `::`), at most 120 characters. */
+export const isDeclarationName = (value: string): boolean => value.length <= 120 && SYMBOL.test(value);
+
 const SYMBOL = /^[A-Za-z_$][\w$]*(?:(?:\.|::)[A-Za-z_$][\w$]*){0,4}$/u;
 const MAX_ANCHORS = 10;
 

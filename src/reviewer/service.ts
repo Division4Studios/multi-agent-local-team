@@ -42,7 +42,10 @@ import {
 import { collectCodeSources, collectStandardsSources } from './standardsSources';
 import type { SourceFile } from './standardsSources';
 import { describeError } from './log';
-import { createNonce, enforceCheckPolicy, enforceFindingPolicy, enforceOverviewPolicy, sanitizeModules, sanitizeProjectRules } from './trust';
+import { createNonce, enforceAnchors, enforceCheckPolicy, enforceFindingPolicy, enforceOverviewPolicy, sanitizeModules, sanitizeProjectRules } from './trust';
+import { INVESTIGATION_SCHEMA, INVESTIGATION_SYSTEM_PROMPT, buildInvestigationUserPrompt, collectGapCode, enforceInvestigation } from './investigation';
+import { gapId } from '../shared/investigation';
+import type { GapInvestigation } from '../shared/investigation';
 import { loadArchitecture, loadStandards, readFileWindow } from './workspace';
 
 const REVIEW_TIMEOUT_MS = 180_000;
@@ -254,6 +257,35 @@ export class ReviewService {
       .map((rule) => ({ ...rule, source: `${INFERRED_SOURCE_PREFIX}${rule.source}` }));
     const known = new Set([...documents, ...modules.map((module) => module.path)]);
     return { inferred, gaps: enforceFindingPolicy(gaps, known, true) };
+  }
+
+  /**
+   * A deeper review of one gap the last scan recorded. The gap is looked up here by id, so a caller can only name a
+   * gap from `.malt/standards.json`, never supply one. Its anchors are re-checked like any finding.
+   */
+  public async investigateGap(id: string): Promise<GapInvestigation> {
+    const root = this.config.workspaceRoot;
+    const recorded = (await loadStandards(root))?.gaps.find((gap) => gapId(gap) === id);
+    if (recorded === undefined) {
+      throw new Error('Unknown gap: run Scan Project Standards again');
+    }
+    const gap = { ...recorded, anchors: enforceAnchors(recorded.anchors, new Set(recorded.files)) };
+    const files = await collectGapCode(root, gap, (await this.architecture()).modules);
+    if (files.length === 0) {
+      throw new Error('None of the files this gap names could be read');
+    }
+    const output = await this.ask(`Gap investigation · ${gap.title}`, {
+      systemPrompt: INVESTIGATION_SYSTEM_PROMPT,
+      userPrompt: buildInvestigationUserPrompt(gap, files, createNonce()),
+      schema: INVESTIGATION_SCHEMA,
+      ...this.config.profiles.investigation,
+      timeoutMs: SCAN_TIMEOUT_MS,
+    });
+    const investigation = enforceInvestigation(output, { gapId: id, files });
+    if (investigation === undefined) {
+      throw new Error('Provider returned an investigation that does not match the protocol');
+    }
+    return investigation;
   }
 
   /** One call over the whole change. A change without new declarations needs no call. */
