@@ -115,7 +115,7 @@ Invite: [discord.gg/DwSpsGjvFY](https://discord.gg/DwSpsGjvFY), permanent with n
 | #releases | This repository's webhook, releases only | Settings → Webhooks, payload URL ending in `/github` |
 | #shipped | `.github/workflows/discord-shipped.yml` | Secret `DISCORD_SHIPPED_WEBHOOK` in the `discord` environment, usable only by `dev`, `main` and `v*` tags |
 
-The #shipped workflow never checks out or runs pull request code, has no token permissions, and neutralizes the pull request title before posting (see the workflow's header). A webhook URL is a credential: if one leaks, delete the webhook in Discord and create a new one.
+The #shipped workflow never checks out or runs pull request code, has no token permissions, and redacts credential shapes from and neutralizes the pull request title and release name before posting (see the workflow's header). A webhook URL is a credential: if one leaks, delete the webhook in Discord and create a new one.
 
 ## Labels
 
