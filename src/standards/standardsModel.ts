@@ -45,12 +45,14 @@ export class StandardsModel implements vscode.Disposable {
   public readonly onDidChange = this.changeEmitter.event;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly folder: vscode.WorkspaceFolder | undefined;
+  private readonly mapVerifier: string | undefined;
   private standardsDocument: StandardsDocument | undefined;
   private architectureDocument: ArchitectureDocument | undefined;
   private investigationsById = new Map<string, GapInvestigation>();
 
-  public constructor(folder: vscode.WorkspaceFolder | undefined) {
+  public constructor(folder: vscode.WorkspaceFolder | undefined, mapVerifier: string | undefined) {
     this.folder = folder;
+    this.mapVerifier = mapVerifier;
     if (folder !== undefined) {
       const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, '.malt/{*.json,maps/v1/reviewer.json}'));
       const reload = (): void => {
@@ -92,7 +94,7 @@ export class StandardsModel implements vscode.Disposable {
     }
     const [standards, architecture, investigations] = await Promise.all([
       readJson(vscode.Uri.joinPath(this.folder.uri, STANDARDS_FILE)),
-      loadArchitecture(this.folder.uri.fsPath),
+      loadArchitecture(this.folder.uri.fsPath, this.mapVerifier),
       readJson(vscode.Uri.joinPath(this.folder.uri, INVESTIGATIONS_FILE)),
     ]);
     const saved = parseInvestigationsDocument(investigations)?.investigations ?? [];

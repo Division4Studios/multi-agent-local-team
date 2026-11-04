@@ -30,6 +30,7 @@ const main = (): void => {
     {
       workspaceRoot: required('MALT_WORKSPACE'),
       profiles: profilesFromEnv(process.env),
+      ...(process.env["MALT_MAP_VERIFIER"] === undefined || process.env["MALT_MAP_VERIFIER"] === "" ? {} : { mapVerifier: process.env["MALT_MAP_VERIFIER"] }),
     },
     new ClaudeCodeProvider(optional('MALT_CLAUDE_PATH', 'claude')),
     conversations,

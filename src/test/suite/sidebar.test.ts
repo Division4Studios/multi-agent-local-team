@@ -214,9 +214,9 @@ export const tests: readonly TestCase[] = [
       const file = vscode.Uri.joinPath(root.uri, '.malt', 'standards.json');
       await vscode.workspace.fs.writeFile(file, Buffer.from(JSON.stringify(STANDARDS)));
       const output = vscode.window.createOutputChannel('MALT test', { log: true });
-      const manager = new ReviewerManager(root.uri.fsPath, new Credentials(fakeSecrets()), output);
+      const manager = new ReviewerManager(root.uri.fsPath, new Credentials(fakeSecrets()), output, '');
       const store = new HunkStore(new MemoryStorage());
-      const model = new StandardsModel(root);
+      const model = new StandardsModel(root, undefined);
       const tree = new ReviewerTreeProvider(manager, store, model);
       try {
         await model.reload();
@@ -251,9 +251,9 @@ export const tests: readonly TestCase[] = [
         filesRead: ['src/lib.rs'],
       };
       const stale: GapInvestigation = { ...investigation, gapId: 'b'.repeat(24) };
-      const model = new StandardsModel(root);
+      const model = new StandardsModel(root, undefined);
       const output = vscode.window.createOutputChannel('MALT test', { log: true });
-      const manager = new ReviewerManager(root.uri.fsPath, new Credentials(fakeSecrets()), output);
+      const manager = new ReviewerManager(root.uri.fsPath, new Credentials(fakeSecrets()), output, '');
       const tree = new ReviewerTreeProvider(manager, new HunkStore(new MemoryStorage()), model);
       try {
         await saveInvestigation(root, stale, []);

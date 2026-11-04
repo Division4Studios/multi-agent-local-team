@@ -70,6 +70,8 @@ export interface ServiceConfig {
   readonly workspaceRoot: string;
   /** Model and effort per kind of call: overview, rule check, consolidation, standards scan. */
   readonly profiles: ReviewProfiles;
+  /** Public key that verifies the extension-signed branch map; without it, developer confirmations are ignored. */
+  readonly mapVerifier?: string;
 }
 
 export class ReviewService {
@@ -119,7 +121,7 @@ export class ReviewService {
 
   /** The architecture map, re-sanitized: it is a generated file in the repository, so it is untrusted. */
   public async architecture(): Promise<ArchitectureDocument> {
-    const document = await loadArchitecture(this.config.workspaceRoot);
+    const document = await loadArchitecture(this.config.workspaceRoot, this.config.mapVerifier);
     return { ...document, modules: sanitizeModules(document.modules, new Set(document.modules.map((module) => module.path))) };
   }
 
