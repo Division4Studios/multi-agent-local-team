@@ -46,6 +46,7 @@ import {
 import { collectCodeSources, collectStandardsSources, isSourceCodePath } from './standardsSources';
 import type { SourceFile } from './standardsSources';
 import { describeError } from './log';
+import { redactSecrets } from './redact';
 import { createNonce, enforceAnchors, enforceCheckPolicy, enforceFindingPolicy, enforceOverviewPolicy, sanitizeModules, sanitizeProjectRules } from './trust';
 import { INVESTIGATION_SCHEMA, INVESTIGATION_SYSTEM_PROMPT, buildInvestigationUserPrompt, collectGapCode, enforceInvestigation } from './investigation';
 import { gapId } from '../shared/investigation';
@@ -201,17 +202,24 @@ export class ReviewService {
     }
   }
 
+  /**
+   * Every field is redacted before the model sees it: the excerpt is raw source, and the developer may paste a
+   * credential into the dialogue. Evidence is grounded in the redacted excerpt, the text the model actually saw.
+   */
   public async discuss(request: DiscussionRequest): Promise<Interpretation> {
+    const redacted: DiscussionRequest = {
+      path: request.path, source: redactSecrets(request.source), context: redactSecrets(request.context), dialogue: redactSecrets(request.dialogue),
+    };
     const output = await this.ask('Architecture discussion', {
       systemPrompt: DISCUSSION_PROMPT,
-      userPrompt: dataBlock(createNonce(), 'architecture discussion (untrusted json)', JSON.stringify(request)),
+      userPrompt: dataBlock(createNonce(), 'architecture discussion (untrusted json)', JSON.stringify(redacted)),
       schema: interpretationSchema, ...this.config.profiles.investigation, timeoutMs: REVIEW_TIMEOUT_MS,
     });
     const answer = parseInterpretation(output);
     if (answer === undefined) {
       throw new Error('Invalid architecture discussion response');
     }
-    return ground(answer, request.source);
+    return ground(answer, redacted.source);
   }
 
   private async extractRules(sources: readonly SourceFile[]): Promise<readonly Rule[]> {

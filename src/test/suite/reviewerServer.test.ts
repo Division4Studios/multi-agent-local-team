@@ -119,6 +119,9 @@ export const tests: readonly TestCase[] = [
         assert.equal(response.whyEvidence, '');
         assert.ok(calls[0]?.userPrompt.includes('Our mobile client needs this.') === true);
         assert.equal(calls[0].systemPrompt.includes('Our mobile client'), false);
+        const secret = ['ghp', 'b'.repeat(36)].join('_');
+        await client.discuss({ path: 'a.ts', source: `const token = connect("${secret}");`, context: '', dialogue: `It uses ${secret}` });
+        assert.ok(calls[1]?.userPrompt.includes('[REDACTED]') === true && !calls[1].userPrompt.includes(secret), 'secrets never reach the model');
       });
     },
   },
