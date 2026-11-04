@@ -10,8 +10,8 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | `malt.reviewer.reviewModel` | `sonnet` | Model alias or ID for the per-rule checks (one call per applicable rule); restart reviewer |
 | `malt.reviewer.standardsModel` | `opus` | Model alias or ID for standards scans; restart reviewer |
 | `malt.reviewer.maxConcurrentReviews` | `2` | Parallel reviewer calls (overviews and rule checks), from 1 to 8 |
-| `malt.reviewer.claudePath` | `claude` | Host CLI executable; restart reviewer |
-| `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise `DOCKER_HOST` or platform default; restart reviewer |
+| `malt.reviewer.claudePath` | `claude` | Host CLI executable; restart reviewer. User (machine) settings only: workspace settings are ignored, so a repository cannot choose what MALT runs |
+| `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise `DOCKER_HOST` or platform default; restart reviewer. User (machine) settings only |
 | `malt.reviewer.triageModel` / `triageEffort` | `sonnet` / `low` | Block overviews: one call per changed block |
 | `malt.reviewer.reviewModel` / `reviewEffort` | `haiku` / `low` | Rule checks: one call per applicable rule per block, most of the usage |
 | `malt.reviewer.consolidationModel` / `consolidationEffort` | `sonnet` / `low` | The whole-change consolidation check |
@@ -46,6 +46,10 @@ All commands below have the **MALT:** prefix.
 | Show Standards Gaps | Reopen the gaps the last scan found as one page. In the Reviewer view, the **Gaps** row lists them; selecting one opens the file at the declaration it names, outlined, with the gap on hover |
 | Show Live Reviewer Log | Watch every model call as it happens: what it is for, the prompt sent and the answer streaming in, with elapsed time and a stall indicator. Nothing is saved (also the **Reviewer** row) |
 | Check Consolidation Across Changes | One reviewer call over the new declarations in every changed block; findings appear at the top of **Changes** |
+| Review Pull Request… | Pick an open pull request on the workspace's GitHub repository (sign in with VS Code's GitHub account), check it out, and list its changed blocks in the **Pull Request** view. Refuses while you have uncommitted changes |
+| Review All Pull Request Blocks | Review every block of the open pull request, after showing what it will cost |
+| Finish Pull Request Review | Return to the branch you were on and drop the PR's results. Refuses, keeping your work, if you changed files on the checkout |
+| Open Pull Request on GitHub | Open the PR in the browser |
 | Review All Unreviewed Changes | Queue pending and failed blocks; does not rerun completed reviews |
 | Show Reviewer Logs | Open the MALT Reviewer output channel |
 | Set Claude Credentials | Store credentials; offers to restart the reviewer |

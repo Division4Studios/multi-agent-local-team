@@ -18,9 +18,18 @@ export interface GitChange {
   readonly status: number;
 }
 
-/** The branch/ref HEAD points at; `commit` is the baseline that `diffWithHEAD` compares against. */
+/**
+ * The branch/ref HEAD points at; `commit` is the baseline that `diffWithHEAD` compares against. `name` is the branch
+ * name, absent when HEAD is detached.
+ */
 export interface GitHeadRef {
   readonly commit?: string;
+  readonly name?: string;
+}
+
+export interface GitRemote {
+  readonly name: string;
+  readonly fetchUrl?: string;
 }
 
 export interface GitRepositoryState {
@@ -28,7 +37,14 @@ export interface GitRepositoryState {
   readonly workingTreeChanges: readonly GitChange[];
   readonly indexChanges: readonly GitChange[];
   readonly untrackedChanges?: readonly GitChange[];
+  readonly remotes?: readonly GitRemote[];
   readonly onDidChange: vscode.Event<void>;
+}
+
+/** Options for `Repository.fetch`: fetches `ref` (a refspec) from `remote`. */
+export interface GitFetchOptions {
+  readonly remote?: string;
+  readonly ref?: string;
 }
 
 export interface GitRepository {
@@ -36,6 +52,10 @@ export interface GitRepository {
   readonly state: GitRepositoryState;
   diffWithHEAD: (path: string) => Promise<string>;
   checkIgnore: (paths: string[]) => Promise<Set<string>>;
+  /** Used only to review a pull request (optional so change-tracking fakes need not implement them). */
+  fetch?: (options: GitFetchOptions) => Promise<void>;
+  checkout?: (treeish: string) => Promise<void>;
+  status?: () => Promise<void>;
 }
 
 export interface GitApi {

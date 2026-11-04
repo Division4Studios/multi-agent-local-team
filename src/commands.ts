@@ -13,6 +13,7 @@ import type { FindingHighlight } from './editor/findingHighlight';
 import type { AttentionGuard } from './editor/attention';
 import { registerStandardsCommands, showFindingLocation } from './standards/standardsCommands';
 import { ConversationPanel } from './views/conversationPanel';
+import type { PullRequestReview } from './pullRequest/pullRequestReview';
 import { configureReviewType } from './views/reviewSettings';
 
 export interface CommandDeps {
@@ -27,6 +28,8 @@ export interface CommandDeps {
   readonly attention: AttentionGuard;
   /** The extension's install location, for webview resources (the live log script). */
   readonly extensionUri: vscode.Uri;
+  /** The pull request under review, if any: its blocks are looked up before local changes. */
+  readonly pullRequest: () => PullRequestReview | undefined;
 }
 
 /** Registers a command that opens something for the user to look at; running it pauses auto-open (see AttentionGuard). */
@@ -37,6 +40,16 @@ const userCommand = (deps: CommandDeps, id: string, handler: (...args: unknown[]
   });
 
 const workspaceFolder = (): vscode.WorkspaceFolder | undefined => vscode.workspace.workspaceFolders?.[0];
+
+/**
+ * Which review a block belongs to: the pull request under review if it has the block, else local changes. The
+ * hover, sidebar and detail commands are shared, so they must resolve against the right store and queue.
+ */
+const ownerOf = (deps: CommandDeps, id: string, startLine?: unknown): { readonly store: HunkStore; readonly queue: ReviewQueue } => {
+  const review = deps.pullRequest();
+  const line = isNonNegativeInteger(startLine) ? startLine : undefined;
+  return review?.find(id, line) === undefined ? { store: deps.store, queue: deps.queue } : { store: review.store, queue: review.queue };
+};
 
 /** Accepts a hunk id (hover link) or a tree node (`{ tracked }`) and returns the id. */
 const hunkIdFrom = (arg: unknown): string | undefined => {
@@ -137,16 +150,18 @@ export const registerCommands = (deps: CommandDeps): vscode.Disposable =>
     }),
     vscode.commands.registerCommand('malt.reviewAgain', (arg: unknown) => {
       const id = hunkIdFrom(arg);
-      const tracked = id === undefined ? undefined : deps.store.get(id);
-      if (tracked !== undefined) {
-        deps.queue.enqueue(tracked, true);
+      const owner = id === undefined ? undefined : ownerOf(deps, id);
+      const tracked = id === undefined ? undefined : owner?.store.get(id);
+      if (owner !== undefined && tracked !== undefined) {
+        owner.queue.enqueue(tracked, true);
       }
     }),
     userCommand(deps, 'malt.revealHunk', async (arg: unknown, startLine: unknown) => {
-      await revealTrackedHunk(deps.store, arg, startLine);
+      const id = hunkIdFrom(arg);
+      await revealTrackedHunk(id === undefined ? deps.store : ownerOf(deps, id, startLine).store, arg, startLine);
     }),
     userCommand(deps, 'malt.showRuleCheck', (id: unknown, startLine: unknown, ruleId: unknown) => {
-      showRuleCheck(deps.store, id, startLine, ruleId);
+      showRuleCheck(isString(id) ? ownerOf(deps, id, startLine).store : deps.store, id, startLine, ruleId);
     }),
     vscode.commands.registerCommand('malt.checkConsolidation', async () => {
       if (deps.manager.client === undefined) {

@@ -37,6 +37,9 @@ const anchorNodes = (finding: Finding, index: number): Node[] =>
     : [];
 
 /** "Line 21" for a one-line block, "Lines 21–24" otherwise. */
+/** A row in a Changes-style tree (also used by the Pull Request view). */
+export type ChangesNode = Node;
+
 export const lineLabel = (startLine: number, endLine: number): string =>
   startLine === endLine ? `Line ${String(startLine + 1)}` : `Lines ${String(startLine + 1)}–${String(endLine + 1)}`;
 

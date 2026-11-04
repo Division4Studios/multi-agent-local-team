@@ -71,6 +71,7 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 | 🔍 **Finds the gaps in your standards** | The scan then compares your docs with your code. Conventions the code clearly follows but no doc states become rules marked *Inferred from code*; what neither settles (no architecture doc, two competing patterns) is listed as gaps for the team to decide. |
 | 🧭 **Knows what already exists** | The same scan maps your source files (purpose and exports) into `.malt/architecture.json`. Each block review gets only the related slice, so the reviewer can say "extend the existing `Modal`" instead of guessing. |
 | 🧩 **Consolidation across the change** | One call compares the new declarations across every changed file, and against the map, to catch three near-identical components or a second date formatter. It runs on demand, or 30 seconds after new files stop appearing. |
+| 🔀 **Review a pull request** | Pick an open PR on GitHub; MALT checks it out safely, outlines every changed block and reviews it like your own changes. Results stay in VS Code; **Finish** takes you back to your branch. |
 | 🐳 **Always-hot, isolated reviewer** | The reviewer runs in a hardened Docker container (read-only workspace, no privileges, localhost-only), or as a local daemon when Docker isn't available. |
 | 🗂️ **Sidebar & status bar** | A MALT sidebar shows reviewer health and every changed block, and the status bar keeps a running pass/concern/fail count. |
 
@@ -108,8 +109,8 @@ Then open the folder in VS Code and press <kbd>F5</kbd>. A new **Extension Devel
 | Setting | Default | |
 |---|---|---|
 | `malt.reviewer.autoStart` | `true` | Start the reviewer when a workspace opens |
-| `malt.reviewer.claudePath` | `claude` | Host CLI executable path |
-| `malt.docker.socketPath` | empty | Docker socket/pipe override |
+| `malt.reviewer.claudePath` | `claude` | Host CLI executable path (user settings only) |
+| `malt.docker.socketPath` | empty | Docker socket/pipe override (user settings only) |
 | `malt.reviewer.backend` | `auto` | `auto` (Docker if ready, else host), `docker` or `host` |
 | `malt.reviewer.triageModel` | `sonnet` | Model for each block's overview and rule sorting |
 | `malt.reviewer.reviewModel` | `sonnet` | Model for each per-rule check |
