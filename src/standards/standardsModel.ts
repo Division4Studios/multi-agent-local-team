@@ -1,0 +1,100 @@
+/**
+ * What the last standards scan saved, for the sidebar: rules, gaps and the architecture map, read from
+ * `.malt/standards.json` and `.malt/architecture.json` and reloaded whenever a scan rewrites them.
+ * The files are generated but live in the repository, so they are untrusted: they go through the protocol
+ * parsers, and gap anchors are re-checked with the same policy the reviewer applies.
+ */
+import * as vscode from 'vscode';
+import { ARCHITECTURE_FILE, STANDARDS_FILE, parseArchitectureDocument, parseStandardsDocument } from '../shared/protocol';
+import type { ArchitectureDocument, Finding, Rule, StandardsDocument } from '../shared/protocol';
+import { enforceAnchors } from '../reviewer/trust';
+
+export interface RuleGroup {
+  readonly name: string;
+  readonly rules: readonly Rule[];
+}
+
+const readJson = async (uri: vscode.Uri): Promise<unknown> => {
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8'));
+    return parsed;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Groups rules by category (case-insensitive), groups and rules in name order. */
+export const groupRules = (rules: readonly Rule[]): RuleGroup[] => {
+  const groups = new Map<string, { readonly name: string; readonly rules: Rule[] }>();
+  for (const rule of rules) {
+    const key = rule.category.toLowerCase();
+    const group = groups.get(key) ?? { name: rule.category, rules: [] };
+    group.rules.push(rule);
+    groups.set(key, group);
+  }
+  return [...groups.values()]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((group) => ({ name: group.name, rules: [...group.rules].sort((a, b) => a.title.localeCompare(b.title)) }));
+};
+
+export class StandardsModel implements vscode.Disposable {
+  private readonly changeEmitter = new vscode.EventEmitter<void>();
+  public readonly onDidChange = this.changeEmitter.event;
+  private readonly disposables: vscode.Disposable[] = [];
+  private readonly folder: vscode.WorkspaceFolder | undefined;
+  private standardsDocument: StandardsDocument | undefined;
+  private architectureDocument: ArchitectureDocument | undefined;
+
+  public constructor(folder: vscode.WorkspaceFolder | undefined) {
+    this.folder = folder;
+    if (folder !== undefined) {
+      const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, '.malt/*.json'));
+      const reload = (): void => {
+        void this.reload();
+      };
+      this.disposables.push(watcher, watcher.onDidChange(reload), watcher.onDidCreate(reload), watcher.onDidDelete(reload));
+      reload();
+    }
+  }
+
+  public get standards(): StandardsDocument | undefined {
+    return this.standardsDocument;
+  }
+
+  public get architecture(): ArchitectureDocument | undefined {
+    return this.architectureDocument;
+  }
+
+  public get workspaceFolder(): vscode.WorkspaceFolder | undefined {
+    return this.folder;
+  }
+
+  public get ruleGroups(): RuleGroup[] {
+    return groupRules(this.standardsDocument?.rules ?? []);
+  }
+
+  public get gaps(): readonly Finding[] {
+    return this.standardsDocument?.gaps ?? [];
+  }
+
+  public async reload(): Promise<void> {
+    if (this.folder === undefined) {
+      return;
+    }
+    const [standards, architecture] = await Promise.all([
+      readJson(vscode.Uri.joinPath(this.folder.uri, STANDARDS_FILE)),
+      readJson(vscode.Uri.joinPath(this.folder.uri, ARCHITECTURE_FILE)),
+    ]);
+    const document = parseStandardsDocument(standards);
+    this.standardsDocument = document === undefined ? undefined : {
+      ...document,
+      gaps: document.gaps.map((gap) => ({ ...gap, anchors: enforceAnchors(gap.anchors, new Set(gap.files)) })),
+    };
+    this.architectureDocument = parseArchitectureDocument(architecture);
+    this.changeEmitter.fire();
+  }
+
+  public dispose(): void {
+    vscode.Disposable.from(...this.disposables, this.changeEmitter).dispose();
+  }
+}

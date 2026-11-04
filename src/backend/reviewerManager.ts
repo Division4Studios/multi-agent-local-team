@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 import { readSettings } from '../config';
+import { profilesToEnv } from '../shared/reviewProfiles';
 import { PROTOCOL_VERSION } from '../shared/protocol';
 import { ReviewerClient } from '../review/reviewerClient';
 import type { ReviewerBackend } from './backend';
@@ -86,9 +87,7 @@ export class ReviewerManager implements vscode.Disposable {
       const endpoint = { port: await freePort(), token: randomBytes(32).toString('hex') };
       const settings = readSettings();
       const env = {
-        MALT_TRIAGE_MODEL: settings.triageModel,
-        MALT_REVIEW_MODEL: settings.reviewModel,
-        MALT_STANDARDS_MODEL: settings.standardsModel,
+        ...profilesToEnv(settings.profiles),
         ...(await this.credentials.env()),
       };
       await backend.start({ workspaceRoot, port: endpoint.port, token: endpoint.token, env });

@@ -1,21 +1,37 @@
 /** Typed access to MALT settings. */
 import * as vscode from 'vscode';
+import { REVIEW_TYPE_INFO, profileFrom } from './shared/reviewProfiles';
+import type { CallProfile, ReviewProfiles, ReviewType } from './shared/reviewProfiles';
 
 export type BackendSetting = 'auto' | 'docker' | 'host';
 
 export interface MaltSettings {
   readonly backend: BackendSetting;
   readonly autoStart: boolean;
-  readonly triageModel: string;
-  readonly reviewModel: string;
-  readonly standardsModel: string;
+  /** Model and effort for each kind of model call. */
+  readonly profiles: ReviewProfiles;
   readonly maxConcurrentReviews: number;
   readonly claudePath: string;
   readonly dockerSocketPath: string;
   readonly autoOpen: boolean;
+  /** Seconds of no user activity before auto-open may move the editor again. */
+  readonly autoOpenPauseSeconds: number;
   readonly autoReview: boolean;
   readonly autoConsolidation: boolean;
 }
+
+const readProfile = (config: vscode.WorkspaceConfiguration, type: ReviewType): CallProfile => {
+  const info = REVIEW_TYPE_INFO[type];
+  return profileFrom(type, config.get<unknown>(info.modelSetting), config.get<unknown>(info.effortSetting));
+};
+
+/** Invalid values (e.g. a hand-edited setting) fall back to that type's default. */
+const readProfiles = (config: vscode.WorkspaceConfiguration): ReviewProfiles => ({
+  overview: readProfile(config, 'overview'),
+  check: readProfile(config, 'check'),
+  consolidation: readProfile(config, 'consolidation'),
+  standards: readProfile(config, 'standards'),
+});
 
 const readBackend = (value: string): BackendSetting => (value === 'docker' || value === 'host' ? value : 'auto');
 
@@ -24,13 +40,12 @@ export const readSettings = (): MaltSettings => {
   return {
     backend: readBackend(config.get<string>('reviewer.backend', 'auto')),
     autoStart: config.get<boolean>('reviewer.autoStart', true),
-    triageModel: config.get<string>('reviewer.triageModel', 'sonnet'),
-    reviewModel: config.get<string>('reviewer.reviewModel', 'sonnet'),
-    standardsModel: config.get<string>('reviewer.standardsModel', 'opus'),
+    profiles: readProfiles(config),
     maxConcurrentReviews: Math.max(1, config.get<number>('reviewer.maxConcurrentReviews', 2)),
     claudePath: config.get<string>('reviewer.claudePath', 'claude'),
     dockerSocketPath: config.get<string>('docker.socketPath', ''),
     autoOpen: config.get<boolean>('changes.autoOpen', true),
+    autoOpenPauseSeconds: Math.max(0, config.get<number>('changes.autoOpenPauseSeconds', 60)),
     autoReview: config.get<boolean>('changes.autoReview', true),
     autoConsolidation: config.get<boolean>('changes.autoConsolidation', true),
   };

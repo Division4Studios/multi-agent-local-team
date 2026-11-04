@@ -17,6 +17,10 @@ import { HunkDecorations } from './editor/decorations';
 import { ReviewHoverProvider } from './editor/reviewMarkdown';
 import { ChangesTreeProvider } from './views/changesView';
 import { ReviewerTreeProvider } from './views/reviewerView';
+import { StandardsModel } from './standards/standardsModel';
+import { FindingHighlight } from './editor/findingHighlight';
+import { AttentionGuard } from './editor/attention';
+import { watchReviewSettings } from './views/reviewSettings';
 import { createStatusBar } from './views/statusBar';
 import { registerCommands, revealHunk, startReviewer } from './commands';
 import type { CommandDeps } from './commands';
@@ -40,10 +44,19 @@ const onNewHunks = (deps: CommandDeps, event: NewHunksEvent): void => {
     }
   }
   scheduleConsolidation(deps, event);
+  if (settings.autoOpen && !event.initial) {
+    autoOpen(deps, event);
+  }
+};
+
+/** Brings the new change into view, unless the user is already there or busy with something else. */
+const autoOpen = (deps: CommandDeps, event: NewHunksEvent): void => {
   const first = event.hunks[0];
   const isActive = vscode.window.activeTextEditor?.document.uri.toString() === event.uri.toString();
-  if (settings.autoOpen && !event.initial && !isActive && first !== undefined) {
-    void revealHunk(first);
+  if (first !== undefined && !isActive && deps.attention.allowsAutoOpen()) {
+    void deps.attention.navigate(async () => {
+      await revealHunk(first);
+    });
   }
 };
 
@@ -92,19 +105,39 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
     concurrency: (): number => readSettings().maxConcurrentReviews,
   });
   const consolidation = new ConsolidationCheck(store, () => manager.client);
-  const deps: CommandDeps = { store, manager, queue, consolidation, credentials, output };
+  const standards = new StandardsModel(vscode.workspace.workspaceFolders?.[0]);
+  const highlight = new FindingHighlight();
+  const attention = new AttentionGuard(() => readSettings().autoOpenPauseSeconds * 1000);
+  const deps: CommandDeps = {
+    store,
+    manager,
+    queue,
+    consolidation,
+    credentials,
+    output,
+    standards,
+    highlight,
+    attention,
+    extensionUri: context.extensionUri,
+  };
 
   context.subscriptions.push(
     output,
     store,
     consolidation,
+    standards,
+    highlight,
+    attention,
     manager,
     new HunkDecorations(store),
     vscode.languages.registerHoverProvider({ scheme: 'file' }, new ReviewHoverProvider(store)),
-    vscode.window.registerTreeDataProvider('malt.reviewer', new ReviewerTreeProvider(manager, store)),
+    vscode.window.registerTreeDataProvider('malt.reviewer', new ReviewerTreeProvider(manager, store, standards)),
     vscode.window.registerTreeDataProvider('malt.changes', new ChangesTreeProvider(store, consolidation)),
     createStatusBar(manager, store),
     registerCommands(deps),
+    watchReviewSettings(() => manager.status.state === 'running', async () => {
+      await startReviewer(deps);
+    }),
     manager.onDidChangeStatus((status) => {
       if (status.state === 'running' && readSettings().autoReview) {
         void reviewBacklog(deps);

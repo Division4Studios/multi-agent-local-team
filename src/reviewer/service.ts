@@ -13,7 +13,10 @@ import type {
   RuleCheck,
   StandardsScan,
 } from '../shared/protocol';
-import type { ReviewProvider } from './providers/provider';
+import type { ReviewProvider, StructuredCall } from './providers/provider';
+import { ConversationLog } from './conversations';
+import type { ReviewProfiles } from '../shared/reviewProfiles';
+import type { CallUsage } from '../shared/conversation';
 import { architectureSlice, newDeclarations } from './architecture';
 import {
   ARCHITECTURE_SCHEMA,
@@ -49,25 +52,47 @@ const BLOCK_SLICE = 25;
 const CHANGE_SLICE = 80;
 const MAX_INFERRED_RULES = 15;
 
+const blockLabel = (request: ReviewRequest): string =>
+  `${request.filePath}:${String(request.startLine + 1)}${request.endLine === request.startLine ? '' : `-${String(request.endLine + 1)}`}`;
+
 /** Rules in this group get the architecture map slice; other checks do not need it. */
 const isArchitectureRule = (rule: Rule): boolean => rule.category.toLowerCase() === 'architecture';
 
 export interface ServiceConfig {
   readonly workspaceRoot: string;
-  /** Writes each block's overview and sorts out which rules apply to it. */
-  readonly triageModel: string;
-  /** Checks one block against one rule. */
-  readonly reviewModel: string;
-  readonly standardsModel: string;
+  /** Model and effort per kind of call: overview, rule check, consolidation, standards scan. */
+  readonly profiles: ReviewProfiles;
 }
 
 export class ReviewService {
   private readonly config: ServiceConfig;
   private readonly provider: ReviewProvider;
+  private readonly conversations: ConversationLog;
 
-  public constructor(config: ServiceConfig, provider: ReviewProvider) {
+  public constructor(config: ServiceConfig, provider: ReviewProvider, conversations = new ConversationLog()) {
     this.config = config;
     this.provider = provider;
+    this.conversations = conversations;
+  }
+
+  /** Every model call goes through here, so the live log sees it start, stream and end, with its usage. */
+  private async ask(label: string, call: StructuredCall): Promise<unknown> {
+    const logged = this.conversations.begin(label, call, call.userPrompt);
+    let usage: CallUsage | undefined;
+    try {
+      const output = await this.provider.callStructured({
+        ...call,
+        onText: logged.text,
+        onUsage: (reported) => {
+          usage = reported;
+        },
+      });
+      logged.end(undefined, usage);
+      return output;
+    } catch (error: unknown) {
+      logged.end(error, usage);
+      throw error;
+    }
   }
 
   public get providerName(): string {
@@ -101,11 +126,11 @@ export class ReviewService {
       readFileWindow(this.config.workspaceRoot, request.filePath, request),
       this.blockSlice(request),
     ]);
-    const output = await this.provider.callStructured({
+    const output = await this.ask(`Overview · ${blockLabel(request)}`, {
       systemPrompt: OVERVIEW_SYSTEM_PROMPT,
       userPrompt: buildOverviewUserPrompt(request, window, { projectRules, architecture, nonce: createNonce() }),
       schema: OVERVIEW_SCHEMA,
-      model: this.config.triageModel,
+      ...this.config.profiles.overview,
       timeoutMs: REVIEW_TIMEOUT_MS,
     });
     const overview = parseBlockOverview(output);
@@ -127,11 +152,11 @@ export class ReviewService {
       throw new Error(`Unknown rule: ${request.ruleId}`);
     }
     const architecture = isArchitectureRule(rule) ? await this.blockSlice(request) : [];
-    const output = await this.provider.callStructured({
+    const output = await this.ask(`Check ${rule.id} · ${blockLabel(request)}`, {
       systemPrompt: CHECK_SYSTEM_PROMPT,
       userPrompt: buildCheckUserPrompt(request, window, rule, { projectRules, architecture, nonce: createNonce() }),
       schema: CHECK_SCHEMA,
-      model: this.config.reviewModel,
+      ...this.config.profiles.check,
       timeoutMs: REVIEW_TIMEOUT_MS,
     });
     const check = isRecord(output) ? parseRuleCheck({ ...output, ruleId: rule.id, title: rule.title }) : undefined;
@@ -173,11 +198,11 @@ export class ReviewService {
     if (sources.length === 0) {
       return [];
     }
-    const output = await this.provider.callStructured({
+    const output = await this.ask(`Standards scan · ${String(sources.length)} document(s)`, {
       systemPrompt: STANDARDS_SYSTEM_PROMPT,
       userPrompt: buildStandardsUserPrompt(sources, createNonce()),
       schema: RULES_SCHEMA,
-      model: this.config.standardsModel,
+      ...this.config.profiles.standards,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
     const rules = isRecord(output) ? parseRules(output['rules']) : undefined;
@@ -192,11 +217,11 @@ export class ReviewService {
     if (sources.length === 0) {
       return [];
     }
-    const output = await this.provider.callStructured({
+    const output = await this.ask(`Architecture map · ${String(sources.length)} source file(s)`, {
       systemPrompt: ARCHITECTURE_SYSTEM_PROMPT,
       userPrompt: buildArchitectureUserPrompt(sources, createNonce()),
       schema: ARCHITECTURE_SCHEMA,
-      model: this.config.standardsModel,
+      ...this.config.profiles.standards,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
     const modules = isRecord(output) ? parseModules(output['modules']) : undefined;
@@ -212,11 +237,11 @@ export class ReviewService {
     documents: readonly string[],
     modules: readonly ArchitectureModule[],
   ): Promise<{ readonly inferred: readonly Rule[]; readonly gaps: readonly Finding[] }> {
-    const output = await this.provider.callStructured({
+    const output = await this.ask('Gap analysis', {
       systemPrompt: GAPS_SYSTEM_PROMPT,
       userPrompt: buildGapsUserPrompt(documented, documents, modules, createNonce()),
       schema: GAPS_SCHEMA,
-      model: this.config.standardsModel,
+      ...this.config.profiles.standards,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
     const rules = isRecord(output) ? parseRules(output['rules']) : undefined;
@@ -238,11 +263,11 @@ export class ReviewService {
       return [];
     }
     const architecture = architectureSlice((await this.architecture()).modules, request.blocks, CHANGE_SLICE);
-    const output = await this.provider.callStructured({
+    const output = await this.ask(`Consolidation · ${String(request.blocks.length)} block(s)`, {
       systemPrompt: CONSOLIDATION_SYSTEM_PROMPT,
       userPrompt: buildConsolidationUserPrompt(declarations, architecture, createNonce()),
       schema: CONSOLIDATION_SCHEMA,
-      model: this.config.reviewModel,
+      ...this.config.profiles.consolidation,
       timeoutMs: REVIEW_TIMEOUT_MS,
     });
     const findings = isRecord(output) ? parseArray(output['findings'], parseFinding) : undefined;

@@ -7,6 +7,18 @@ import { createReviewerServer } from '../../reviewer/server';
 import { ReviewService } from '../../reviewer/service';
 import type { ReviewProvider, StructuredCall } from '../../reviewer/providers/provider';
 import { ReviewerClient } from '../../review/reviewerClient';
+import { ConversationLog } from '../../reviewer/conversations';
+import type { ConversationEvent } from '../../shared/conversation';
+import { waitFor } from './testUtils';
+import type { ReviewProfiles } from '../../shared/reviewProfiles';
+
+/** Distinct per type, so tests can see which profile each kind of call used. */
+const TEST_PROFILES: ReviewProfiles = {
+  overview: { model: 'overview-model', effort: 'low' },
+  check: { model: 'check-model', effort: 'low' },
+  consolidation: { model: 'consolidation-model', effort: 'medium' },
+  standards: { model: 'standards-model', effort: 'high' },
+};
 import {
   ARCHITECTURE_SCHEMA,
   BASELINE_RULES,
@@ -47,6 +59,8 @@ const createFakeProvider = (calls: StructuredCall[]): ReviewProvider => ({
   name: 'fake',
   callStructured: async (call: StructuredCall): Promise<unknown> => {
     calls.push(call);
+    call.onText?.('{"streamed":\n');
+    call.onUsage?.({ inputTokens: 1200, outputTokens: 80, cachedTokens: 3000, costUsd: 0.0021 });
     const rule = { id: 'r1', title: 'Rule', check: 'Ok?', category: 'style', source: 'CLAUDE.md' };
     const answers = new Map<unknown, unknown>([
       [OVERVIEW_SCHEMA, OVERVIEW],
@@ -67,8 +81,9 @@ const startServer = async (calls: StructuredCall[]): Promise<{ server: Server; p
   await mkdir(join(root, '.malt'));
   await writeFile(join(root, '.malt', 'standards.json'), JSON.stringify(HOSTILE_STANDARDS));
   await writeFile(join(root, '.malt', 'architecture.json'), JSON.stringify(ARCHITECTURE));
-  const service = new ReviewService({ workspaceRoot: root, triageModel: 't', reviewModel: 'm', standardsModel: 's' }, createFakeProvider(calls));
-  const server = createReviewerServer(service, TOKEN);
+  const conversations = new ConversationLog();
+  const service = new ReviewService({ workspaceRoot: root, profiles: TEST_PROFILES }, createFakeProvider(calls), conversations);
+  const server = createReviewerServer(service, TOKEN, conversations);
   await new Promise<void>((resolvePromise) => {
     server.listen(0, '127.0.0.1', resolvePromise);
   });
@@ -109,7 +124,7 @@ export const tests: readonly TestCase[] = [
         if (reviewCall === undefined) {
           assert.fail('expected a provider call');
         }
-        assert.equal(reviewCall.model, 't', 'the overview uses the triage model');
+        assert.deepEqual([reviewCall.model, reviewCall.effort], ['overview-model', 'low'], 'the overview uses its own model and effort');
         assert.ok(reviewCall.userPrompt.includes('2| const b = 2;'));
         assert.ok(reviewCall.userPrompt.includes('architecture-map (untrusted json)') && reviewCall.userPrompt.includes('Existing helper'));
         assert.equal(reviewCall.systemPrompt, OVERVIEW_SYSTEM_PROMPT, 'system prompt must be static');
@@ -120,7 +135,7 @@ export const tests: readonly TestCase[] = [
         const checkCall = calls[1];
         assert.ok(checkCall !== undefined);
         assert.equal(checkCall.systemPrompt, CHECK_SYSTEM_PROMPT);
-        assert.equal(checkCall.model, 'm', 'rule checks use the review model');
+        assert.deepEqual([checkCall.model, checkCall.effort], ['check-model', 'low'], 'rule checks use their own model and effort');
         assert.ok(!checkCall.userPrompt.includes('focused-change'), 'a rule check sees only its own rule');
         assert.ok(!checkCall.userPrompt.includes('architecture-map'), 'a style rule check gets no map');
         await client.check({ ...request, ruleId: 'justified-abstraction' });
@@ -134,7 +149,10 @@ export const tests: readonly TestCase[] = [
           'inferred rules never shadow documented or baseline ones and are marked by MALT');
         assert.deepEqual(scan.gaps.map((gap) => gap.files), [[], ['src/a.ts']], 'gaps may name no file, never an unknown one');
         assert.deepEqual(scan.warnings, []);
+        const scanCalls = calls.slice(3);
+        assert.ok(scanCalls.length >= 3 && scanCalls.every((call) => call.model === 'standards-model' && call.effort === 'high'), 'every scan call uses the standards profile');
         const findings = await client.consolidation({ blocks: [request] });
+        assert.deepEqual([calls.at(-1)?.model, calls.at(-1)?.effort], ['consolidation-model', 'medium'], 'consolidation has its own profile');
         assert.deepEqual(findings.map((finding) => finding.files), [['src/a.ts', 'src/b.ts']], 'unknown files are dropped');
         const callsBefore = calls.length;
         assert.deepEqual(await client.consolidation({ blocks: [{ ...request, patch: '@@\n+x + 1' }] }), [], 'no declarations, no call');
@@ -149,6 +167,45 @@ export const tests: readonly TestCase[] = [
         const client = new ReviewerClient({ port, token: TOKEN });
         await assert.rejects(client.review({ filePath: '../../etc/passwd', startLine: 0, endLine: 0, patch: '@@' }), /outside the workspace/u);
         assert.equal(calls.length, 0);
+      });
+    },
+  },
+  {
+    name: 'reviewer server: streams each model call live (start, text, end) to an authorized viewer',
+    run: async (): Promise<void> => {
+      await withServer(async (port) => {
+        const client = new ReviewerClient({ port, token: TOKEN });
+        const events: ConversationEvent[] = [];
+        const stop = client.streamConversations((event) => events.push(event), () => undefined);
+        try {
+          await client.review({ filePath: 'src/a.ts', startLine: 1, endLine: 1, patch: '@@\n+const b = 2;' });
+          await waitFor(() => events.some((event) => event.kind === 'end'), 'the overview call ends');
+        } finally {
+          stop();
+        }
+        assert.deepEqual(events.map((event) => event.kind), ['start', 'text', 'end']);
+        const [start, text] = events;
+        assert.ok(start?.kind === 'start' && start.label === 'Overview · src/a.ts:2', 'readable label with the block location');
+        assert.ok(start.prompt.includes('const b = 2;'), 'the prompt sent is visible');
+        assert.ok(text?.kind === 'text' && text.text === '{"streamed":\n');
+        const end = events.at(-1);
+        assert.ok(end?.kind === 'end');
+        assert.deepEqual(end.usage, { inputTokens: 1200, outputTokens: 80, cachedTokens: 3000, costUsd: 0.0021 }, 'usage reaches the log');
+        assert.ok(start.model === 'overview-model' && start.effort === 'low', 'the overview uses its own profile');
+      });
+    },
+  },
+  {
+    name: 'reviewer server: the live stream needs the token',
+    run: async (): Promise<void> => {
+      await withServer(async (port) => {
+        const events: ConversationEvent[] = [];
+        let closed = false;
+        new ReviewerClient({ port, token: 'wrong' }).streamConversations((event) => events.push(event), () => {
+          closed = true;
+        });
+        await waitFor(() => closed, 'unauthorized stream closes');
+        assert.equal(events.length, 0);
       });
     },
   },

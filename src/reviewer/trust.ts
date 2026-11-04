@@ -9,7 +9,7 @@
  * verify itself.
  */
 import { randomBytes } from 'node:crypto';
-import type { ArchitectureModule, BlockOverview, Finding, Rule, RuleCheck } from '../shared/protocol';
+import type { ArchitectureModule, BlockOverview, Finding, FindingAnchor, Rule, RuleCheck } from '../shared/protocol';
 
 const RULE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const MAX_PROJECT_RULES = 60;
@@ -115,11 +115,33 @@ export const sanitizeModules = (modules: readonly ArchitectureModule[], scanned:
  */
 export const enforceFindingPolicy = (findings: readonly Finding[], known: ReadonlySet<string>, allowNoFiles = false): Finding[] =>
   findings
-    .map((finding) => ({
-      title: sanitizeText(finding.title, FIELD_LIMITS.title),
-      files: [...new Set(finding.files.filter((file) => known.has(file)))],
-      note: sanitizeText(finding.note, NOTE_LIMIT),
-      detail: sanitizeDetail(finding.detail),
-    }))
+    .map((finding) => {
+      const files = [...new Set(finding.files.filter((file) => known.has(file)))];
+      return {
+        title: sanitizeText(finding.title, FIELD_LIMITS.title),
+        files,
+        note: sanitizeText(finding.note, NOTE_LIMIT),
+        detail: sanitizeDetail(finding.detail),
+        anchors: enforceAnchors(finding.anchors, new Set(files)),
+      };
+    })
     .filter((finding) => allowNoFiles || finding.files.length > 0)
     .slice(0, MAX_FINDINGS);
+
+/** A declaration name as languages write it: identifiers joined by `.` or `::` (e.g. `Store.get`, `cache::Store`). */
+const SYMBOL = /^[A-Za-z_$][\w$]*(?:(?:\.|::)[A-Za-z_$][\w$]*){0,4}$/u;
+const MAX_ANCHORS = 10;
+
+/** Anchors must name a file the finding lists and a plain declaration name; MALT then finds it in the real file. */
+export const enforceAnchors = (anchors: readonly FindingAnchor[], files: ReadonlySet<string>): FindingAnchor[] => {
+  const seen = new Set<string>();
+  const result: FindingAnchor[] = [];
+  for (const { file, symbol } of anchors) {
+    const key = `${file}\0${symbol}`;
+    if (files.has(file) && symbol.length <= 120 && SYMBOL.test(symbol) && !seen.has(key) && result.length < MAX_ANCHORS) {
+      seen.add(key);
+      result.push({ file, symbol });
+    }
+  }
+  return result;
+};

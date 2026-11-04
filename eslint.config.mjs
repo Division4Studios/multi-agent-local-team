@@ -201,5 +201,17 @@ export default asErrors(
         globals: { console: 'readonly', process: 'readonly' },
       },
     },
+    {
+      // Webview page scripts run in the browser sandbox of a VS Code webview: browser globals, no Node.
+      files: ['media/**/*.js'],
+      languageOptions: {
+        sourceType: 'script',
+        globals: { document: 'readonly', window: 'readonly', setInterval: 'readonly', Date: 'readonly', Map: 'readonly', Math: 'readonly', String: 'readonly' },
+      },
+      rules: {
+        'no-restricted-properties': ['error', { property: 'innerHTML', message: 'Use textContent: page content is untrusted.' }, { property: 'outerHTML', message: 'Use textContent: page content is untrusted.' }],
+        'no-restricted-globals': ['error', 'eval', 'fetch', 'XMLHttpRequest', 'WebSocket'],
+      },
+    },
   ),
 );

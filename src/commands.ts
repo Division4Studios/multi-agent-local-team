@@ -8,6 +8,12 @@ import { scanStandards, showSavedGaps } from './standards/scanStandards';
 import { showFinding, showRuleCheck } from './views/detailPanel';
 import type { ConsolidationCheck } from './review/consolidation';
 import { isNonNegativeInteger, isRecord, isString } from './shared/guards';
+import type { StandardsModel } from './standards/standardsModel';
+import type { FindingHighlight } from './editor/findingHighlight';
+import type { AttentionGuard } from './editor/attention';
+import { registerStandardsCommands, showFindingLocation } from './standards/standardsCommands';
+import { ConversationPanel } from './views/conversationPanel';
+import { configureReviewType } from './views/reviewSettings';
 
 export interface CommandDeps {
   readonly store: HunkStore;
@@ -16,7 +22,19 @@ export interface CommandDeps {
   readonly consolidation: ConsolidationCheck;
   readonly credentials: Credentials;
   readonly output: vscode.LogOutputChannel;
+  readonly standards: StandardsModel;
+  readonly highlight: FindingHighlight;
+  readonly attention: AttentionGuard;
+  /** The extension's install location, for webview resources (the live log script). */
+  readonly extensionUri: vscode.Uri;
 }
+
+/** Registers a command that opens something for the user to look at; running it pauses auto-open (see AttentionGuard). */
+const userCommand = (deps: CommandDeps, id: string, handler: (...args: unknown[]) => unknown): vscode.Disposable =>
+  vscode.commands.registerCommand(id, (...args: unknown[]) => {
+    deps.attention.noteUserActivity();
+    return handler(...args);
+  });
 
 const workspaceFolder = (): vscode.WorkspaceFolder | undefined => vscode.workspace.workspaceFolders?.[0];
 
@@ -124,10 +142,10 @@ export const registerCommands = (deps: CommandDeps): vscode.Disposable =>
         deps.queue.enqueue(tracked, true);
       }
     }),
-    vscode.commands.registerCommand('malt.revealHunk', async (arg: unknown, startLine: unknown) => {
+    userCommand(deps, 'malt.revealHunk', async (arg: unknown, startLine: unknown) => {
       await revealTrackedHunk(deps.store, arg, startLine);
     }),
-    vscode.commands.registerCommand('malt.showRuleCheck', (id: unknown, startLine: unknown, ruleId: unknown) => {
+    userCommand(deps, 'malt.showRuleCheck', (id: unknown, startLine: unknown, ruleId: unknown) => {
       showRuleCheck(deps.store, id, startLine, ruleId);
     }),
     vscode.commands.registerCommand('malt.checkConsolidation', async () => {
@@ -137,13 +155,41 @@ export const registerCommands = (deps: CommandDeps): vscode.Disposable =>
       }
       await deps.consolidation.run();
     }),
-    vscode.commands.registerCommand('malt.showStandardsGaps', async () => {
+    userCommand(deps, 'malt.showStandardsGaps', async () => {
       const folder = workspaceFolder();
       if (folder !== undefined) {
         await showSavedGaps(folder);
       }
     }),
-    vscode.commands.registerCommand('malt.showFinding', (index: unknown) => {
+    registerViewCommands(deps),
+  );
+
+/** Commands that open findings, the live log and settings, plus the Standards/Gaps/Architecture commands. */
+const registerViewCommands = (deps: CommandDeps): vscode.Disposable =>
+  vscode.Disposable.from(
+    userCommand(deps, 'malt.showFinding', (arg: unknown) => {
+      const index = isRecord(arg) ? arg['index'] : arg;
       showFinding(deps.consolidation.state.findings, index);
+    }),
+    userCommand(deps, 'malt.showFindingLocation', async (index: unknown, anchorIndex: unknown) => {
+      const finding = isNonNegativeInteger(index) ? deps.consolidation.state.findings[index] : undefined;
+      if (finding !== undefined) {
+        const target = { folder: workspaceFolder(), finding, kind: 'Consolidation' };
+        await showFindingLocation(deps.highlight, target, anchorIndex, () => {
+          showFinding(deps.consolidation.state.findings, index);
+        });
+      }
+    }),
+    vscode.commands.registerCommand('malt.configureReviewType', async (type: unknown) => {
+      await configureReviewType(type);
+    }),
+    userCommand(deps, 'malt.showLiveLog', () => {
+      ConversationPanel.show(deps.manager, deps.extensionUri);
+    }),
+    registerStandardsCommands({
+      standards: deps.standards,
+      highlight: deps.highlight,
+      scan: async () => { await runScan(deps); },
+      onUserFocus: () => { deps.attention.noteUserActivity(); },
     }),
   );

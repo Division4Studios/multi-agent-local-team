@@ -47,7 +47,9 @@ export const tests: readonly TestCase[] = [
       const document = { version: 1, generatedAt: '2026-11-03T00:00:00.000Z', rules: [rule] };
       assert.deepEqual(parseStandardsDocument(document), { ...document, gaps: [] }, 'files from before gap analysis load with no gaps');
       const gap = { title: 'No architecture doc', files: [], note: 'n', detail: 'd' };
-      assert.deepEqual(parseStandardsDocument({ ...document, gaps: [gap] })?.gaps, [gap]);
+      assert.deepEqual(parseStandardsDocument({ ...document, gaps: [gap] })?.gaps, [{ ...gap, anchors: [] }], 'gaps saved before anchors load with none');
+      const anchored = { ...gap, files: ['src/a.rs'], anchors: [{ file: 'src/a.rs', symbol: 'parse' }] };
+      assert.deepEqual(parseStandardsDocument({ ...document, gaps: [anchored] })?.gaps, [anchored]);
       assert.equal(parseStandardsDocument({ ...document, gaps: [{ title: 1 }] }), undefined);
       assert.equal(parseStandardsDocument({ ...document, version: 2 }), undefined);
       assert.equal(parseStandardsDocument({ ...document, rules: [{ ...rule, id: 1 }] }), undefined);

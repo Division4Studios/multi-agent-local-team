@@ -7,6 +7,9 @@ import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import type { LogSink, ReviewerBackend, StartOptions } from './backend';
+import { createLineSplitter } from '../shared/lineSplitter';
+
+const STOP_GRACE_MS = 3_000;
 
 const MAX_LOG_LINES = 200;
 
@@ -44,15 +47,24 @@ export class HostBackend implements ReviewerBackend {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
-    const onOutput = (chunk: Buffer): void => {
-      for (const line of chunk.toString('utf8').split(/\r?\n/u).filter((text) => text !== '')) {
+    // One splitter per stream: lines (and multi-byte characters) can span chunks, and the streams interleave.
+    const onLine = (line: string): void => {
+      if (line !== '') {
         this.remember(line);
         this.log(line);
       }
     };
-    child.stdout.on('data', onOutput);
-    child.stderr.on('data', onOutput);
+    const stdout = createLineSplitter(onLine);
+    const stderr = createLineSplitter(onLine);
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout.push(chunk);
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr.push(chunk);
+    });
     child.on('exit', (code) => {
+      stdout.end();
+      stderr.end();
       this.log(`Reviewer process exited with code ${String(code)}`);
       if (this.child === child) {
         this.child = undefined;
@@ -62,13 +74,30 @@ export class HostBackend implements ReviewerBackend {
     this.log(`Started host reviewer (pid ${String(child.pid)})`);
   }
 
+  /**
+   * Asks the reviewer to shut down (it closes its server and any open live-log streams), and force-kills it if it
+   * has not exited within STOP_GRACE_MS, so a stuck process can never keep serving after a stop or restart.
+   */
   public async stop(): Promise<void> {
     const child = this.child;
     this.child = undefined;
-    if (child?.exitCode === null) {
-      child.kill();
+    if (child?.exitCode !== null || child.signalCode !== null) {
+      return;
     }
-    await Promise.resolve();
+    const exited = new Promise<void>((resolvePromise) => {
+      child.once('exit', () => {
+        resolvePromise();
+      });
+    });
+    child.kill('SIGTERM');
+    const timer = setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) {
+        this.log('Reviewer did not stop in time; forcing it to exit');
+        child.kill('SIGKILL');
+      }
+    }, STOP_GRACE_MS);
+    await exited;
+    clearTimeout(timer);
   }
 
   public async isRunning(): Promise<boolean> {

@@ -144,7 +144,7 @@ export const tests: readonly TestCase[] = [
     run: async (): Promise<void> => {
       const store = new HunkStore(new MemoryStorage());
       const requests: ConsolidationRequest[] = [];
-      const finding = { title: 'Merge the card components', files: ['a.txt', 'b.txt'], note: 'n', detail: 'd' };
+      const finding = { title: 'Merge the card components', files: ['a.txt', 'b.txt'], note: 'n', detail: 'd', anchors: [] };
       const check = new ConsolidationCheck(store, () => ({
         consolidation: async (request: ConsolidationRequest): Promise<readonly (typeof finding)[]> => {
           requests.push(request);
@@ -165,7 +165,11 @@ export const tests: readonly TestCase[] = [
         assert.ok(top !== undefined);
         assert.equal(provider.getTreeItem(top).label, 'Consolidation');
         const findings = provider.getChildren(top).map((node) => provider.getTreeItem(node));
-        assert.deepEqual(findings.map((item) => [item.label, item.description, item.command?.arguments]), [[finding.title, 'a.txt, b.txt', [0]]]);
+        assert.deepEqual(
+          findings.map((item) => [item.label, item.description, item.command?.command, item.command?.arguments, item.contextValue]),
+          [[finding.title, 'a.txt, b.txt', 'malt.showFindingLocation', [0, 0], 'malt.finding']],
+          'selecting a finding goes to where it applies; its details are an inline action',
+        );
       } finally {
         vscode.Disposable.from(provider, check, store).dispose();
       }

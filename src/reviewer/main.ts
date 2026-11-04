@@ -3,8 +3,10 @@
  * Configuration comes from environment variables set by the extension.
  */
 import { ClaudeCodeProvider } from './providers/claudeCode';
-import { createReviewerServer } from './server';
+import { createReviewerServer, shutdownReviewerServer } from './server';
 import { ReviewService } from './service';
+import { ConversationLog } from './conversations';
+import { profilesFromEnv } from '../shared/reviewProfiles';
 import { describeError, log } from './log';
 
 const required = (name: string): string => {
@@ -23,22 +25,22 @@ const optional = (name: string, fallback: string): string => {
 const main = (): void => {
   const port = Number.parseInt(required('MALT_PORT'), 10);
   const host = optional('MALT_HOST', '127.0.0.1');
+  const conversations = new ConversationLog();
   const service = new ReviewService(
     {
       workspaceRoot: required('MALT_WORKSPACE'),
-      triageModel: optional('MALT_TRIAGE_MODEL', 'sonnet'),
-      reviewModel: optional('MALT_REVIEW_MODEL', 'sonnet'),
-      standardsModel: optional('MALT_STANDARDS_MODEL', 'opus'),
+      profiles: profilesFromEnv(process.env),
     },
     new ClaudeCodeProvider(optional('MALT_CLAUDE_PATH', 'claude')),
+    conversations,
   );
-  const server = createReviewerServer(service, required('MALT_TOKEN'));
+  const server = createReviewerServer(service, required('MALT_TOKEN'), conversations);
   server.listen(port, host, () => {
     log(`listening on ${host}:${String(port)} (provider: ${service.providerName})`);
   });
   const shutdown = (): void => {
     log('shutting down');
-    server.close();
+    shutdownReviewerServer(server);
   };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
