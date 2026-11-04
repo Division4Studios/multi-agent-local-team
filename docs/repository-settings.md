@@ -105,7 +105,7 @@ These have no API, so check them by hand after changes:
 
 - Wiki: "Restrict editing to collaborators only" is on (Settings → General → Features).
 - Discussion categories: GitHub's defaults (Announcements, General, Ideas, Polls, Q&A, Show and tell). The `q-a` and `ideas` forms match their slugs, so renaming those categories breaks the forms.
-- Social preview: a 1280×640 copy of `media/banner.png` on the banner's background color (Settings → General). GitHub's limit is 1 MB, and the banner itself is larger.
+- Social preview: `design/social-preview.png`, 1280×640 (Settings → General). See `design/README.md` to re-render it.
 - Project built-in workflows ([MALT roadmap → Workflows](https://github.com/users/Division4Studios/projects/12/workflows)). Changing the Status options breaks any workflow that sets one, so re-check these after editing the field:
 
   | Workflow | Sets Status to |

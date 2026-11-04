@@ -30,6 +30,12 @@ What to expect:
 - **Initial assessment** within 7 days
 - Coordinated disclosure: we will agree on a timeline with you, publish a GitHub Security Advisory, and credit you unless you prefer to stay anonymous
 
+## The trust boundary
+
+<p align="center"><img src="design/trust.png" alt="The trust boundary: MALT's static instructions and baseline rules go in the system prompt; project rules, patches, file context and the map slice go in a fenced, untrusted data block; Claude runs with no tools; policy checks drop invented rules, files and unsupported quotes before anything reaches the editor, where model text is escaped." width="960" /></p>
+
+Code under review can try to instruct the reviewer. MALT keeps everything from the repository out of its instructions and checks every answer; the details are under **Prompt-injection boundary** below.
+
 ## Reviewer isolation
 
 MALT sends changed code to a reviewer service that calls an AI model. It's designed so that the reviewed repository can't use the reviewer to run code:

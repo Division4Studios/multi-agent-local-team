@@ -5,6 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
+        <img src="https://raw.githubusercontent.com/wiki/Division4Studios/multi-agent-local-team/images/mark.png" alt="MALT" width="40">
+
         Review quality is MALT's whole job, so these reports matter. The most useful report has a **small, self-contained snippet** that reproduces the verdict on **Review Again**.
 
         If the code made the reviewer ignore or rewrite its own rules, that's a security issue: please use [private vulnerability reporting](https://github.com/Division4Studios/multi-agent-local-team/security/advisories/new) instead.

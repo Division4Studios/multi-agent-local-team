@@ -5,6 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
+        <img src="https://raw.githubusercontent.com/wiki/Division4Studios/multi-agent-local-team/images/mark.png" alt="MALT" width="40">
+
         MALT has **zero runtime dependencies** and a fixed list of development dependencies, enforced by `npm run check-deps` (see [CONTRIBUTING.md](https://github.com/Division4Studios/multi-agent-local-team/blob/dev/CONTRIBUTING.md#dependency-policy)). CI uses only `actions/*` and `github/*` actions pinned to full commit SHAs.
 
         **Don't write code that needs the change until a maintainer approves this issue.** Routine version bumps come from Dependabot and don't need a request.

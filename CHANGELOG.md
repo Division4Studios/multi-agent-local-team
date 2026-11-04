@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- New look: the barley mark is redrawn from flat geometric shapes in amber and teal, for the extension icon and the activity bar. The README, wiki and docs have a new hero image and diagrams of how a change is reviewed and of the trust boundary, all hand-built from reviewable SVG and HTML sources in `design/`.
+
 ### Fixed
 
 - `malt.reviewer.claudePath` and `malt.docker.socketPath` are machine-scoped: a repository's `.vscode/settings.json` can no longer choose the program MALT runs or the Docker endpoint it talks to. In untrusted workspaces they are restricted too.

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="240" viewBox="0 0 780 240" role="img" aria-labelledby="title">
+  <title id="title">MALT</title>
+  <desc>MALT barley mark and wordmark, for dark backgrounds. Transparent background.</desc>
+  <g><rect x="114" y="64" width="12" height="166" rx="6" fill="#2BB8A6"/><rect x="104" y="10" width="32" height="58" rx="16" fill="#E6B85C"/><g fill="#E6B85C"><rect x="-16" y="-29" width="32" height="58" rx="16" transform="translate(86 88) rotate(-42)"/><rect x="-17" y="-31" width="34" height="62" rx="17" transform="translate(84 134) rotate(-42)"/><rect x="-18" y="-33" width="36" height="66" rx="18" transform="translate(82 182) rotate(-42)"/></g><g fill="#C98F2E"><rect x="-16" y="-29" width="32" height="58" rx="16" transform="translate(154 88) rotate(42)"/><rect x="-17" y="-31" width="34" height="62" rx="17" transform="translate(156 134) rotate(42)"/><rect x="-18" y="-33" width="36" height="66" rx="18" transform="translate(158 182) rotate(42)"/></g></g>
+  <g transform="translate(270 10)" stroke="#F7EFDA"><path d="M17 168V52l48 76 48-76v116M150 168 200 52l50 116M169 128h62M288 52v116h66M374 52h108M428 52v116" fill="none" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/></g>
+</svg>
