@@ -8,7 +8,7 @@
  */
 import * as vscode from 'vscode';
 import { BORDER_WIDTHS, EDGES, outlineRanges } from './decorations';
-import { realPathInside } from '../shared/realPath';
+import { realRelativeInside } from '../shared/realPath';
 import type { Edge } from './decorations';
 import type { Finding, FindingAnchor } from '../shared/protocol';
 
@@ -18,8 +18,11 @@ const COLOR = new vscode.ThemeColor('malt.finding');
  * Resolves a workspace-relative path from untrusted data (a generated file or model output) to the file it really
  * is, or undefined. The path must be lexically inside the folder, and its real location (after symlinks and
  * junctions) must be too, so a link in the workspace can never open a file from elsewhere on the machine. Fails
- * closed: a missing or unreadable path resolves to undefined. Returns the real path, so what was checked is what
- * is opened.
+ * closed: a missing or unreadable path resolves to undefined.
+ *
+ * The result is the verified file (its real location relative to the real root), spelled with the workspace
+ * folder's own path: on macOS `/var/…` really is `/private/var/…`, and Windows expands short names, so returning
+ * the raw real path would open the file as if it were outside the workspace.
  */
 export const workspaceFile = async (folder: vscode.WorkspaceFolder, path: string): Promise<vscode.Uri | undefined> => {
   const segments = path.split(/[\\/]/u);
@@ -27,8 +30,8 @@ export const workspaceFile = async (folder: vscode.WorkspaceFolder, path: string
   if (unsafe) {
     return undefined;
   }
-  const real = await realPathInside(folder.uri.fsPath, vscode.Uri.joinPath(folder.uri, ...segments).fsPath);
-  return real === undefined ? undefined : vscode.Uri.file(real);
+  const real = await realRelativeInside(folder.uri.fsPath, vscode.Uri.joinPath(folder.uri, ...segments).fsPath);
+  return real === undefined ? undefined : vscode.Uri.joinPath(folder.uri, ...real.split(/[\\/]/u));
 };
 
 const lastSegment = (symbol: string): string => symbol.split(/\.|::/u).at(-1) ?? symbol;

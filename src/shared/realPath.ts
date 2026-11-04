@@ -9,13 +9,17 @@ export const isInsidePath = (root: string, target: string): boolean => {
 };
 
 /**
- * The real path of `file` if it really lives inside `root`, otherwise undefined. Fails closed: a missing or
+ * Where `file` really is, relative to where `root` really is, if it is inside; otherwise undefined. Both sides are
+ * resolved, so links anywhere along either path are followed before comparing. Fails closed: a missing or
  * unreadable path is undefined too.
+ *
+ * Joining the result onto the root's own path gives the verified file, spelled the way the workspace knows it
+ * (e.g. `/var/…` rather than macOS's `/private/var/…`, or a long Windows path rather than its short form).
  */
-export const realPathInside = async (root: string, file: string): Promise<string | undefined> => {
+export const realRelativeInside = async (root: string, file: string): Promise<string | undefined> => {
   try {
     const [realRoot, realFile] = await Promise.all([realpath(root), realpath(file)]);
-    return isInsidePath(realRoot, realFile) ? realFile : undefined;
+    return isInsidePath(realRoot, realFile) ? relative(realRoot, realFile) : undefined;
   } catch {
     return undefined;
   }

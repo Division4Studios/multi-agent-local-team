@@ -1,6 +1,6 @@
 /** The Reviewer sidebar, standards pages, and gap anchors resolved to real declarations. */
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
@@ -157,6 +157,25 @@ export const tests: readonly TestCase[] = [
       } finally {
         await rm(join(root.uri.fsPath, 'linked-outside'), { recursive: false, force: true });
         await rm(join(root.uri.fsPath, 'inside.rs'), { force: true });
+        await rm(base, { recursive: true, force: true });
+      }
+    },
+  },
+  {
+    name: 'anchors: a workspace reached through a link (like macOS /var -> /private/var) opens files under its own path',
+    run: async (): Promise<void> => {
+      const base = await mkdtemp(join(tmpdir(), 'malt-linked-root-'));
+      const realRoot = join(base, 'real-root');
+      const linkedRoot = join(base, 'linked-root');
+      await mkdir(join(realRoot, 'src'), { recursive: true });
+      await writeFile(join(realRoot, 'src', 'lib.rs'), 'fn x() {}');
+      await symlink(realRoot, linkedRoot, 'junction');
+      try {
+        const linkedFolder: vscode.WorkspaceFolder = { uri: vscode.Uri.file(linkedRoot), name: 'linked', index: 0 };
+        const opened = await workspaceFile(linkedFolder, 'src/lib.rs');
+        assert.equal(opened?.fsPath, vscode.Uri.joinPath(linkedFolder.uri, 'src', 'lib.rs').fsPath, 'spelled as the workspace knows it, not as the resolved path');
+      } finally {
+        await rm(linkedRoot, { force: true });
         await rm(base, { recursive: true, force: true });
       }
     },

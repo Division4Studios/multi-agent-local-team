@@ -8,7 +8,7 @@ import type { GitApi, GitChange, GitRepository } from '../git/gitApi';
 import { hunkId, newFileHunks, parseUnifiedDiff } from '../diff/unifiedDiff';
 import type { DiffHunk } from '../diff/unifiedDiff';
 import type { HunkStore, TrackedHunk } from './hunkStore';
-import { realPathInside } from '../shared/realPath';
+import { realRelativeInside } from '../shared/realPath';
 
 const DEBOUNCE_MS = 600;
 const MAX_NEW_FILE_BYTES = 512_000;
@@ -128,7 +128,7 @@ export class ChangeTracker implements vscode.Disposable {
   private async isReviewableFile(uri: vscode.Uri, stat: vscode.FileStat): Promise<boolean> {
     const isLink = (stat.type & vscode.FileType.SymbolicLink) !== 0;
     const isFile = (stat.type & vscode.FileType.File) !== 0;
-    return !isLink && isFile && (await realPathInside(this.folder.uri.fsPath, uri.fsPath)) !== undefined;
+    return !isLink && isFile && (await realRelativeInside(this.folder.uri.fsPath, uri.fsPath)) !== undefined;
   }
 
   private async computeHunks(repository: GitRepository, change: GitChange): Promise<readonly DiffHunk[]> {
