@@ -42,7 +42,8 @@ All commands below have the **MALT:** prefix.
 | Stop Reviewer | Stop the managed reviewer |
 | Scan Project Standards | Read docs, map the source files, infer undocumented conventions and list gaps; saves `.malt/standards.json` and `.malt/architecture.json` |
 | Show Project Standards | Open the saved rules as a page grouped by category, with the MALT baseline checks (also the **Standards** row) |
-| Show Architecture Map | Open the saved map as a page grouped by folder (also the **Architecture** row) |
+| Show Architecture Map | Explore files, symbols and relationships in the **Architecture** row. Compare local branch tips or a branch against saved edits. |
+| Show Architecture File Summaries | Read the reviewer’s file summaries and applicable developer clarifications. |
 | Show Standards Gaps | Reopen the gaps the last scan found as one page. In the Reviewer view, the **Gaps** row lists them; selecting one opens the file at the declaration it names, outlined, with the gap on hover |
 | Show Live Reviewer Log | Watch every model call as it happens: what it is for, the prompt sent and the answer streaming in, with elapsed time and a stall indicator. Nothing is saved (also the **Reviewer** row) |
 | Check Consolidation Across Changes | One reviewer call over the new declarations in every changed block; findings appear at the top of **Changes** |
@@ -56,6 +57,8 @@ All commands below have the **MALT:** prefix.
 | Clear Claude Credentials | Remove stored credentials |
 
 **Review Again** is available on a block's hover card or sidebar action. **Reveal Change** is invoked by selecting a block in the sidebar; these contextual actions are not listed in the command palette.
+
+Structural indexing and branch comparison run locally. **Scan Project Standards** and the explorer’s clarification chat use the configured reviewer. Discussion turns use its investigation profile. [Architecture explorer walkthrough](architecture-explorer.md)
 
 ## Theme customization
 

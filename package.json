@@ -1,7 +1,7 @@
 {
   "name": "malt",
   "displayName": "MALT",
-  "description": "Review changes as you code. Inline block reviews, project standards, and a local Claude reviewer for VS Code.",
+  "description": "Review changed code against project standards, explore interactive architecture maps, and compare Git branches with a local Claude reviewer.",
   "version": "0.0.1",
   "publisher": "division4studios",
   "license": "MIT",
@@ -17,6 +17,12 @@
     "vscode": "^1.144.0",
     "node": ">=24"
   },
+  "keywords": [
+    "code review",
+    "architecture",
+    "code navigation",
+    "git"
+  ],
   "categories": [
     "Linters",
     "Other"

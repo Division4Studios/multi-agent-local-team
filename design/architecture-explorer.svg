@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="610" viewBox="0 0 1240 610" role="img" aria-labelledby="title desc">
+  <title id="title">How MALT checks an architectural explanation</title>
+  <desc id="desc">A source-backed example. ReviewService.discuss calls ground, which calls verifiedQuote and sanitizeText. A matched source excerpt and an unanswered design question are presented separately. The developer can apply a clarification to the branch map.</desc>
+  <rect width="1240" height="610" fill="#0e1217"/>
+  <path d="M40 0v610M80 0v610M120 0v610M160 0v610M200 0v610M240 0v610M280 0v610M320 0v610M360 0v610M400 0v610M440 0v610M480 0v610M520 0v610M560 0v610M600 0v610M640 0v610M680 0v610M720 0v610M760 0v610M800 0v610M840 0v610M880 0v610M920 0v610M960 0v610M1000 0v610M1040 0v610M1080 0v610M1120 0v610M1160 0v610M1200 0v610M0 40h1240M0 80h1240M0 120h1240M0 160h1240M0 200h1240M0 240h1240M0 280h1240M0 320h1240M0 360h1240M0 400h1240M0 440h1240M0 480h1240M0 520h1240M0 560h1240M0 600h1240" stroke="#202932" stroke-width="1" fill="none"/>
+  <g font-family="Segoe UI, sans-serif">
+    <text x="48" y="49" font-size="16" font-weight="bold" letter-spacing="2" fill="#2bb8a6">MALT  /  ARCHITECTURE EXPLORER</text>
+    <text x="48" y="104" font-size="40" font-weight="bold" fill="#f7efda">How MALT checks an explanation</text>
+    <text x="48" y="138" font-size="19" fill="#b3c1cd">A call trace from MALT’s own source. Select a declaration in the explorer to follow its connections.</text>
+
+    <g fill="none" stroke="#67cfc1" stroke-width="3">
+      <path d="M326 260H450"/><path d="M724 260H775Q792 260 792 242V224Q792 208 810 208H877"/>
+      <path d="M775 260Q792 260 792 278V300Q792 315 810 315H877"/>
+    </g>
+    <g fill="#67cfc1"><path d="M454 260l-12-7v14z"/><path d="M882 208l-12-7v14z"/><path d="M882 315l-12-7v14z"/></g>
+    <rect x="48" y="212" width="278" height="97" rx="10" fill="#18242d" stroke="#667f90" stroke-width="2"/>
+    <rect x="454" y="212" width="270" height="97" rx="10" fill="#153330" stroke="#57d2bf" stroke-width="3"/>
+    <rect x="883" y="165" width="309" height="86" rx="10" fill="#18242d" stroke="#667f90" stroke-width="2"/>
+    <rect x="883" y="273" width="309" height="86" rx="10" fill="#18242d" stroke="#667f90" stroke-width="2"/>
+    <g font-size="15" fill="#a8b9c5"><text x="68" y="242">src/reviewer/service.ts</text><text x="474" y="242">src/reviewer/understanding.ts</text>
+      <text x="903" y="195">src/reviewer/understanding.ts</text><text x="903" y="303">src/reviewer/trust.ts</text></g>
+    <g font-family="Consolas, monospace" font-weight="bold" fill="#f7efda" font-size="25">
+      <text x="68" y="280">discuss</text><text x="474" y="280">ground</text><text x="903" y="228">verifiedQuote</text><text x="903" y="336">sanitizeText</text>
+    </g>
+    <g fill="#8edbce" font-size="15"><text x="368" y="245">calls</text><text x="819" y="194">calls</text><text x="819" y="302">calls</text></g>
+
+    <path d="M48 397H1192" stroke="#354451"/>
+    <text x="48" y="431" font-size="15" font-weight="bold" fill="#f2c66a" letter-spacing="1.5">READING THE EVIDENCE</text>
+    <text x="48" y="472" font-size="22" font-weight="bold" fill="#f7efda">What the source supports</text>
+    <text x="48" y="504" font-size="18" fill="#c8d3db">The reviewer keeps a candidate quote only if it</text>
+    <text x="48" y="529" font-size="18" fill="#c8d3db">meets the length bounds and occurs in the source.</text>
+    <text x="48" y="568" font-family="Consolas, monospace" font-size="19" fill="#8edbce">source.includes(text)</text>
+    <path d="M616 451V575" stroke="#354451"/>
+    <text x="649" y="472" font-size="22" font-weight="bold" fill="#f7efda">What still needs a developer</text>
+    <text x="649" y="504" font-size="18" fill="#c8d3db">Why were these particular length bounds chosen?</text>
+    <text x="649" y="529" font-size="18" fill="#c8d3db">Open the question and discuss the design intent.</text>
+    <text x="649" y="568" font-size="18" font-weight="bold" fill="#f2c66a">Apply to architecture map</text>
+  </g>
+</svg>

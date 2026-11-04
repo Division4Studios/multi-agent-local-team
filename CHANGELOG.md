@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Interactive architecture maps with tagged source relationships, path tracing and visual branch comparisons. The reviewer separates source evidence from hypotheses and can discuss a question with a developer before saving a clarification.
+- Interactive architecture maps with tagged source relationships, path tracing and visual branch comparisons. The reviewer separates source evidence from hypotheses and can discuss a question with a developer before saving a clarification for that branch and file version. [Architecture explorer walkthrough](docs/architecture-explorer.md)
 
 ### Changed
 
