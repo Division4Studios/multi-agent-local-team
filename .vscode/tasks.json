@@ -2,6 +2,11 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "type": "npm", "script": "compile", "label": "npm: compile",
+      "detail": "Compile with TypeScript 7 (Docker required).",
+      "problemMatcher": "$tsc", "group": "build"
+    },
+    {
       "type": "npm",
       "script": "watch",
       "label": "npm: watch",
@@ -9,6 +14,61 @@
       "isBackground": true,
       "presentation": { "reveal": "never" },
       "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "type": "npm", "script": "check-types", "label": "npm: check-types",
+      "detail": "Type-check the extension and scripts in Docker.",
+      "problemMatcher": "$tsc"
+    },
+    {
+      "type": "npm", "script": "lint", "label": "npm: lint",
+      "detail": "Run strict ESLint with zero warnings.",
+      "problemMatcher": "$eslint-stylish"
+    },
+    {
+      "type": "npm", "script": "check-deps", "label": "npm: check-deps",
+      "detail": "Check dependency policy, exact pins, and security overrides.",
+      "problemMatcher": []
+    },
+    {
+      "type": "npm", "script": "audit", "label": "npm: audit",
+      "detail": "Audit all dependencies and verify registry signatures (network required).",
+      "problemMatcher": []
+    },
+    {
+      "type": "npm", "script": "test:toolchain", "label": "npm: test:toolchain",
+      "detail": "Test compiler aliases, dependency guards, and file selection.",
+      "problemMatcher": [], "group": "test"
+    },
+    {
+      "type": "npm", "script": "test:compiler-sandbox", "label": "npm: test:compiler-sandbox",
+      "detail": "Verify native compiler isolation (Docker required).",
+      "problemMatcher": [], "group": "test"
+    },
+    {
+      "type": "npm", "script": "verify", "label": "npm: verify",
+      "detail": "Run dependency, type, lint, sandbox, and VS Code tests (Docker required).",
+      "problemMatcher": ["$tsc", "$eslint-stylish"], "group": "test"
+    },
+    {
+      "type": "npm", "script": "test", "label": "npm: test",
+      "detail": "Compile, then run extension tests in VS Code (Docker required).",
+      "problemMatcher": "$tsc", "group": "test"
+    },
+    {
+      "type": "npm", "script": "test:compiled", "label": "npm: test:compiled",
+      "detail": "Run VS Code tests against existing out/; does not compile first.",
+      "problemMatcher": [], "group": "test"
+    },
+    {
+      "type": "npm", "script": "vscode:prepublish", "label": "npm: vscode:prepublish",
+      "detail": "Run the extension prepublish compilation step (Docker required).",
+      "problemMatcher": "$tsc", "group": "build"
+    },
+    {
+      "type": "npm", "script": "vsix", "label": "npm: vsix",
+      "detail": "Compile and package a local VSIX (Docker required).",
+      "problemMatcher": "$tsc", "group": "build"
     }
   ]
 }
