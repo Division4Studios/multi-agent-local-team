@@ -279,6 +279,33 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
+    name: 'gap investigation: investigations that finish at the same time are all saved',
+    run: async (): Promise<void> => {
+      const root = folder();
+      const gaps: Finding[] = [0, 1, 2, 3, 4].map((index) => ({ ...GAP, title: `Gap ${String(index)}` }));
+      const investigationOf = (gap: Finding): GapInvestigation => ({
+        gapId: gapId(gap),
+        investigatedAt: '2026-11-04T00:00:00.000Z',
+        verdict: 'confirmed',
+        confidence: 'high',
+        plainSummary: gap.title,
+        whatTheCodeDoes: 'w',
+        evidence: [],
+        counterpoints: 'c',
+        whyItMatters: 'm',
+        recommendation: 'r',
+        filesRead: [],
+      });
+      try {
+        await Promise.all(gaps.map(async (gap) => { await saveInvestigation(root, investigationOf(gap), gaps); }));
+        const saved = await readInvestigations(root);
+        assert.deepEqual(saved?.investigations.map((item) => item.plainSummary).sort(), gaps.map((gap) => gap.title), 'no completed investigation is lost');
+      } finally {
+        await vscode.workspace.fs.delete(vscode.Uri.joinPath(root.uri, '.malt'), { recursive: true });
+      }
+    },
+  },
+  {
     name: 'gap highlight: opens the file at the real declaration, outlines it and explains it on hover',
     run: async (): Promise<void> => {
       const root = folder();

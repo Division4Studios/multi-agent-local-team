@@ -39,7 +39,7 @@ import {
   buildOverviewUserPrompt,
   buildStandardsUserPrompt,
 } from './prompts';
-import { collectCodeSources, collectStandardsSources } from './standardsSources';
+import { collectCodeSources, collectStandardsSources, isSourceCodePath } from './standardsSources';
 import type { SourceFile } from './standardsSources';
 import { describeError } from './log';
 import { createNonce, enforceAnchors, enforceCheckPolicy, enforceFindingPolicy, enforceOverviewPolicy, sanitizeModules, sanitizeProjectRules } from './trust';
@@ -269,19 +269,24 @@ export class ReviewService {
     if (recorded === undefined) {
       throw new Error('Unknown gap: run Scan Project Standards again');
     }
-    const gap = { ...recorded, anchors: enforceAnchors(recorded.anchors, new Set(recorded.files)) };
-    const files = await collectGapCode(root, gap, (await this.architecture()).modules);
-    if (files.length === 0) {
-      throw new Error('None of the files this gap names could be read');
+    // `standards.json` is a file in the repository, so a gap's file list is untrusted: it may only name source files
+    // the scan mapped. Anything else (an edited list naming `.env`, keys or notes) is dropped before reading.
+    const { modules } = await this.architecture();
+    const mapped = new Set(modules.map((module) => module.path).filter(isSourceCodePath));
+    const files = recorded.files.filter((file) => mapped.has(file));
+    const gap = { ...recorded, files, anchors: enforceAnchors(recorded.anchors, new Set(files)) };
+    const code = files.length === 0 ? [] : await collectGapCode(root, gap, modules);
+    if (code.length === 0) {
+      throw new Error('This gap names no mapped source files to investigate. Run Scan Project Standards to refresh the map.');
     }
     const output = await this.ask(`Gap investigation · ${gap.title}`, {
       systemPrompt: INVESTIGATION_SYSTEM_PROMPT,
-      userPrompt: buildInvestigationUserPrompt(gap, files, createNonce()),
+      userPrompt: buildInvestigationUserPrompt(gap, code, createNonce()),
       schema: INVESTIGATION_SCHEMA,
       ...this.config.profiles.investigation,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
-    const investigation = enforceInvestigation(output, { gapId: id, files });
+    const investigation = enforceInvestigation(output, { gapId: id, files: code });
     if (investigation === undefined) {
       throw new Error('Provider returned an investigation that does not match the protocol');
     }

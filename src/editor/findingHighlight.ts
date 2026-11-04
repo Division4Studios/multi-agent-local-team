@@ -9,6 +9,7 @@
 import * as vscode from 'vscode';
 import { BORDER_WIDTHS, EDGES, outlineRanges } from './decorations';
 import { realRelativeInside } from '../shared/realPath';
+import { findQuoteSpan } from '../shared/quoteMatch';
 import type { Edge } from './decorations';
 import type { Finding, FindingAnchor } from '../shared/protocol';
 
@@ -67,32 +68,10 @@ export const findDeclarationLine = (text: string, symbol: string): number | unde
 };
 
 /**
- * The lines a verbatim quote occupies in `text`: its non-blank lines must appear in order (indentation and blank
- * lines ignored). Returns zero-based first and last line, or undefined if the quote is not in the text.
+ * The lines a quote occupies in `text`, whitespace-insensitively. This is the matcher evidence grounding uses, so
+ * every quote MALT accepted can be located (even one the model re-wrapped onto one line).
  */
-export const findQuoteLines = (text: string, quote: string): { readonly start: number; readonly end: number } | undefined => {
-  const wanted = quote.split(/\r?\n/u).map((line) => line.trim()).filter((line) => line !== '');
-  const lines = text.split(/\r?\n/u).map((line) => line.trim());
-  const [first] = wanted;
-  if (first === undefined) {
-    return undefined;
-  }
-  for (let start = lines.indexOf(first); start >= 0; start = lines.indexOf(first, start + 1)) {
-    let matched = 0;
-    let line = start;
-    for (; line < lines.length && matched < wanted.length; line += 1) {
-      if (lines[line] === wanted[matched]) {
-        matched += 1;
-      } else if (lines[line] !== '') {
-        break;
-      }
-    }
-    if (matched === wanted.length) {
-      return { start, end: line - 1 };
-    }
-  }
-  return undefined;
-};
+export const findQuoteLines = findQuoteSpan;
 
 export const resolveAnchor = async (document: vscode.TextDocument, symbol: string): Promise<vscode.Range | undefined> => {
   const range = await fromSymbols(document.uri, symbol);

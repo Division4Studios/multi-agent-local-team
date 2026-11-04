@@ -16,6 +16,8 @@ import { isRecord, parseArray, readStrings } from '../shared/guards';
 import { PLAIN_LANGUAGE, TRUST_BOUNDARY } from './prompts';
 import { dataBlock, isDeclarationName, sanitizeDetail, sanitizeText } from './trust';
 import { readWorkspaceFile } from './workspace';
+import { isSourceCodePath } from './standardsSources';
+import { findQuoteSpan } from '../shared/quoteMatch';
 
 const MAX_FILES = 12;
 const MAX_FILE_CHARS = 40_000;
@@ -66,32 +68,42 @@ const seedPaths = (gap: Finding, modules: readonly ArchitectureModule[]): string
   return [...new Set([...gap.files, ...gap.anchors.map((anchor) => anchor.file), ...exporters])];
 };
 
+/** `added`: read now. `present`: already collected (an import that resolves here is resolved). `skipped`: not read. */
+type AddResult = 'added' | 'present' | 'skipped';
+
 /**
- * Reads the code an investigation needs, bounded by file count and size. Every read is confined to the workspace
- * by real path; files that cannot be read safely are skipped.
+ * Reads the code an investigation needs, bounded by file count and size. Only source code is ever read
+ * (`isSourceCodePath`: a code extension, no hidden or dependency folders), every read is confined to the workspace
+ * by real path, and files that cannot be read safely are skipped. Data files such as `.env`, keys or JSON secrets
+ * can therefore never reach the model, whatever the gap or an import names.
  */
 export const collectGapCode = async (root: string, gap: Finding, modules: readonly ArchitectureModule[]): Promise<CodeFile[]> => {
   const files: CodeFile[] = [];
-  const seen = new Set<string>();
+  const collected = new Set<string>();
+  const attempted = new Set<string>();
   let total = 0;
-  const add = async (path: string): Promise<boolean> => {
-    if (seen.has(path) || files.length >= MAX_FILES || total >= MAX_TOTAL_CHARS) {
-      return false;
+  const add = async (path: string): Promise<AddResult> => {
+    if (collected.has(path)) {
+      return 'present';
     }
-    seen.add(path);
+    if (attempted.has(path) || !isSourceCodePath(path) || files.length >= MAX_FILES || total >= MAX_TOTAL_CHARS) {
+      return 'skipped';
+    }
+    attempted.add(path);
     const content = await readCode(root, path);
     if (content === undefined) {
-      return false;
+      return 'skipped';
     }
     const kept = content.slice(0, MAX_TOTAL_CHARS - total);
     total += kept.length;
+    collected.add(path);
     files.push({ path, content: kept });
-    return true;
+    return 'added';
   };
-  /** An import resolves to the first candidate path that exists and can be read safely. */
+  /** An import resolves to the first candidate that is (or now becomes) collected; later candidates are not read. */
   const addFirst = async (candidates: readonly string[]): Promise<void> => {
     for (const candidate of candidates) {
-      if (await add(candidate)) {
+      if ((await add(candidate)) !== 'skipped') {
         return;
       }
     }
@@ -162,15 +174,15 @@ export const INVESTIGATION_SCHEMA = {
   additionalProperties: false,
 };
 
-/** Whitespace-insensitive, so a quote is found despite indentation or line-ending differences. */
 const normalize = (text: string): string => text.replace(/\s+/gu, ' ').trim();
 
 /**
  * Evidence is kept only if its file is one MALT supplied, its symbol (if any) is a plain declaration name, and its
- * quote appears verbatim (ignoring whitespace) in that file. Duplicates and extras are dropped.
+ * quote appears verbatim (ignoring whitespace) in that file. The check is `findQuoteSpan`, the same matcher the editor
+ * uses to outline the quote, so every accepted quote can be shown. Duplicates and extras are dropped.
  */
 export const groundEvidence = (evidence: readonly Evidence[], files: readonly CodeFile[]): Evidence[] => {
-  const contents = new Map(files.map((file) => [file.path, normalize(file.content)]));
+  const contents = new Map(files.map((file) => [file.path, file.content]));
   const kept: Evidence[] = [];
   const seen = new Set<string>();
   for (const item of evidence) {
@@ -178,7 +190,7 @@ export const groundEvidence = (evidence: readonly Evidence[], files: readonly Co
     const content = contents.get(item.file);
     const key = `${item.file}\0${normalize(quote)}`;
     const symbolOk = item.symbol === '' || isDeclarationName(item.symbol);
-    if (content !== undefined && quote !== '' && symbolOk && content.includes(normalize(quote)) && !seen.has(key) && kept.length < MAX_EVIDENCE) {
+    if (content !== undefined && quote !== '' && symbolOk && findQuoteSpan(content, quote) !== undefined && !seen.has(key) && kept.length < MAX_EVIDENCE) {
       seen.add(key);
       kept.push({ file: item.file, symbol: item.symbol, quote, observation: sanitizeText(item.observation, SUMMARY_LIMIT) });
     }

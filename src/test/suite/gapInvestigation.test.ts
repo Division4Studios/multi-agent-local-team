@@ -18,6 +18,7 @@ import { ReviewService } from '../../reviewer/service';
 import type { StructuredCall } from '../../reviewer/providers/provider';
 import { ReviewerClient } from '../../review/reviewerClient';
 import { profilesFromEnv } from '../../shared/reviewProfiles';
+import { isSourceCodePath } from '../../reviewer/standardsSources';
 import type { TestCase } from './harness';
 
 const CONTRACT = [
@@ -49,6 +50,7 @@ const GAP: Finding = {
 };
 
 const files = [{ path: 'src/a.ts', content: 'export const add = (a: number, b: number): number =>\n  a + b;\n' }];
+const SECRET = ['PLANTED', 'SECRET', 'VALUE', '7x9q'].join('-');
 
 const createWorkspace = async (): Promise<string> => {
   const root = await mkdtemp(join(tmpdir(), 'malt-investigate-'));
@@ -59,7 +61,15 @@ const createWorkspace = async (): Promise<string> => {
   await writeFile(join(root, 'src', 'etherfax-service.ts'), ETHERFAX);
   const standards: StandardsDocument = { version: 1, generatedAt: '2026-11-04T00:00:00.000Z', rules: [], gaps: [GAP] };
   await writeFile(join(root, '.malt', 'standards.json'), JSON.stringify(standards));
-  const map = { version: 1, generatedAt: standards.generatedAt, modules: [{ path: 'src/fax-provider.ts', purpose: 'Fax contract', exports: ['SendFaxInput', 'FaxProvider'] }] };
+  const map = {
+    version: 1,
+    generatedAt: standards.generatedAt,
+    modules: [
+      { path: 'src/fax-provider.ts', purpose: 'Fax contract', exports: ['SendFaxInput', 'FaxProvider'] },
+      { path: 'src/concord-service.ts', purpose: 'Concord client', exports: ['ConcordService'] },
+      { path: 'src/etherfax-service.ts', purpose: 'EtherFax client', exports: ['EtherFaxService'] },
+    ],
+  };
   await writeFile(join(root, '.malt', 'architecture.json'), JSON.stringify(map));
   return root;
 };
@@ -174,6 +184,80 @@ export const tests: readonly TestCase[] = [
       } finally {
         server.close();
         await rm(root, { recursive: true, force: true });
+      }
+    },
+  },
+  {
+    name: 'security: a tampered gap can never get data files (.env, secrets, unmapped files) sent to the model',
+    run: async (): Promise<void> => {
+      const root = await createWorkspace();
+      await writeFile(join(root, '.env'), `API_KEY=${SECRET}`);
+      await mkdir(join(root, 'config'));
+      await writeFile(join(root, 'config', 'secrets.json'), JSON.stringify({ key: SECRET }));
+      await writeFile(join(root, 'src', 'unmapped.ts'), `export const leaked = '${SECRET}';`);
+      await writeFile(join(root, 'src', 'settings.json'), JSON.stringify({ key: SECRET }));
+      await writeFile(join(root, 'src', 'concord-service.ts'), `import settings from './settings.json';\nimport env from '../.env';\n${CONCORD}`);
+      const tampered: Finding = { ...GAP, files: ['.env', 'config/secrets.json', 'src/unmapped.ts', 'src/concord-service.ts'] };
+      const onlyData: Finding = { ...GAP, title: 'Data only', files: ['.env', 'config/secrets.json'] };
+      const standards: StandardsDocument = { version: 1, generatedAt: '2026-11-04T00:00:00.000Z', rules: [], gaps: [tampered, onlyData] };
+      await writeFile(join(root, '.malt', 'standards.json'), JSON.stringify(standards));
+      const calls: StructuredCall[] = [];
+      const { server, client } = await startServer(root, calls);
+      try {
+        const result = await client.investigateGap(gapId(tampered));
+        const prompt = calls.map((call) => call.userPrompt).join('\n');
+        assert.ok(!prompt.includes(SECRET), 'no secret reached the model');
+        assert.ok(prompt.includes('export class ConcordService'), 'the mapped source file was still read');
+        assert.ok(result.filesRead.every((path) => path.endsWith('.ts') && path !== 'src/unmapped.ts'), result.filesRead.join(', '));
+        await assert.rejects(client.investigateGap(gapId(onlyData)), /no mapped source files/u, 'a gap naming only data files is refused');
+      } finally {
+        server.close();
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  },
+  {
+    name: 'investigation: an import stops at a module already collected, so no competing copy is read',
+    run: async (): Promise<void> => {
+      const root = await mkdtemp(join(tmpdir(), 'malt-investigate-imports-'));
+      await mkdir(join(root, 'src'));
+      await writeFile(join(root, 'src', 'a.ts'), "import { Contract } from './contract';\nexport const a: Contract = {};\n");
+      await writeFile(join(root, 'src', 'contract.ts'), 'export interface Contract {}\n');
+      await writeFile(join(root, 'src', 'contract.js'), 'module.exports = { unrelated: true };\n');
+      try {
+        const gap: Finding = { ...GAP, files: ['src/a.ts', 'src/contract.ts'], anchors: [] };
+        const code = await collectGapCode(root, gap, []);
+        assert.deepEqual(code.map((file) => file.path), ['src/a.ts', 'src/contract.ts'], 'contract.js is not pulled in');
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  },
+  {
+    name: 'investigation: every quote that grounding accepts can also be located in the file',
+    run: (): void => {
+      const quotes = [
+        'export const add = (a: number, b: number): number =>   a + b;',
+        'export const add = (a: number,\n b: number): number =>',
+        '  a + b;',
+      ];
+      for (const quote of quotes) {
+        const accepted = groundEvidence([{ file: 'src/a.ts', symbol: '', quote, observation: 'o' }], files).length === 1;
+        const located = findQuoteLines(files[0]?.content ?? '', quote);
+        assert.ok(accepted, `grounding accepts: ${quote}`);
+        assert.notEqual(located, undefined, `the editor can locate: ${quote}`);
+      }
+      assert.deepEqual(findQuoteLines(files[0]?.content ?? '', quotes[0] ?? ''), { start: 0, end: 1 }, 'a quote re-wrapped onto one line still spans its two source lines');
+    },
+  },
+  {
+    name: 'investigation: only source code paths qualify (no hidden, dependency or data files)',
+    run: (): void => {
+      for (const path of ['src/a.ts', 'backend/src/core/x.py', 'lib/main.rs']) {
+        assert.equal(isSourceCodePath(path), true, path);
+      }
+      for (const path of ['.env', 'src/.env.ts', 'config/secrets.json', 'node_modules/x/index.js', '.github/workflows/a.js', 'src/../x.ts', 'notes.md', 'id_rsa']) {
+        assert.equal(isSourceCodePath(path), false, path);
       }
     },
   },
