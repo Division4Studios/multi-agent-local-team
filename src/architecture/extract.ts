@@ -161,11 +161,11 @@ const bases = (code: string, symbol: SymbolFact, python: boolean): Reference[] =
   return refs;
 };
 
-const uses = (code: string, owner: string, line: number): Reference[] => {
+const uses = (code: string, owner: string, line: number, jsx: boolean): Reference[] => {
   const result: Reference[] = [];
-  for (const match of code.matchAll(/<([A-Z][\w$]*)\b(?=\s*(?:\/?>|\{|[\w:-]+\s*=))|(?<![\w$.])(?:(?:this|self)\.)?([A-Za-z_$][\w$]*)\s*\(/gu)) {
+  for (const match of code.matchAll(/(?<![\w$.)\]])<([A-Z][\w$]*)\b(?=\s*(?:\/?>|\{|[\w:-]+\s*=))|(?<![\w$.])(?:(?:this|self)\.)?([A-Za-z_$][\w$]*)\s*\(/gu)) {
     const name = match[1] ?? match[2] ?? '';
-    if (!CONTROL.has(name)) {
+    if (!CONTROL.has(name) && (jsx || match[1] === undefined)) {
       result.push({ owner, name, line, relation: match[1] === undefined ? 'calls' : 'renders' });
     }
   }
@@ -186,6 +186,7 @@ const endFrame = (stack: Frame[], lines: readonly string[], end: number): void =
 interface Cursor {
   readonly file: FileFacts;
   readonly python: boolean;
+  readonly jsx: boolean;
   readonly lines: string[];
   readonly code: string[];
   readonly stack: Frame[];
@@ -241,7 +242,7 @@ const collectLine = (cursor: Cursor, index: number): number => {
     pushSymbol(cursor, decl, index, line);
     body = line.slice(line.indexOf(decl.name) + decl.name.length);
   }
-  for (const ref of uses(body, currentOwner(cursor), index + 1)) {
+  for (const ref of uses(body, currentOwner(cursor), index + 1, cursor.jsx)) {
     cursor.file.refs.push(ref);
   }
   cursor.depth += delta(line);
@@ -255,7 +256,7 @@ export const extractFile = (path: string, source: string): FileFacts => {
   const python = path.endsWith('.py');
   const code = masked(source, python);
   const file: FileFacts = { path, hash: digest(source.replaceAll('\r\n', '\n')), tags: tagsFor(path), imports: python ? pythonImports(code) : importsFor(source, code), symbols: [], refs: [] };
-  const cursor: Cursor = { file, python, code: code.split(/\r?\n/u), lines: source.split(/\r?\n/u), stack: [], occurrences: new Map(), depth: 0 };
+  const cursor: Cursor = { file, python, jsx: /\.(?:jsx?|tsx|svelte|vue)$/u.test(path), code: code.split(/\r?\n/u), lines: source.split(/\r?\n/u), stack: [], occurrences: new Map(), depth: 0 };
   for (let index = 0; index < cursor.code.length; index++) {
     index = collectLine(cursor, index);
   }

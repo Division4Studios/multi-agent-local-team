@@ -26,6 +26,15 @@ const names = (graph: ArchitectureGraph): string[] => {
 
 export const tests: readonly TestCase[] = [
   {
+    name: 'architecture explorer: generic type arguments do not become rendered UI widgets',
+    run: (): void => {
+      for (const path of ['ui.ts', 'ui.tsx']) {
+        const file = extractFile(path, 'class Widget {}\nfunction create() { return cache.get<Widget>(); }');
+        assert.equal(buildGraph([file]).edges.some((e) => e.kind === 'renders'), false);
+      }
+    },
+  },
+  {
     name: 'architecture explorer: source-backed hierarchy, aliased call, inheritance, and JSX composition',
     run: (): void => {
       const graph = graphOf(widget);

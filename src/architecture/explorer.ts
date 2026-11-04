@@ -3,6 +3,9 @@ import * as vscode from 'vscode';
 import type { GitApi } from '../git/gitApi';
 import { workspaceFile } from '../editor/findingHighlight';
 import { isRecord, isString } from '../shared/guards';
+import { loadArchitecture } from '../reviewer/workspace';
+import { architecturePage } from '../standards/standardsPages';
+import { showListPage } from '../views/detailPanel';
 import { compareGraphs } from './graph';
 import type { MapNode, Snapshot } from './graph';
 import { eligible, revision, revisionReader } from './sources';
@@ -95,7 +98,7 @@ class MapPanel {
       case 'compare': await this.compare(); break;
       case 'live': this.sequence++; this.comparison = undefined; this.render(); break;
       case 'refresh': this.tracker.refresh(); break;
-      case 'summaries': await vscode.commands.executeCommand('malt.showArchitectureSummaries'); break;
+      case 'summaries': showListPage(architecturePage(await loadArchitecture(this.tracker.folder.uri.fsPath))); break;
       case 'clarify': this.clarify(message['id']); break;
       case 'source': if (isString(message['id'])) { await this.openSource(message['id']); } break;
     }

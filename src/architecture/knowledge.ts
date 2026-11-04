@@ -56,9 +56,17 @@ export const withUnderstanding = async (root: string, snapshot: Snapshot): Promi
 
 export const reviewerMap = (snapshot: Snapshot): ArchitectureDocument => {
   const modules: ArchitectureModule[] = [];
+  const declarations = new Map<string, string[]>();
+  for (const node of snapshot.nodes) {
+    if (node.parent === `file:${node.path}`) {
+      const names = declarations.get(node.path) ?? [];
+      names.push(node.label);
+      declarations.set(node.path, names);
+    }
+  }
   for (const node of snapshot.nodes) {
     if (node.understanding !== undefined) {
-      modules.push({ path: node.path, fingerprint: node.hash, purpose: node.understanding.what, exports: [], understanding: node.understanding });
+      modules.push({ path: node.path, fingerprint: node.hash, purpose: node.understanding.what, exports: declarations.get(node.path) ?? [], understanding: node.understanding });
     }
   }
   return { version: 1, generatedAt: snapshot.generatedAt, modules };
