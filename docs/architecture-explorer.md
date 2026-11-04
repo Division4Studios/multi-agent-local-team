@@ -2,6 +2,8 @@
 
 Open a trusted local project in VS Code and select **MALT → Reviewer → Architecture**. With several workspace folders open, select the folder to explore. The initial map shows the project and its immediate children. Structural indexing starts automatically and works with the reviewer stopped.
 
+The **Architecture Explorer** in the MALT sidebar offers ten views of the same workspace. You can follow a selected subject between the sidebar and the editor, publish standalone diagrams, and share clarified intent with local agent sessions. [Views, publication and agent setup](architecture-views.md)
+
 ## Follow a process through the code
 
 To try the example below, open MALT's own repository.

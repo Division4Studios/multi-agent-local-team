@@ -30,6 +30,7 @@ Every asset is hand-authored as SVG or HTML/CSS and is reviewable as text. No im
 | `design/brand/mark.svg` | The full-color mark: the same paths as `media/malt.svg` in brand colors (`mark.png`: 1024 px render) | No |
 | `design/brand/lockup-dark.svg`, `lockup-light.svg` | The mark's paths and a drawn wordmark, for dark or light backgrounds (PNG exports beside them) | No |
 | `design/hero.html` → `hero.png` | README and wiki header: the editor mock-up with MALT's real labels and hover layout | No |
+| `docs/images/architecture-guidance.svg` | Sidebar, signed feed and local agent handoff illustration for the [ten-view guide](architecture-views.md). | Yes |
 | `design/architecture-explorer.svg` → `docs/images/architecture-explorer.png` | Verified call trace and evidence example in the [architecture explorer guide](architecture-explorer.md). Export at 1240×610 and recheck the example against `src/reviewer` when its calls change. | PNG only |
 | `design/pipeline.html` → `pipeline.png` | How a change is reviewed (README, architecture guide, wiki) | No |
 | `design/trust.html` → `trust.png` | The prompt-injection trust boundary (`SECURITY.md`, wiki) | No |

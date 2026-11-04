@@ -12,7 +12,7 @@ import { eligible, revision, revisionReader } from './sources';
 import type { MapHead } from './sources';
 import { openDiscussion } from './discussion';
 import type { ReviewerAccess } from './discussion';
-import { feedVerifier } from './feedSignature';
+import { agentConnections } from './agentConnections';
 import { Atlas } from './navigation';
 import { AtlasTree } from './atlasTree';
 import { finalizeFile } from './finalize';
@@ -30,10 +30,10 @@ const page = (webview: vscode.Webview, media: vscode.Uri): string => {
 <div class="tools"><button id="compare">Compare branches…</button><button id="live">Working tree</button><button id="refresh">Rebuild map</button>
 <button id="summaries">File summaries</button></div></header>
 <section id="modelNav"><div class="tools"><label>View<select id="modelKind"></select></label><label>Subject<select id="modelSubject"></select></label>
-<button id="modelBack">Previous view</button><button id="modelTray">Reveal in sidebar</button><button id="modelSide" hidden>Switch branch side</button><button id="modelExport">Finalize and export</button></div><p id="modelQuestion"></p></section>
+<button id="modelBack">Previous view</button><button id="modelTray">Reveal in sidebar</button><button id="modelSide" hidden>Switch branch side</button><button id="modelExport">Finalize and export</button></div><button id="modelPrompt">Copy panel question</button><p id="modelQuestion"></p><nav id="relatedModels" aria-label="Related views"></nav></section>
 <main id="modelScreen" hidden><div class="tools"><label>Search items<input type="search" id="modelSearch"></label><label>Zoom<select id="modelZoom"><option>1</option><option>1.5</option><option>2</option><option>0.75</option></select></label><select id="modelZone" aria-label="Timezone"><option>UTC</option><option>Local</option></select><label id="modelFieldsWrap"><input type="checkbox" id="modelFields" checked>Show members</label>
-<button id="modelUp">Parent</button><button id="modelPlay">Play route</button></div><p id="modelRoute"></p><div id="modelDrawing"><svg id="modelSvg" role="group" aria-label="Interactive model"></svg></div>
-<div class="tools"><button id="modelPrev">Previous items</button><span id="modelCount" role="status"></span><button id="modelNext">Next items</button></div><p id="modelLegend"></p><section id="modelDetail"></section><nav id="relatedModels" aria-label="Related views"></nav></main>
+<button id="modelUp">Parent</button><button id="modelPlay">Play route</button><label><input type="checkbox" id="modelStill">Still</label></div><p id="modelRoute"></p><div id="modelDrawing"><svg id="modelSvg" role="group" aria-label="Interactive model"></svg></div>
+<div class="tools"><button id="modelPrev">Previous items</button><span id="modelCount" role="status"></span><button id="modelNext">Next items</button></div><p id="modelLegend"></p><section id="modelDetail"></section></main>
 <main id="connectionMap"><div class="filters"><label>Find a file or symbol <input type="search" id="search" placeholder="Name or path"></label>
 <label>Tag <select id="tags"><option value="">All tags</option></select></label>
 <label>Connections <select id="relation"><option value="">All connections</option><option>structure</option><option>imports</option>
@@ -117,7 +117,7 @@ class MapPanel {
       case 'source': if (isString(message['id'])) { await this.openSource(message['id']); } break;
       default: await handleView(this.atlas,message,{
         tray:async () => { await this.tray.reveal(this.atlas); },
-        discuss:() => { const n=selectedSource(this.atlas); if(n!==undefined&&this.comparison===undefined){openDiscussion(this.media,this.tracker,n,this.reviewer);} },
+        discuss:() => { const n=selectedSource(this.atlas); const diagram=this.atlas.model; if(n!==undefined&&diagram!==undefined&&this.comparison===undefined){openDiscussion(this.media,this.tracker,{node:n,diagram,item:this.atlas.place.item},this.reviewer);} },
         source:async () => { await this.openSelected(); },
       });
     }
@@ -258,13 +258,7 @@ export const registerArchitecture = (extension: vscode.Uri, map: { readonly git:
       const a=atlases.get(tracker.folder.uri.toString()); if(a!==undefined){open(a);}
     }
   });
-  const agentConnection=vscode.commands.registerCommand('malt.agentConnection',async()=>{
-    const folder=await vscode.window.showWorkspaceFolderPick({placeHolder:'Choose the workspace to connect to local agents'});
-    if(folder===undefined||!vscode.workspace.isTrusted){return;}
-    const args=[vscode.Uri.joinPath(extension,'out','architecture','agentBridge.js').fsPath,folder.uri.fsPath,feedVerifier(noteKey)];
-    await vscode.env.clipboard.writeText(JSON.stringify({mcpServers:{malt:{command:'node',args}}},null,2));
-    void vscode.window.showInformationMessage('Copied the local MCP server configuration for this workspace.');
-  });
+  const agentConnection=agentConnections(extension,noteKey);
   const jump=vscode.commands.registerCommand('malt.openArchitectureView',(key:unknown,input:unknown)=>{
     const a=typeof key==='string'?atlases.get(key):undefined,place=parsePlace(input);
     if(a!==undefined&&place!==undefined){onFocus();a.visit(place);open(a);}

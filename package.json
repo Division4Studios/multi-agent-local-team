@@ -35,6 +35,7 @@
     "vscode.git"
   ],
   "contributes": {
+    "mcpServerDefinitionProviders": [{ "id": "malt.localAgents", "label": "MALT workspace guidance" }],
     "viewsContainers": {
       "activitybar": [
         {

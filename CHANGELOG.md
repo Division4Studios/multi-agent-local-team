@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Ten interactive architecture views, cross-view navigation in the sidebar and editor, repository-specific agent classifications, validated Archify publications and a signed guidance feed for connected local agents. [Walkthrough](docs/architecture-views.md)
+
 - Interactive architecture maps with tagged source relationships, path tracing and visual branch comparisons. The reviewer separates source evidence from hypotheses and can discuss a question with a developer before saving a clarification for that branch and file version. [Architecture explorer walkthrough](docs/architecture-explorer.md)
 
 ### Changed

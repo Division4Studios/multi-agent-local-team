@@ -45,6 +45,7 @@ A VS Code extension for teams who ship with AI and still care what lands in `mai
 ## Guides
 
 - [First review and installation](docs/getting-started.md)
+- [Ten interactive architecture views, checked exports, and local-agent connections](docs/architecture-views.md)
 - [Explore the architecture, compare branches and clarify design intent](docs/architecture-explorer.md)
 - [Settings and commands](docs/configuration.md)
 - [Standards, ignored instructions, and generated output](docs/standards.md)

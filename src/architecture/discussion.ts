@@ -1,3 +1,4 @@
+import type { Diagram } from './diagram';
 import { isSourceCodePath } from '../reviewer/standardsSources';
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
@@ -16,6 +17,7 @@ interface Context {
   readonly file: MapNode;
   readonly snapshot: Snapshot;
   readonly focus: MapNode;
+  readonly panel?: string;
 }
 const initial = (context: Context): Interpretation => context.file.understanding ?? {
   what: 'This file has no agent interpretation yet.', why: 'Its design intent is unknown.',
@@ -50,7 +52,7 @@ const checkedSource = async (context: Context): Promise<string> => {
   if (source === undefined || digest(source.replaceAll('\r\n', '\n')) !== file.hash || headOf(tracker.repository).branch !== snapshot.branch) {
     throw new Error('The file or branch changed. Reopen the discussion from the current map.');
   }
-  return source;
+  return isSourceCodePath(file.path) ? source : context.panel ?? '';
 };
 
 const graphContext = ({ snapshot, file, focus }: Context): string => {
@@ -140,16 +142,19 @@ class Discussion {
     const turns = [...this.turns, reviewerTurn(this.answer), { role: 'developer', text } satisfies Turn];
     const start = Math.max(0, this.context.focus.line - 16);
     const excerpt = source.length <= 48_000 ? source : source.split('\n').slice(start).join('\n').slice(0, 48_000);
-    const answer = await client.discuss({ path: this.context.file.path, source: excerpt, context: graphContext(this.context), dialogue: dialogueOf(turns) });
+    const answer = await client.discuss({ path: this.context.file.path, source: excerpt, context: [this.context.panel ?? '',graphContext(this.context)].join('\n').slice(0,12_000), dialogue: dialogueOf(turns) });
     this.turns = turns.slice(-MAX_TURNS);
     this.answer = answer;
     this.post({ type: 'answer', answer });
   }
 }
-export const openDiscussion = (media: vscode.Uri, tracker: MapTracker, node: MapNode, reviewer: ReviewerAccess): void => {
+interface FocusedPanel { readonly node:MapNode; readonly diagram:Diagram; readonly item:string }
+export const openDiscussion = (media: vscode.Uri, tracker: MapTracker, selection: MapNode | FocusedPanel, reviewer: ReviewerAccess): void => {
+  const node='node' in selection?selection.node:selection;
+  const panel='diagram' in selection?JSON.stringify({kind:selection.diagram.kind,title:selection.diagram.title,selected:selection.item,items:selection.diagram.items.slice(0,60).map(i=>({id:i.id,label:i.label,role:i.group})),links:selection.diagram.links.slice(0,90)}).slice(0,7000):undefined;
   const snapshot = tracker.snapshot;
   const file = snapshot?.nodes.find((n) => n.kind === 'file' && n.path === node.path);
-  if (snapshot !== undefined && file !== undefined && isSourceCodePath(file.path)) {
-    new Discussion(media, { tracker, snapshot, file, focus: node }, reviewer);
+  if (snapshot !== undefined && file !== undefined && (isSourceCodePath(file.path)||panel!==undefined)) {
+    new Discussion(media, { tracker, snapshot, file, focus: node, ...(panel===undefined?{}:{panel}) }, reviewer);
   }
 };
