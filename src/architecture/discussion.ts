@@ -20,6 +20,29 @@ const initial = (context: Context): Interpretation => context.file.understanding
   what: 'This file has no agent interpretation yet.', why: 'Its design intent is unknown.',
   whatEvidence: '', whyEvidence: '', question: `What responsibility does ${context.focus.label} own, and why is it implemented here?`,
 };
+/**
+ * One dialogue turn. MALT sets the role and the dialogue is sent as JSON, so text the model wrote earlier is
+ * always attributed to the reviewer and can never pose as something the developer said.
+ */
+export type Turn =
+  | { readonly role: 'developer'; readonly text: string }
+  | { readonly role: 'reviewer'; readonly interpretation: Interpretation };
+const MAX_TURNS = 16;
+const MAX_DIALOGUE = 22_000;
+/** Drops the oldest whole turns until the dialogue fits, so it is always valid JSON. */
+export const dialogueOf = (turns: readonly Turn[]): string => {
+  let kept = turns.slice(-MAX_TURNS);
+  let text = JSON.stringify(kept);
+  while (text.length > MAX_DIALOGUE && kept.length > 0) {
+    kept = kept.slice(1);
+    text = JSON.stringify(kept);
+  }
+  return text;
+};
+const reviewerTurn = (answer: Interpretation): Turn => ({
+  role: 'reviewer',
+  interpretation: { what: answer.what, whatEvidence: answer.whatEvidence, why: answer.why, whyEvidence: answer.whyEvidence, question: answer.question },
+});
 const checkedSource = async (context: Context): Promise<string> => {
   const { tracker, file, snapshot } = context;
   const source = await workingReader(tracker.folder)(file.path);
@@ -55,7 +78,7 @@ class Discussion {
   private readonly context: Context;
   private readonly reviewer: ReviewerAccess;
   private answer: Interpretation;
-  private readonly turns: string[] = [];
+  private turns: readonly Turn[] = [];
   private busy = false;
   private closed = false;
   public constructor(media: vscode.Uri, context: Context, reviewer: ReviewerAccess) {
@@ -113,16 +136,11 @@ class Discussion {
     if (client === undefined || this.closed) {
       throw new Error('The reviewer is unavailable. You can still record your own clarification below.');
     }
-    const question = this.answer.question;
-    const turn = `Previous interpretation: ${JSON.stringify(this.answer)}\nDeveloper: ${text}`;
-    const dialogue = [...this.turns, turn].join('\n').slice(-22_000);
+    const turns = [...this.turns, reviewerTurn(this.answer), { role: 'developer', text } satisfies Turn];
     const start = Math.max(0, this.context.focus.line - 16);
     const excerpt = source.length <= 48_000 ? source : source.split('\n').slice(start).join('\n').slice(0, 48_000);
-    const answer = await client.discuss({ path: this.context.file.path, source: excerpt, context: graphContext(this.context), dialogue });
-    this.turns.push(`Reviewer: ${question}\nDeveloper: ${text}\nReviewer: ${answer.why}`);
-    if (this.turns.length > 8) {
-      this.turns.shift();
-    }
+    const answer = await client.discuss({ path: this.context.file.path, source: excerpt, context: graphContext(this.context), dialogue: dialogueOf(turns) });
+    this.turns = turns.slice(-MAX_TURNS);
     this.answer = answer;
     this.post({ type: 'answer', answer });
   }
