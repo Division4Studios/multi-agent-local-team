@@ -295,7 +295,13 @@
   el('traceClear').addEventListener('click', () => { traceStart = undefined; traceEnd = undefined; trail(); });
   el('traceSide').addEventListener('change', trail);
   el('source').addEventListener('click', () => post('source', focus));
-  el('back').addEventListener('click', () => { focus = history.pop() || root; page = 0; draw(); });
+  // Going back changes the selection too: tell the extension, so export and "copy question" use the visible layer.
+  el('back').addEventListener('click', () => {
+    focus = history.pop() || root;
+    if (lenses) { host.postMessage({ action: 'graphFocus', id: focus }); }
+    page = 0;
+    draw();
+  });
   el('search').addEventListener('input', search);
   ['tags', 'changed', 'relation'].forEach(id => el(id).addEventListener('change', () => { page = 0; draw(); search(); }));
   el('more').addEventListener('click', () => { page++; draw(); });
