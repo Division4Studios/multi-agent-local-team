@@ -25,6 +25,19 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
+    name: 'standards discovery reads architecture docs and decision records before other docs',
+    run: async (): Promise<void> => {
+      const root = await mkdtemp(join(tmpdir(), 'malt-adr-'));
+      await mkdir(join(root, 'docs', 'adr'), { recursive: true });
+      await mkdir(join(root, 'notes'));
+      for (const path of ['docs/adr/0001-layers.md', 'docs/guide.md', 'notes/a.md', 'ARCHITECTURE.md']) {
+        await writeFile(join(root, path), '# Doc\n');
+      }
+      const sources = await collectStandardsSources(root);
+      assert.deepEqual(sources.map((source) => source.path), ['ARCHITECTURE.md', 'docs/adr/0001-layers.md', 'docs/guide.md', 'notes/a.md']);
+    },
+  },
+  {
     name: 'architecture discovery reads the head of source files, shallowest first, skipping tests and build output',
     run: async (): Promise<void> => {
       const root = await mkdtemp(join(tmpdir(), 'malt-code-'));

@@ -124,6 +124,12 @@
         "icon": "$(git-merge)"
       },
       {
+        "command": "malt.showStandardsGaps",
+        "title": "Show Standards Gaps",
+        "category": "MALT",
+        "icon": "$(question)"
+      },
+      {
         "command": "malt.showFinding",
         "title": "Show Consolidation Finding",
         "category": "MALT",

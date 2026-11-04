@@ -22,6 +22,7 @@ export interface ReviewerStatus {
   readonly detail: string;
   readonly provider?: string;
   readonly rulesLoaded?: number;
+  readonly gapsFound?: number;
   readonly modulesLoaded?: number;
   /** When the architecture map was generated; empty if there is none. */
   readonly architectureScannedAt?: string;
@@ -173,6 +174,7 @@ export class ReviewerManager implements vscode.Disposable {
       detail: 'Healthy',
       provider: health.provider,
       rulesLoaded: health.rulesLoaded,
+      gapsFound: health.gapsFound,
       modulesLoaded: health.modulesLoaded,
       architectureScannedAt: health.architectureScannedAt,
     });

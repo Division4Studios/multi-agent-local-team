@@ -45,7 +45,10 @@ export const tests: readonly TestCase[] = [
     run: (): void => {
       const rule = { id: 'r', title: 'T', check: 'C?', category: 'style', source: 'CLAUDE.md' };
       const document = { version: 1, generatedAt: '2026-11-03T00:00:00.000Z', rules: [rule] };
-      assert.deepEqual(parseStandardsDocument(document), document);
+      assert.deepEqual(parseStandardsDocument(document), { ...document, gaps: [] }, 'files from before gap analysis load with no gaps');
+      const gap = { title: 'No architecture doc', files: [], note: 'n', detail: 'd' };
+      assert.deepEqual(parseStandardsDocument({ ...document, gaps: [gap] })?.gaps, [gap]);
+      assert.equal(parseStandardsDocument({ ...document, gaps: [{ title: 1 }] }), undefined);
       assert.equal(parseStandardsDocument({ ...document, version: 2 }), undefined);
       assert.equal(parseStandardsDocument({ ...document, rules: [{ ...rule, id: 1 }] }), undefined);
     },

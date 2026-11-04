@@ -43,6 +43,15 @@ Reviews never send the whole map. Each block review gets up to 25 related entrie
 
 The map goes stale as code changes. Rescan after adding or moving modules; the **Reviewer** view shows the map's date.
 
+## Inferred rules and gaps
+
+After reading the documents and mapping the code, the scan makes one more call that compares them:
+
+- **Inferred rules** are conventions the code clearly follows in at least three files that no documented rule covers, such as where components or data access live. They are saved with the documented rules, grouped the same way, and MALT marks their source as `Inferred from code: <paths>`. They never replace a baseline or documented rule. If one is wrong, write the real convention down in your docs and rescan; documented rules take precedence.
+- **Gaps** are what neither settles: no architecture document, two competing patterns for the same concern, a documented rule the code mostly ignores. They are not enforced. They are saved in `standards.json` and shown by **Show Standards Gaps** (or the **Gaps** row in the Reviewer view), each with the decision the team should write down.
+
+Architecture documents (`ARCHITECTURE.md`, `DESIGN.md`, and anything under `adr/`, `adrs/`, `decisions/`, `architecture/` or `design/` folders) are read right after agent instructions, so their layering and placement decisions become rules first.
+
 ## Maintaining rules
 
 Write short, testable instructions with a reason and an example in the source docs. Run **Scan Project Standards** again when those instructions change. A successful scan with rules replaces `standards.json`; it is generated output, so manual edits can be overwritten. An empty scan preserves the previous file.

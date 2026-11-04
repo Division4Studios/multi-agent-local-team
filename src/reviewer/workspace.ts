@@ -7,7 +7,7 @@ import type { BigIntStats } from 'node:fs';
 import { open, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { ARCHITECTURE_FILE, STANDARDS_FILE, parseArchitectureDocument, parseStandardsDocument } from '../shared/protocol';
-import type { ArchitectureDocument, Rule } from '../shared/protocol';
+import type { ArchitectureDocument, StandardsDocument } from '../shared/protocol';
 
 const CONTEXT_LINES = 60;
 const MAX_FILE_BYTES = 2_000_000;
@@ -115,8 +115,8 @@ const generatedFileLoader = <T>(path: string, parse: (value: unknown) => T | und
 const readStandards = generatedFileLoader(STANDARDS_FILE, parseStandardsDocument);
 const readArchitecture = generatedFileLoader(ARCHITECTURE_FILE, parseArchitectureDocument);
 
-/** Rules from `.malt/standards.json`. */
-export const loadRules = async (root: string): Promise<readonly Rule[]> => (await readStandards(root))?.rules ?? [];
+/** `.malt/standards.json`: documented and inferred rules, and the gaps the last scan found. */
+export const loadStandards = async (root: string): Promise<StandardsDocument | undefined> => await readStandards(root);
 
 /** The architecture map from `.malt/architecture.json`; empty if there is none. */
 export const loadArchitecture = async (root: string): Promise<ArchitectureDocument> =>

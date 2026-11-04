@@ -2,10 +2,13 @@
  * "Scan Project Standards": the reviewer reads skills (.claude, .codex), Markdown docs and lint configs and
  * distills short checkable rules, which MALT writes to .malt/standards.json for every later review. In parallel it
  * maps the source files (purpose and exports) into .malt/architecture.json, so reviews know what already exists.
+ * A last call compares the two: conventions the code follows that no document states become inferred rules, and
+ * what neither settles is recorded as gaps for the team.
  */
 import * as vscode from 'vscode';
-import { ARCHITECTURE_FILE, STANDARDS_FILE } from '../shared/protocol';
-import type { ArchitectureDocument, ArchitectureModule, StandardsDocument } from '../shared/protocol';
+import { ARCHITECTURE_FILE, INFERRED_SOURCE_PREFIX, STANDARDS_FILE, parseStandardsDocument } from '../shared/protocol';
+import type { ArchitectureDocument, StandardsDocument, StandardsScan } from '../shared/protocol';
+import { showGaps } from '../views/detailPanel';
 import type { ReviewerClient } from '../review/reviewerClient';
 
 /** Keep generated output local without modifying the project's root ignore policy. */
@@ -30,49 +33,67 @@ const writeGenerated = async (folder: vscode.WorkspaceFolder, path: string, docu
   return target;
 };
 
-/** Saves the architecture map; an empty result keeps the previous map. Returns how many files were mapped. */
-const saveArchitecture = async (folder: vscode.WorkspaceFolder, result: PromiseSettledResult<readonly ArchitectureModule[]>): Promise<number> => {
-  if (result.status === 'rejected') {
-    void vscode.window.showErrorMessage(`MALT architecture map failed: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
-    return 0;
-  }
-  if (result.value.length > 0) {
-    const document: ArchitectureDocument = { version: 1, generatedAt: new Date().toISOString(), modules: result.value };
-    await writeGenerated(folder, ARCHITECTURE_FILE, document);
-  }
-  return result.value.length;
+const countText = (count: number, noun: string): string => `${String(count)} ${noun}${count === 1 ? '' : 's'}`;
+
+const summary = (scan: StandardsScan): string => {
+  const inferred = scan.rules.filter((rule) => rule.source.startsWith(INFERRED_SOURCE_PREFIX)).length;
+  return [
+    `MALT read ${countText(scan.sources.length, 'document')} and mapped ${countText(scan.modules.length, 'source file')}:`,
+    `${countText(scan.rules.length - inferred, 'documented rule')}, ${countText(inferred, 'rule')} inferred from the code,`,
+    `${countText(scan.gaps.length, 'gap')} for the team to decide.`,
+  ].join(' ');
 };
 
-/** Runs the standards scan and the architecture map in parallel; each result is saved independently. */
+/**
+ * Scans documents and code (one reviewer call that runs both, then a gap analysis) and saves the results. Empty
+ * results keep the previous files, so a failed or empty scan never wipes good output.
+ */
 export const scanStandards = async (client: ReviewerClient, folder: vscode.WorkspaceFolder): Promise<void> => {
-  const [standards, architecture] = await vscode.window.withProgress(
+  const scan = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: 'MALT: Scanning project standards (skills, docs and configs) and mapping the code…',
+      title: 'MALT: Scanning standards and architecture docs, mapping the code and looking for gaps…',
     },
-    async () => await Promise.allSettled([client.scanStandards(), client.scanArchitecture()]),
+    async () => await client.scanStandards(),
   );
-  const mapped = await saveArchitecture(folder, architecture);
-  if (standards.status === 'rejected') {
-    throw standards.reason;
+  for (const warning of scan.warnings) {
+    void vscode.window.showWarningMessage(`MALT: ${warning}`);
   }
-  const result = standards.value;
-  const mappedText = mapped > 0 ? ` Mapped ${String(mapped)} source file(s).` : '';
-  if (result.rules.length === 0) {
+  const now = new Date().toISOString();
+  if (scan.modules.length > 0) {
+    const map: ArchitectureDocument = { version: 1, generatedAt: now, modules: scan.modules };
+    await writeGenerated(folder, ARCHITECTURE_FILE, map);
+  }
+  if (scan.rules.length === 0 && scan.gaps.length === 0) {
     void vscode.window.showInformationMessage(
-      (result.sources.length === 0
-        ? 'MALT found no standards sources (.claude, .codex, Markdown docs or lint configs).'
-        : 'MALT did not find any checkable rules in the project sources.') + mappedText,
+      scan.sources.length === 0 && scan.modules.length === 0
+        ? 'MALT found no standards sources (.claude, .codex, Markdown docs or lint configs) and no source files.'
+        : 'MALT did not find any checkable rules or gaps.',
     );
     return;
   }
-  const document: StandardsDocument = { version: 1, generatedAt: new Date().toISOString(), rules: result.rules };
+  const document: StandardsDocument = { version: 1, generatedAt: now, rules: scan.rules, gaps: scan.gaps };
   const target = await writeGenerated(folder, STANDARDS_FILE, document);
-  const choice = await vscode.window.showInformationMessage(
-    `MALT extracted ${String(result.rules.length)} rule(s) from ${String(result.sources.length)} file(s).${mappedText}`,
-    'Open Rules',
-  );
+  const choice = await vscode.window.showInformationMessage(summary(scan), 'Open Rules', ...(scan.gaps.length > 0 ? ['Show Gaps'] : []));
   if (choice === 'Open Rules') {
     await vscode.window.showTextDocument(target);
+  } else if (choice === 'Show Gaps') {
+    showGaps(scan.gaps);
   }
+};
+
+/** Reopens the gaps the last scan recorded in `.malt/standards.json`. */
+export const showSavedGaps = async (folder: vscode.WorkspaceFolder): Promise<void> => {
+  let document: StandardsDocument | undefined;
+  try {
+    const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder.uri, STANDARDS_FILE));
+    document = parseStandardsDocument(JSON.parse(Buffer.from(bytes).toString('utf8')));
+  } catch {
+    document = undefined;
+  }
+  if (document === undefined || document.gaps.length === 0) {
+    void vscode.window.showInformationMessage('MALT has no recorded standards gaps. Run Scan Project Standards to look for them.');
+    return;
+  }
+  showGaps(document.gaps);
 };

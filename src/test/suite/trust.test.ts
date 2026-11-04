@@ -13,7 +13,7 @@ import {
 import {
   dataBlock,
   enforceCheckPolicy,
-  enforceConsolidationPolicy,
+  enforceFindingPolicy,
   enforceOverviewPolicy,
   sanitizeModules,
   sanitizeProjectRules,
@@ -163,7 +163,7 @@ export const tests: readonly TestCase[] = [
     name: 'policy: consolidation findings may only name files MALT showed the model',
     run: (): void => {
       const finding = { title: 't', files: ['src/a.ts', 'src/invented.ts', 'src/a.ts'], note: 'n', detail: 'd' };
-      const enforced = enforceConsolidationPolicy([finding, { ...finding, files: ['src/invented.ts'] }], new Set(['src/a.ts']));
+      const enforced = enforceFindingPolicy([finding, { ...finding, files: ['src/invented.ts'] }], new Set(['src/a.ts']));
       assert.deepEqual(enforced.map((item) => item.files), [['src/a.ts']]);
     },
   },

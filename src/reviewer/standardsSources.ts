@@ -40,12 +40,15 @@ const isCandidate = (name: string): boolean =>
 const shouldDescend = (name: string): boolean =>
   !SKIPPED_DIRECTORIES.has(name) && (!name.startsWith('.') || ALLOWED_DOT_DIRECTORIES.has(name));
 
-/** Lower ranks are read first: agent instructions, then top-level docs, then everything else. */
+/** Architecture decision records and design docs, wherever they live. */
+const ARCHITECTURE_DOC = /(?:^|\/)(?:adrs?|decisions|architecture|design)\/|(?:^|\/)(?:ARCHITECTURE|DESIGN)\.md$/iu;
+
+/** Lower ranks are read first: agent instructions, then top-level and architecture docs, then everything else. */
 const rank = (path: string): number => {
   if (/^\.(?:claude|codex|agents|cursor)\//u.test(path) || /^(?:CLAUDE|AGENTS)\.md$/u.test(path)) {
     return 0;
   }
-  if (CONFIG_FILE.test(path) || /^(?:README|CONTRIBUTING|ARCHITECTURE)\.md$/iu.test(path)) {
+  if (CONFIG_FILE.test(path) || ARCHITECTURE_DOC.test(path) || /^(?:README|CONTRIBUTING)\.md$/iu.test(path)) {
     return 1;
   }
   return path.startsWith('docs/') ? 2 : 3;

@@ -1,12 +1,12 @@
 /**
- * Full-page view of one result, opened from the Changes view: a rule check for a block, or a consolidation finding.
+ * Full-page view of one result: a rule check for a block, a consolidation finding, or the standards gaps.
  * Model output is untrusted: every value is HTML-escaped, scripts are disabled and the CSP allows only the page's
  * own nonce-tagged style.
  */
 import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 import type { HunkStore } from '../review/hunkStore';
-import type { ConsolidationFinding } from '../shared/protocol';
+import type { Finding } from '../shared/protocol';
 import { isNonNegativeInteger, isString } from '../shared/guards';
 import { RUN_LABELS } from '../editor/visuals';
 
@@ -94,8 +94,21 @@ export const showRuleCheck = (store: HunkStore, id: unknown, startLine: unknown,
   }
 };
 
+/** All gaps from a standards scan on one page. */
+export const showGaps = (gaps: readonly Finding[]): void => {
+  showPage({
+    title: 'Standards gaps',
+    status: { label: `${String(gaps.length)} to decide`, className: 'fail' },
+    meta: ['Missing or contradictory standards found by the last scan'],
+    sections: gaps.map((gap) => ({
+      title: gap.title,
+      text: [gap.note, gap.detail, ...(gap.files.length > 0 ? [`Files: ${gap.files.join(', ')}`] : [])].join('\n\n'),
+    })),
+  });
+};
+
 /** `index` comes from a tree node; it is checked against the current findings. */
-export const showFinding = (findings: readonly ConsolidationFinding[], index: unknown): void => {
+export const showFinding = (findings: readonly Finding[], index: unknown): void => {
   const finding = isNonNegativeInteger(index) ? findings[index] : undefined;
   if (finding !== undefined) {
     showPage({

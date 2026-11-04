@@ -34,7 +34,8 @@ All commands below have the **MALT:** prefix.
 | --- | --- |
 | Start Reviewer | Start/restart the selected backend |
 | Stop Reviewer | Stop the managed reviewer |
-| Scan Project Standards | Discover rules and map the source files; saves `.malt/standards.json` and `.malt/architecture.json` |
+| Scan Project Standards | Read docs, map the source files, infer undocumented conventions and list gaps; saves `.malt/standards.json` and `.malt/architecture.json` |
+| Show Standards Gaps | Reopen the gaps the last scan found (also from the **Gaps** row in the Reviewer view) |
 | Check Consolidation Across Changes | One reviewer call over the new declarations in every changed block; findings appear at the top of **Changes** |
 | Review All Unreviewed Changes | Queue pending and failed blocks; does not rerun completed reviews |
 | Show Reviewer Logs | Open the MALT Reviewer output channel |

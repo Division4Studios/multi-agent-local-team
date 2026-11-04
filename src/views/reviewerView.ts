@@ -69,6 +69,12 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Row>, vscod
         command: { command: 'malt.scanStandards', title: 'Scan project standards' },
       },
       {
+        label: 'Gaps',
+        description: status.gapsFound === undefined ? 'unknown' : `${String(status.gapsFound)} gap(s) in the standards`,
+        icon: new vscode.ThemeIcon('question'),
+        command: { command: 'malt.showStandardsGaps', title: 'Show standards gaps' },
+      },
+      {
         label: 'Architecture',
         description: architectureSummary(status),
         icon: new vscode.ThemeIcon('type-hierarchy'),

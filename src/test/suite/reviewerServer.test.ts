@@ -13,6 +13,7 @@ import {
   CHECK_SCHEMA,
   CHECK_SYSTEM_PROMPT,
   CONSOLIDATION_SCHEMA,
+  GAPS_SCHEMA,
   OVERVIEW_SCHEMA,
   OVERVIEW_SYSTEM_PROMPT,
 } from '../../reviewer/prompts';
@@ -27,6 +28,14 @@ const ARCHITECTURE = {
   modules: [{ path: 'src/b.ts', purpose: 'Existing helper', exports: ['helperThing'] }],
 };
 const FINDING = { title: 'Merge helpers', files: ['src/a.ts', 'src/b.ts', 'src/invented.ts'], note: 'n', detail: 'd' };
+const INFERRED = { id: 'components-folder', title: 'Components live together', check: 'In src/components?', category: 'Architecture', source: 'src/a.ts' };
+const GAPS = {
+  rules: [INFERRED, { ...INFERRED, id: 'r1' }, { ...INFERRED, id: 'no-secrets' }],
+  gaps: [
+    { title: 'No architecture doc', files: [], note: 'n', detail: 'd' },
+    { title: 'Two HTTP clients', files: ['src/a.ts', 'src/invented.ts'], note: 'n', detail: 'd' },
+  ],
+};
 const HOSTILE_STANDARDS = {
   version: 1,
   generatedAt: '2026-11-03T00:00:00.000Z',
@@ -43,6 +52,7 @@ const createFakeProvider = (calls: StructuredCall[]): ReviewProvider => ({
       [OVERVIEW_SCHEMA, OVERVIEW],
       [CHECK_SCHEMA, CHECK],
       [CONSOLIDATION_SCHEMA, { findings: [FINDING] }],
+      [GAPS_SCHEMA, GAPS],
       [ARCHITECTURE_SCHEMA, { modules: [{ path: 'src/a.ts', purpose: 'A', exports: ['a'] }, { path: 'invented.ts', purpose: 'x', exports: [] }] }],
     ]);
     return await Promise.resolve(answers.get(call.schema) ?? { rules: [rule] });
@@ -91,7 +101,7 @@ export const tests: readonly TestCase[] = [
       await withServer(async (port, calls) => {
         const client = new ReviewerClient({ port, token: TOKEN });
         assert.deepEqual(await client.health(), {
-          ok: true, protocolVersion: 2, provider: 'fake', rulesLoaded: 1, modulesLoaded: 1, architectureScannedAt: ARCHITECTURE.generatedAt,
+          ok: true, protocolVersion: 2, provider: 'fake', rulesLoaded: 1, gapsFound: 0, modulesLoaded: 1, architectureScannedAt: ARCHITECTURE.generatedAt,
         });
         const request = { filePath: 'src/a.ts', startLine: 1, endLine: 1, patch: '@@\n+const helperThing = 2;' };
         const { overview, rules } = await client.review(request);
@@ -119,8 +129,11 @@ export const tests: readonly TestCase[] = [
         await assert.rejects(client.check({ ...request, ruleId: 'invented' }), /Unknown rule/u);
         const scan = await client.scanStandards();
         assert.deepEqual(scan.sources, ['CLAUDE.md']);
-        assert.equal(scan.rules.length, 1);
-        assert.deepEqual((await client.scanArchitecture()).map((module) => module.path), ['src/a.ts'], 'only scanned files are mapped');
+        assert.deepEqual(scan.modules.map((module) => module.path), ['src/a.ts'], 'only scanned files are mapped');
+        assert.deepEqual(scan.rules.map((rule) => [rule.id, rule.source]), [['r1', 'CLAUDE.md'], ['components-folder', 'Inferred from code: src/a.ts']],
+          'inferred rules never shadow documented or baseline ones and are marked by MALT');
+        assert.deepEqual(scan.gaps.map((gap) => gap.files), [[], ['src/a.ts']], 'gaps may name no file, never an unknown one');
+        assert.deepEqual(scan.warnings, []);
         const findings = await client.consolidation({ blocks: [request] });
         assert.deepEqual(findings.map((finding) => finding.files), [['src/a.ts', 'src/b.ts']], 'unknown files are dropped');
         const callsBefore = calls.length;
