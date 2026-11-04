@@ -1,5 +1,8 @@
 /** The Reviewer sidebar, standards pages, and gap anchors resolved to real declarations. */
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { lineLabel } from '../../views/changesView';
 import { enforceAnchors } from '../../reviewer/trust';
@@ -137,12 +140,43 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
-    name: 'anchors: paths from generated files must stay inside the workspace',
-    run: (): void => {
+    name: 'anchors: paths from generated files must stay inside the workspace, by real location',
+    run: async (): Promise<void> => {
       const root = folder();
-      assert.equal(workspaceFile(root, 'src/lib.rs')?.fsPath.endsWith('lib.rs'), true);
-      for (const path of ['../secret', 'src/../../x', '/etc/passwd', 'C:\\Windows\\x', '', 'src//lib.rs', '\\\\server\\share']) {
-        assert.equal(workspaceFile(root, path), undefined, path);
+      const base = await mkdtemp(join(tmpdir(), 'malt-anchor-outside-'));
+      await writeFile(join(base, 'secret.txt'), 'outside the workspace');
+      await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root.uri, 'inside.rs'), Buffer.from('fn x() {}'));
+      await symlink(base, join(root.uri.fsPath, 'linked-outside'), 'junction');
+      try {
+        assert.equal((await workspaceFile(root, 'inside.rs'))?.fsPath.endsWith('inside.rs'), true, 'a real file inside resolves');
+        assert.equal(await workspaceFile(root, 'linked-outside/secret.txt'), undefined, 'a link out of the workspace is refused');
+        assert.equal(await workspaceFile(root, 'missing.rs'), undefined, 'a missing file fails closed');
+        for (const path of ['../secret', 'src/../../x', '/etc/passwd', 'C:\\Windows\\x', '', 'src//lib.rs', '\\\\server\\share']) {
+          assert.equal(await workspaceFile(root, path), undefined, path);
+        }
+      } finally {
+        await rm(join(root.uri.fsPath, 'linked-outside'), { recursive: false, force: true });
+        await rm(join(root.uri.fsPath, 'inside.rs'), { force: true });
+        await rm(base, { recursive: true, force: true });
+      }
+    },
+  },
+  {
+    name: 'anchors: a workspace reached through a link (like macOS /var -> /private/var) opens files under its own path',
+    run: async (): Promise<void> => {
+      const base = await mkdtemp(join(tmpdir(), 'malt-linked-root-'));
+      const realRoot = join(base, 'real-root');
+      const linkedRoot = join(base, 'linked-root');
+      await mkdir(join(realRoot, 'src'), { recursive: true });
+      await writeFile(join(realRoot, 'src', 'lib.rs'), 'fn x() {}');
+      await symlink(realRoot, linkedRoot, 'junction');
+      try {
+        const linkedFolder: vscode.WorkspaceFolder = { uri: vscode.Uri.file(linkedRoot), name: 'linked', index: 0 };
+        const opened = await workspaceFile(linkedFolder, 'src/lib.rs');
+        assert.equal(opened?.fsPath, vscode.Uri.joinPath(linkedFolder.uri, 'src', 'lib.rs').fsPath, 'spelled as the workspace knows it, not as the resolved path');
+      } finally {
+        await rm(linkedRoot, { force: true });
+        await rm(base, { recursive: true, force: true });
       }
     },
   },

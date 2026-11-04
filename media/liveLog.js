@@ -127,6 +127,11 @@
   }
 
   window.addEventListener('message', function (message) {
+    // Only the extension host may drive this page: VS Code delivers its messages with this page's own origin
+    // (vscode-webview://<id>). Anything posted from another origin is ignored.
+    if (message.origin !== window.origin) {
+      return;
+    }
     const data = message.data;
     if (!data || typeof data !== 'object') {
       return;
