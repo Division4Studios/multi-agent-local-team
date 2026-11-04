@@ -68,6 +68,8 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 | 💬 **Hover to understand** | Hover an outlined block for its **business purpose** in plain language, a **technical** description, a skeptical **design** take (should this new abstraction exist, or extend existing code?), then the rule results. |
 | 🗂️ **Rules by group** | In **Changes**, expand a block to see its rules in collapsible groups, sorted running → failed → passed → not run → not applicable. Select a checked rule for a full-page explanation. |
 | 📏 **Standards from your own repo** | **Scan Project Standards** reads your `.claude`/`.codex`/`.agents` skills, docs and lint configs and distills short, checkable rules into `.malt/standards.json`. |
+| 🧭 **Knows what already exists** | The same scan maps your source files (purpose and exports) into `.malt/architecture.json`. Each block review gets only the related slice, so the reviewer can say "extend the existing `Modal`" instead of guessing. |
+| 🧩 **Consolidation across the change** | One call compares the new declarations across every changed file, and against the map, to catch three near-identical components or a second date formatter. It runs on demand, or 30 seconds after new files stop appearing. |
 | 🐳 **Always-hot, isolated reviewer** | The reviewer runs in a hardened Docker container (read-only workspace, no privileges, localhost-only), or as a local daemon when Docker isn't available. |
 | 🗂️ **Sidebar & status bar** | A MALT sidebar shows reviewer health and every changed block, and the status bar keeps a running pass/concern/fail count. |
 

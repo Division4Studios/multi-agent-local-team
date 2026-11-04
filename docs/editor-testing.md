@@ -11,6 +11,7 @@ Press **F5**, then open a disposable Git repository in the new window. Start wit
 | Save a one-line change | One continuous outline, readable inline status, one sidebar block |
 | Save a multiline change and separate block | Correct top/side/bottom edges; no doubled rounded corners between lines |
 | Hover a reviewed block | Status and summary first, then purpose/technical/design and rule counts with failing rules; retry link works |
+| Run **Check Consolidation Across Changes** with two new similar files | A **Consolidation** row appears above the files with its findings; selecting one opens its detail page |
 | Expand a reviewed block in Changes | Rule groups sorted running → failed → passed → not run → not applicable; selecting a checked rule opens its detail page beside the editor |
 | Select a sidebar block | Correct file and line revealed; file icons follow the selected icon theme |
 | Create an untracked file of 160 identical nonblank lines | Two independent rows (lines 1–80 and 81–160); selecting each reveals its own block |

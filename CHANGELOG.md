@@ -19,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Review each applicable rule in its own isolated call. One overview call per block writes the business purpose, a technical description and a skeptical design assessment (should a new abstraction exist, or extend existing code?) and sorts out which rules apply; the new `malt.reviewer.triageModel` setting picks its model.
 - Expand a block in **Changes** to see its rules in collapsible groups, sorted running → failed → passed → not run → not applicable; selecting a checked rule opens a full-page explanation.
 - Standards scans sort rules into 3 to 8 groups. New baseline rules `justified-abstraction` and a stricter `reuse-existing` push back on new components that should extend existing code.
+- **Scan Project Standards** also maps the source files (purpose and exports) into `.malt/architecture.json`. Block overviews and Architecture-group rule checks get a related slice of it, so design arguments can name the existing code to extend. The **Reviewer** view shows when the map was made.
+- New **Check Consolidation Across Changes**: one call compares new declarations across the whole change and against the map. Findings appear at the top of **Changes**; `malt.changes.autoConsolidation` runs it 30 seconds after new files stop appearing.
 - Drop the amber "Needs attention" verdict: a block fails as soon as one rule fails and passes once every applicable rule passes. Retrying a failed block reruns only its missing rule checks. Reviewer protocol version 2.
 
 - Raise the minimum VS Code version and API definitions together to 1.144; retain Dependabot API updates.

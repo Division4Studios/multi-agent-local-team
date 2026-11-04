@@ -18,6 +18,7 @@ When a scan produces rules, MALT creates:
 .malt/
   .gitignore       # contains *; keeps generated output local
   standards.json  # generated project rules used by the reviewer
+  architecture.json  # generated map of source files: purpose and exports
 ```
 
 MALT creates the internal ignore file only if absent and preserves an existing file. It does not modify your project's root `.gitignore`. You can put generated review artifacts anywhere inside `.malt/`; neither scanning nor change tracking will pick them up. Keep authored standards outside this reserved directory.
@@ -33,6 +34,14 @@ Discovery reads Markdown and supported ESLint, TypeScript, EditorConfig, Prettie
 Discovery deliberately does not apply Git ignore rules. Review the contents of these files before scanning: selected content is sent to the configured Claude service. It skips `.malt`, known build/dependency directories, changelogs, Markdown license files, and linked entries. Reads are confined to the workspace.
 
 Scans are bounded: directory depth 6, up to 150 candidate files, at most 1 MB per source file, 30,000 characters per source, and 350,000 characters total. A scan is not an exhaustive inventory of arbitrarily large projects.
+
+## The architecture map
+
+The same scan reads the start of each source file (up to 1,500 characters: imports, exports and top-level declarations) and asks the model for one line per file: what it is for and what it exports. Test files and the build/dependency directories above are skipped. Files are read shallowest first, up to 400 files and 350,000 characters in total, so a very large repository is only partly mapped.
+
+Reviews never send the whole map. Each block review gets up to 25 related entries: files whose names or exports share words with the added code count most, then files in the same, parent or sibling folder. The overview call and **Architecture**-group rule checks get this slice; other rule checks do not. The consolidation check gets up to 80 entries for the whole change. Writing your boundaries ("UI components live in `src/components`; extend before adding") as rules in an `ARCHITECTURE.md` or agent instructions turns them into Architecture rules on the next scan. Hard import boundaries are better enforced by a linter rule such as `no-restricted-imports`.
+
+The map goes stale as code changes. Rescan after adding or moving modules; the **Reviewer** view shows the map's date.
 
 ## Maintaining rules
 

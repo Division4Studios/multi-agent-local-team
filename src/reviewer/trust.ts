@@ -9,13 +9,15 @@
  * verify itself.
  */
 import { randomBytes } from 'node:crypto';
-import type { BlockOverview, Rule, RuleCheck } from '../shared/protocol';
+import type { ArchitectureModule, BlockOverview, ConsolidationFinding, Rule, RuleCheck } from '../shared/protocol';
 
 const RULE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const MAX_PROJECT_RULES = 60;
 const FIELD_LIMITS = { title: 120, check: 300, category: 32, source: 200 };
 const NOTE_LIMIT = 500;
 const DETAIL_LIMIT = 6_000;
+const MODULE_LIMITS = { purpose: 200, exportName: 80, exports: 30 };
+const MAX_FINDINGS = 20;
 
 /** The baseline rule that catches prompt injection; it is checked on every block, whatever the sorting says. */
 export const MANIPULATION_RULE_ID = 'no-reviewer-manipulation';
@@ -85,3 +87,36 @@ export const enforceCheckPolicy = (check: RuleCheck, rule: Rule): RuleCheck => (
   note: sanitizeText(check.note, NOTE_LIMIT),
   detail: sanitizeDetail(check.detail),
 });
+
+/**
+ * Keeps one entry per scanned source file (the model cannot add paths it was not shown), with sanitized,
+ * capped text. The map is fed back to later reviews as data, so it gets the same treatment as project rules.
+ */
+export const sanitizeModules = (modules: readonly ArchitectureModule[], scanned: ReadonlySet<string>): ArchitectureModule[] => {
+  const seen = new Set<string>();
+  const result: ArchitectureModule[] = [];
+  for (const module of modules) {
+    if (scanned.has(module.path) && !seen.has(module.path)) {
+      seen.add(module.path);
+      const names = module.exports.map((name) => sanitizeText(name, MODULE_LIMITS.exportName)).filter((name) => name !== '');
+      result.push({
+        path: module.path,
+        purpose: sanitizeText(module.purpose, MODULE_LIMITS.purpose),
+        exports: [...new Set(names)].slice(0, MODULE_LIMITS.exports),
+      });
+    }
+  }
+  return result;
+};
+
+/** Findings may only name files MALT showed the model; text is sanitized and the count capped. */
+export const enforceConsolidationPolicy = (findings: readonly ConsolidationFinding[], known: ReadonlySet<string>): ConsolidationFinding[] =>
+  findings
+    .map((finding) => ({
+      title: sanitizeText(finding.title, FIELD_LIMITS.title),
+      files: [...new Set(finding.files.filter((file) => known.has(file)))],
+      note: sanitizeText(finding.note, NOTE_LIMIT),
+      detail: sanitizeDetail(finding.detail),
+    }))
+    .filter((finding) => finding.files.length > 0)
+    .slice(0, MAX_FINDINGS);

@@ -14,6 +14,7 @@ export interface MaltSettings {
   readonly dockerSocketPath: string;
   readonly autoOpen: boolean;
   readonly autoReview: boolean;
+  readonly autoConsolidation: boolean;
 }
 
 const readBackend = (value: string): BackendSetting => (value === 'docker' || value === 'host' ? value : 'auto');
@@ -31,5 +32,6 @@ export const readSettings = (): MaltSettings => {
     dockerSocketPath: config.get<string>('docker.socketPath', ''),
     autoOpen: config.get<boolean>('changes.autoOpen', true),
     autoReview: config.get<boolean>('changes.autoReview', true),
+    autoConsolidation: config.get<boolean>('changes.autoConsolidation', true),
   };
 };

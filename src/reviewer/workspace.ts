@@ -6,12 +6,12 @@ import { constants } from 'node:fs';
 import type { BigIntStats } from 'node:fs';
 import { open, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { STANDARDS_FILE, parseStandardsDocument } from '../shared/protocol';
-import type { Rule } from '../shared/protocol';
+import { ARCHITECTURE_FILE, STANDARDS_FILE, parseArchitectureDocument, parseStandardsDocument } from '../shared/protocol';
+import type { ArchitectureDocument, Rule } from '../shared/protocol';
 
 const CONTEXT_LINES = 60;
 const MAX_FILE_BYTES = 2_000_000;
-const MAX_RULES_BYTES = 1_000_000;
+const MAX_GENERATED_BYTES = 2_000_000;
 
 /** Read-only; non-blocking where supported so a FIFO planted in the workspace cannot hang the reviewer. */
 const OPEN_FLAGS = constants.O_RDONLY | ('O_NONBLOCK' in constants ? constants.O_NONBLOCK : 0);
@@ -92,29 +92,32 @@ export const readFileWindow = async (
   return { firstLine: first, text: numbered.join('\n') };
 };
 
-interface CachedRules {
-  readonly text: string;
-  readonly rules: readonly Rule[];
-}
-
-let rulesCache: CachedRules | undefined;
-
-/** Loads `.malt/standards.json` (confined like every other read). Missing, invalid or unsafe files yield no rules. */
-export const loadRules = async (root: string): Promise<readonly Rule[]> => {
-  try {
-    const text = await readWorkspaceFile(root, STANDARDS_FILE, MAX_RULES_BYTES);
-    if (text === undefined) {
-      return [];
+/**
+ * Returns a loader for a generated JSON file under `.malt/` (confined like every other read) that re-parses only
+ * when the file's text changes. Missing, invalid or unsafe files yield undefined.
+ */
+const generatedFileLoader = <T>(path: string, parse: (value: unknown) => T | undefined): ((root: string) => Promise<T | undefined>) => {
+  let cached: { readonly text: string; readonly value: T | undefined } | undefined;
+  return async (root: string): Promise<T | undefined> => {
+    try {
+      const text = await readWorkspaceFile(root, path, MAX_GENERATED_BYTES);
+      if (text !== undefined && cached?.text !== text) {
+        cached = { text, value: parse(JSON.parse(text)) };
+      }
+      return text === undefined ? undefined : cached?.value;
+    } catch {
+      cached = undefined;
+      return undefined;
     }
-    if (rulesCache?.text === text) {
-      return rulesCache.rules;
-    }
-    const parsed: unknown = JSON.parse(text);
-    const rules = parseStandardsDocument(parsed)?.rules ?? [];
-    rulesCache = { text, rules };
-    return rules;
-  } catch {
-    rulesCache = undefined;
-    return [];
-  }
+  };
 };
+
+const readStandards = generatedFileLoader(STANDARDS_FILE, parseStandardsDocument);
+const readArchitecture = generatedFileLoader(ARCHITECTURE_FILE, parseArchitectureDocument);
+
+/** Rules from `.malt/standards.json`. */
+export const loadRules = async (root: string): Promise<readonly Rule[]> => (await readStandards(root))?.rules ?? [];
+
+/** The architecture map from `.malt/architecture.json`; empty if there is none. */
+export const loadArchitecture = async (root: string): Promise<ArchitectureDocument> =>
+  (await readArchitecture(root)) ?? { version: 1, generatedAt: '', modules: [] };

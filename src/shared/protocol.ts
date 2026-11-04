@@ -6,6 +6,7 @@ import { isNonNegativeInteger, isRecord, isString, parseArray, readStrings } fro
 
 export const PROTOCOL_VERSION = 2;
 export const STANDARDS_FILE = '.malt/standards.json';
+export const ARCHITECTURE_FILE = '.malt/architecture.json';
 
 export type CheckStatus = 'pass' | 'fail' | 'not-applicable';
 
@@ -64,6 +65,32 @@ export interface CheckRequest extends ReviewRequest {
   readonly ruleId: string;
 }
 
+/** One entry of the architecture map: an existing source file, what it is for, and what it exports. */
+export interface ArchitectureModule {
+  readonly path: string;
+  readonly purpose: string;
+  readonly exports: readonly string[];
+}
+
+export interface ArchitectureDocument {
+  readonly version: 1;
+  readonly generatedAt: string;
+  readonly modules: readonly ArchitectureModule[];
+}
+
+/** POST /consolidation: every changed block, so new code can be compared across the whole change. */
+export interface ConsolidationRequest {
+  readonly blocks: readonly ReviewRequest[];
+}
+
+/** New code in the change that overlaps with other new code or with an existing module. */
+export interface ConsolidationFinding {
+  readonly title: string;
+  readonly files: readonly string[];
+  readonly note: string;
+  readonly detail: string;
+}
+
 export interface StandardsDocument {
   readonly version: 1;
   readonly generatedAt: string;
@@ -75,6 +102,9 @@ export interface HealthResponse {
   readonly protocolVersion: number;
   readonly provider: string;
   readonly rulesLoaded: number;
+  readonly modulesLoaded: number;
+  /** When the architecture map was generated; empty if there is none. */
+  readonly architectureScannedAt: string;
 }
 
 const CHECK_STATUSES: readonly string[] = ['pass', 'fail', 'not-applicable'];
@@ -90,6 +120,28 @@ export const parseRule = (value: unknown): Rule | undefined => {
 
 export const parseRules = (value: unknown): Rule[] | undefined => parseArray(value, parseRule);
 
+const parseString = (value: unknown): string | undefined => (isString(value) ? value : undefined);
+
+export const parseArchitectureModule = (value: unknown): ArchitectureModule | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const strings = readStrings(value, ['path', 'purpose']);
+  const names = parseArray(value['exports'], parseString);
+  return strings === undefined || names === undefined ? undefined : { ...strings, exports: names };
+};
+
+export const parseModules = (value: unknown): ArchitectureModule[] | undefined => parseArray(value, parseArchitectureModule);
+
+export const parseConsolidationFinding = (value: unknown): ConsolidationFinding | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const strings = readStrings(value, ['title', 'note', 'detail']);
+  const files = parseArray(value['files'], parseString);
+  return strings === undefined || files === undefined ? undefined : { ...strings, files };
+};
+
 export const parseRuleCheck = (value: unknown): RuleCheck | undefined => {
   if (!isRecord(value) || !isCheckStatus(value['status'])) {
     return undefined;
@@ -98,7 +150,6 @@ export const parseRuleCheck = (value: unknown): RuleCheck | undefined => {
   return strings === undefined ? undefined : { ...strings, status: value['status'] };
 };
 
-const parseString = (value: unknown): string | undefined => (isString(value) ? value : undefined);
 
 export const parseBlockOverview = (value: unknown): BlockOverview | undefined => {
   if (!isRecord(value)) {
@@ -142,6 +193,19 @@ export const parseCheckRequest = (value: unknown): CheckRequest | undefined => {
   return request === undefined || !isString(ruleId) ? undefined : { ...request, ruleId };
 };
 
+export const parseConsolidationRequest = (value: unknown): ConsolidationRequest | undefined => {
+  const blocks = isRecord(value) ? parseArray(value['blocks'], parseReviewRequest) : undefined;
+  return blocks === undefined ? undefined : { blocks };
+};
+
+export const parseArchitectureDocument = (value: unknown): ArchitectureDocument | undefined => {
+  if (!isRecord(value) || value['version'] !== 1 || !isString(value['generatedAt'])) {
+    return undefined;
+  }
+  const modules = parseModules(value['modules']);
+  return modules === undefined ? undefined : { version: 1, generatedAt: value['generatedAt'], modules };
+};
+
 export const parseStandardsDocument = (value: unknown): StandardsDocument | undefined => {
   if (!isRecord(value) || value['version'] !== 1 || !isString(value['generatedAt'])) {
     return undefined;
@@ -154,9 +218,11 @@ export const parseHealthResponse = (value: unknown): HealthResponse | undefined 
   if (!isRecord(value)) {
     return undefined;
   }
-  const { ok, protocolVersion, provider, rulesLoaded } = value;
-  if (typeof ok !== 'boolean' || !isNonNegativeInteger(protocolVersion) || !isString(provider)) {
+  const { ok, protocolVersion, provider, rulesLoaded, modulesLoaded, architectureScannedAt } = value;
+  if (typeof ok !== 'boolean' || !isNonNegativeInteger(protocolVersion) || !isString(provider) || !isString(architectureScannedAt)) {
     return undefined;
   }
-  return isNonNegativeInteger(rulesLoaded) ? { ok, protocolVersion, provider, rulesLoaded } : undefined;
+  return isNonNegativeInteger(rulesLoaded) && isNonNegativeInteger(modulesLoaded)
+    ? { ok, protocolVersion, provider, rulesLoaded, modulesLoaded, architectureScannedAt }
+    : undefined;
 };

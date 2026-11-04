@@ -1,8 +1,18 @@
 /** HTTP client for the reviewer service, bound to 127.0.0.1 and authenticated with a per-start token. */
 import { request as httpRequest } from 'node:http';
-import { isRecord, isString } from '../shared/guards';
-import { parseHealthResponse, parseOverviewResponse, parseRuleCheck, parseRules } from '../shared/protocol';
-import type { CheckRequest, HealthResponse, OverviewResponse, ReviewRequest, Rule, RuleCheck } from '../shared/protocol';
+import { isRecord, isString, parseArray } from '../shared/guards';
+import { parseConsolidationFinding, parseHealthResponse, parseModules, parseOverviewResponse, parseRuleCheck, parseRules } from '../shared/protocol';
+import type {
+  ArchitectureModule,
+  CheckRequest,
+  ConsolidationFinding,
+  ConsolidationRequest,
+  HealthResponse,
+  OverviewResponse,
+  ReviewRequest,
+  Rule,
+  RuleCheck,
+} from '../shared/protocol';
 
 export interface ReviewerEndpoint {
   readonly port: number;
@@ -10,6 +20,7 @@ export interface ReviewerEndpoint {
 }
 
 const REVIEW_TIMEOUT_MS = 240_000;
+const SCAN_TIMEOUT_MS = 960_000;
 
 interface CallOptions {
   readonly method: 'GET' | 'POST';
@@ -96,12 +107,30 @@ export class ReviewerClient {
   }
 
   public async scanStandards(): Promise<{ readonly rules: readonly Rule[]; readonly sources: readonly string[] }> {
-    const result = await call(this.endpoint, { method: 'POST', path: '/standards/scan', body: {}, timeoutMs: 960_000 });
+    const result = await call(this.endpoint, { method: 'POST', path: '/standards/scan', body: {}, timeoutMs: SCAN_TIMEOUT_MS });
     const rules = isRecord(result) ? parseRules(result['rules']) : undefined;
     const sources = isRecord(result) && Array.isArray(result['sources']) ? result['sources'].filter(isString) : undefined;
     if (rules === undefined || sources === undefined) {
       throw new Error('Reviewer returned an invalid standards scan');
     }
     return { rules, sources };
+  }
+
+  public async scanArchitecture(): Promise<readonly ArchitectureModule[]> {
+    const result = await call(this.endpoint, { method: 'POST', path: '/architecture/scan', body: {}, timeoutMs: SCAN_TIMEOUT_MS });
+    const modules = isRecord(result) ? parseModules(result['modules']) : undefined;
+    if (modules === undefined) {
+      throw new Error('Reviewer returned an invalid architecture map');
+    }
+    return modules;
+  }
+
+  public async consolidation(request: ConsolidationRequest): Promise<readonly ConsolidationFinding[]> {
+    const result = await call(this.endpoint, { method: 'POST', path: '/consolidation', body: request, timeoutMs: REVIEW_TIMEOUT_MS });
+    const findings = isRecord(result) ? parseArray(result['findings'], parseConsolidationFinding) : undefined;
+    if (findings === undefined) {
+      throw new Error('Reviewer returned invalid consolidation findings');
+    }
+    return findings;
   }
 }
