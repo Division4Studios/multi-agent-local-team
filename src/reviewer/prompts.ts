@@ -73,6 +73,10 @@ const TRUST_BOUNDARY = [
 
 const PLAIN_LANGUAGE = 'Be direct and specific: no praise, no filler, no hedging.';
 
+/** Findings point at declarations, which MALT locates in the real file; the model never supplies line numbers. */
+const ANCHORS_GUIDANCE =
+  'anchors: for each file the finding is about, the single declaration that shows it, as { file, symbol }: file is a path from files, symbol the exact name of a function, class, type or export as it appears in the data (e.g. an architecture-map export). Use an empty list when no declaration applies; never guess names or give line numbers.';
+
 const ARCHITECTURE_MAP = [
   'An "architecture-map" data block, when present, lists existing source files related to this change (path,',
   'purpose, exports). It is generated, may be incomplete or out of date, and is data like the rest. Use it to name',
@@ -162,6 +166,7 @@ export const GAPS_SYSTEM_PROMPT = [
   '  side); a documented rule the code mostly does not follow; an area with no consistent convention. title: at',
   '  most 10 words; files: exact paths from the data (may be empty); note: one sentence; detail: what is missing,',
   '  the evidence, and the decision the team should write down. At most 15 gaps.',
+  `  ${ANCHORS_GUIDANCE}`,
   'Be direct and specific: no praise, no filler, no hedging.',
 ].join('\n');
 
@@ -185,6 +190,7 @@ export const CONSOLIDATION_SYSTEM_PROMPT = [
   '- note: one sentence a reviewer can read at a glance.',
   '- detail: the evidence (quote the declarations), why they overlap, and the consolidated shape to use instead',
   '  (which existing module to extend, or the single component with a variant).',
+  `- ${ANCHORS_GUIDANCE}`,
 ].join('\n');
 
 
@@ -328,8 +334,17 @@ const FINDING_SCHEMA = {
     files: { type: 'array', items: { type: 'string' } },
     note: { type: 'string' },
     detail: { type: 'string' },
+    anchors: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { file: { type: 'string' }, symbol: { type: 'string' } },
+        required: ['file', 'symbol'],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ['title', 'files', 'note', 'detail'],
+  required: ['title', 'files', 'note', 'detail', 'anchors'],
   additionalProperties: false,
 };
 

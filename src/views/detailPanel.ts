@@ -30,12 +30,20 @@ const STYLE = `
 body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background);
   max-width: 52rem; margin: 0 auto; padding: 1.5rem; line-height: 1.55; }
 h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
-h2 { font-size: 1rem; margin-top: 1.75rem; }
-p { white-space: pre-wrap; }
-.meta { color: var(--vscode-descriptionForeground); }
+h2 { font-size: 1.05rem; margin-top: 2rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--vscode-panel-border); }
+h3 { font-size: 0.95rem; margin: 0 0 0.25rem; }
+p { white-space: pre-wrap; margin: 0.25rem 0; }
+.meta, .muted { color: var(--vscode-descriptionForeground); }
 .status { font-weight: 600; text-transform: uppercase; }
 .fail { color: var(--vscode-errorForeground); }
-.pass { color: var(--vscode-testing-iconPassed); }`;
+.pass { color: var(--vscode-testing-iconPassed); }
+nav ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
+nav a, a { color: var(--vscode-textLink-foreground); text-decoration: none; }
+.card { border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0.6rem 0; }
+.tags { margin-top: 0.4rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.tag { font-size: 0.8em; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground); }
+code { font-family: var(--vscode-editor-font-family); font-size: 0.9em; }`;
 
 const renderPage = (page: DetailPage, nonce: string): string => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}';">
@@ -47,16 +55,53 @@ ${page.sections.map((section) => `<h2>${escapeHtml(section.title)}</h2><p>${esca
 
 let panel: vscode.WebviewPanel | undefined;
 
-const showPage = (page: DetailPage): void => {
+const showHtml = (title: string, html: string): void => {
   if (panel === undefined) {
     panel = vscode.window.createWebviewPanel('malt.detail', '', vscode.ViewColumn.Beside, { enableScripts: false });
     panel.onDidDispose(() => {
       panel = undefined;
     });
   }
-  panel.title = `MALT · ${page.title}`;
-  panel.webview.html = renderPage(page, randomBytes(16).toString('hex'));
+  panel.title = `MALT · ${title}`;
+  panel.webview.html = html;
   panel.reveal(vscode.ViewColumn.Beside, true);
+};
+
+const showPage = (page: DetailPage): void => {
+  showHtml(page.title, renderPage(page, randomBytes(16).toString('hex')));
+};
+
+/** A document-style page: groups of cards with a table of contents. Every value is escaped when rendered. */
+export interface ListPage {
+  readonly title: string;
+  readonly meta: readonly string[];
+  readonly empty: string;
+  readonly groups: readonly {
+    readonly heading: string;
+    readonly items: readonly { readonly title: string; readonly body: readonly string[]; readonly tags: readonly string[] }[];
+  }[];
+}
+
+const renderItem = (item: ListPage['groups'][number]['items'][number]): string =>
+  `<div class="card"><h3>${escapeHtml(item.title)}</h3>${item.body.map((text) => `<p>${escapeHtml(text)}</p>`).join('')}${
+    item.tags.length === 0 ? '' : `<div class="tags">${item.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>`
+  }</div>`;
+
+const renderListPage = (page: ListPage, nonce: string): string => {
+  const toc = page.groups.map((group, index) => `<li><a href="#g${String(index)}">${escapeHtml(group.heading)} <span class="muted">(${String(group.items.length)})</span></a></li>`);
+  const body = page.groups.length === 0
+    ? `<p class="muted">${escapeHtml(page.empty)}</p>`
+    : `<nav><ul>${toc.join('')}</ul></nav>${page.groups
+      .map((group, index) => `<h2 id="g${String(index)}">${escapeHtml(group.heading)}</h2>${group.items.map(renderItem).join('')}`)
+      .join('\n')}`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}';">
+<style nonce="${nonce}">${STYLE}</style><title>${escapeHtml(page.title)}</title></head><body>
+<h1>${escapeHtml(page.title)}</h1><p class="meta">${page.meta.map(escapeHtml).join(' · ')}</p>${body}</body></html>`;
+};
+
+export const showListPage = (page: ListPage): void => {
+  showHtml(page.title, renderListPage(page, randomBytes(16).toString('hex')));
 };
 
 /** Resolves the arguments against the store; never trusts caller-supplied review content. */

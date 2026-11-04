@@ -3,14 +3,14 @@
  * plus a faint inline status label after the block's first line.
  */
 import * as vscode from 'vscode';
-import type { HunkStore, TrackedHunk } from '../review/hunkStore';
+import type { HunkStore } from '../review/hunkStore';
 import { COLOR_IDS, VISUALS, statusLabel, visualFor } from './visuals';
 import type { Visual } from './visuals';
 
-type Edge = 'single' | 'top' | 'middle' | 'bottom';
+export type Edge = 'single' | 'top' | 'middle' | 'bottom';
 
-const EDGES: readonly Edge[] = ['single', 'top', 'middle', 'bottom'];
-const BORDER_WIDTHS: Readonly<Record<Edge, string>> = {
+export const EDGES: readonly Edge[] = ['single', 'top', 'middle', 'bottom'];
+export const BORDER_WIDTHS: Readonly<Record<Edge, string>> = {
   single: '1px',
   top: '1px 1px 0 1px',
   middle: '0 1px 0 1px',
@@ -77,7 +77,7 @@ export class HunkDecorations implements vscode.Disposable {
     for (const tracked of this.store.hunksFor(editor.document.uri)) {
       const state = this.store.state(tracked.id);
       const visual = visualFor(state);
-      for (const [edge, range] of outlineRanges(tracked, lastLine)) {
+      for (const [edge, range] of outlineRanges(tracked.hunk.startLine, tracked.hunk.endLine, lastLine)) {
         const list = ranges.get(key(visual, edge)) ?? [];
         list.push(range);
         ranges.set(key(visual, edge), list);
@@ -96,9 +96,10 @@ export class HunkDecorations implements vscode.Disposable {
   }
 }
 
-const outlineRanges = (tracked: TrackedHunk, lastLine: number): [Edge, vscode.Range][] => {
-  const start = Math.min(tracked.hunk.startLine, lastLine);
-  const end = Math.min(tracked.hunk.endLine, lastLine);
+/** The whole-line ranges that draw a box around lines `startLine`..`endLine` (clamped to the document). */
+export const outlineRanges = (startLine: number, endLine: number, lastLine: number): [Edge, vscode.Range][] => {
+  const start = Math.min(startLine, lastLine);
+  const end = Math.min(endLine, lastLine);
   const lineRange = (line: number): vscode.Range => new vscode.Range(line, 0, line, 0);
   if (start === end) {
     return [['single', lineRange(start)]];

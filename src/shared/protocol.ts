@@ -95,6 +95,16 @@ export interface Finding {
   readonly files: readonly string[];
   readonly note: string;
   readonly detail: string;
+  /**
+   * Where in each file the finding applies: a declaration name, located by MALT in the real file. Never line
+   * numbers from the model, so a highlight always points at code that exists. Older files have none.
+   */
+  readonly anchors: readonly FindingAnchor[];
+}
+
+export interface FindingAnchor {
+  readonly file: string;
+  readonly symbol: string;
 }
 
 export interface StandardsDocument {
@@ -153,13 +163,18 @@ export const parseArchitectureModule = (value: unknown): ArchitectureModule | un
 
 export const parseModules = (value: unknown): ArchitectureModule[] | undefined => parseArray(value, parseArchitectureModule);
 
+const parseAnchor = (value: unknown): FindingAnchor | undefined =>
+  isRecord(value) ? readStrings(value, ['file', 'symbol']) : undefined;
+
 export const parseFinding = (value: unknown): Finding | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
   const strings = readStrings(value, ['title', 'note', 'detail']);
   const files = parseArray(value['files'], parseString);
-  return strings === undefined || files === undefined ? undefined : { ...strings, files };
+  // Findings saved before anchors existed have none.
+  const anchors = value['anchors'] === undefined ? [] : parseArray(value['anchors'], parseAnchor);
+  return strings === undefined || files === undefined || anchors === undefined ? undefined : { ...strings, files, anchors };
 };
 
 export const parseRuleCheck = (value: unknown): RuleCheck | undefined => {

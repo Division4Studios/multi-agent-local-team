@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { posix } from 'node:path';
 import type { HunkStore, TrackedHunk } from '../review/hunkStore';
 import type { ConsolidationCheck, ConsolidationState } from '../review/consolidation';
-import type { Finding } from '../shared/protocol';
+import type { Finding, FindingAnchor } from '../shared/protocol';
 import { ruleRows } from '../review/reviewProgress';
 import type { RuleRow, RuleRun } from '../review/reviewProgress';
 import { buildReviewMarkdown } from '../editor/reviewMarkdown';
@@ -16,6 +16,7 @@ import { COLOR_IDS, ICONS, RUN_LABELS, statusLabel, visualFor } from '../editor/
 type Node =
   | { readonly kind: 'consolidation' }
   | { readonly kind: 'finding'; readonly finding: Finding; readonly index: number }
+  | { readonly kind: 'findingAnchor'; readonly anchor: FindingAnchor; readonly index: number; readonly anchorIndex: number }
   | { readonly kind: 'file'; readonly hunks: readonly TrackedHunk[] }
   | { readonly kind: 'hunk'; readonly tracked: TrackedHunk }
   | { readonly kind: 'group'; readonly tracked: TrackedHunk; readonly name: string; readonly rows: readonly RuleRow[] }
@@ -28,6 +29,16 @@ const RUN_ICONS: Readonly<Record<RuleRun, vscode.ThemeIcon>> = {
   'not-run': new vscode.ThemeIcon(ICONS.pending),
   'not-applicable': new vscode.ThemeIcon('dash'),
 };
+
+/** A finding with several declarations lists them; with one, selecting the finding goes straight there. */
+const anchorNodes = (finding: Finding, index: number): Node[] =>
+  finding.anchors.length > 1
+    ? finding.anchors.map((anchor, anchorIndex) => ({ kind: 'findingAnchor', anchor, index, anchorIndex }))
+    : [];
+
+/** "Line 21" for a one-line block, "Lines 21–24" otherwise. */
+export const lineLabel = (startLine: number, endLine: number): string =>
+  startLine === endLine ? `Line ${String(startLine + 1)}` : `Lines ${String(startLine + 1)}–${String(endLine + 1)}`;
 
 /** Review identity is content-based; tree identity must distinguish each occurrence of that content. */
 const hunkRowId = (tracked: TrackedHunk): string =>
@@ -77,15 +88,14 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<Node>, vscod
         return this.consolidation.state.findings.map((finding, index) => ({ kind: 'finding', finding, index }));
       case 'file':
         return node.hunks.map((tracked) => ({ kind: 'hunk', tracked }));
-      case 'hunk': {
-        const { review, running } = this.store.state(node.tracked.id);
-        const rows = review === undefined ? [] : ruleRows(review, running);
-        return groupRows(rows).map((group) => ({ kind: 'group', tracked: node.tracked, ...group }));
-      }
+      case 'hunk':
+        return this.ruleGroups(node.tracked);
       case 'group':
         return node.rows.map((row) => ({ kind: 'rule', tracked: node.tracked, row }));
-      case 'rule':
       case 'finding':
+        return anchorNodes(node.finding, node.index);
+      case 'rule':
+      case 'findingAnchor':
         return [];
     }
   }
@@ -96,6 +106,8 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<Node>, vscod
         return consolidationItem(this.consolidation.state);
       case 'finding':
         return findingItem(node.finding, node.index);
+      case 'findingAnchor':
+        return findingAnchorItem(node.anchor, node.index, node.anchorIndex);
       case 'file':
         return this.fileItem(node.hunks);
       case 'hunk':
@@ -105,6 +117,12 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<Node>, vscod
       case 'rule':
         return ruleItem(node.tracked, node.row);
     }
+  }
+
+  private ruleGroups(tracked: TrackedHunk): Node[] {
+    const { review, running } = this.store.state(tracked.id);
+    const rows = review === undefined ? [] : ruleRows(review, running);
+    return groupRows(rows).map((group) => ({ kind: 'group', tracked, ...group }));
   }
 
   /** The consolidation row appears once a check has started; files follow in path order. */
@@ -139,7 +157,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<Node>, vscod
     const state = this.store.state(tracked.id);
     const visual = visualFor(state);
     const item = new vscode.TreeItem(
-      `Lines ${String(tracked.hunk.startLine + 1)}–${String(tracked.hunk.endLine + 1)}`,
+      lineLabel(tracked.hunk.startLine, tracked.hunk.endLine),
       state.review === undefined ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed,
     );
     item.id = hunkRowId(tracked);
@@ -211,12 +229,26 @@ const consolidationItem = (state: ConsolidationState): vscode.TreeItem => {
   return item;
 };
 
+/** Selecting a finding shows where it applies (its first declaration); the inline action opens its details. */
 const findingItem = (finding: Finding, index: number): vscode.TreeItem => {
-  const item = new vscode.TreeItem(finding.title);
+  const item = new vscode.TreeItem(
+    finding.title,
+    finding.anchors.length > 1 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+  );
   item.id = JSON.stringify(['finding', index, finding.title]);
   item.description = finding.files.join(', ');
   item.tooltip = finding.note;
   item.iconPath = new vscode.ThemeIcon('git-merge');
-  item.command = { command: 'malt.showFinding', title: 'Show details', arguments: [index] };
+  item.contextValue = 'malt.finding';
+  item.command = { command: 'malt.showFindingLocation', title: 'Show where this applies', arguments: [index, 0] };
+  return item;
+};
+
+const findingAnchorItem = (anchor: FindingAnchor, index: number, anchorIndex: number): vscode.TreeItem => {
+  const item = new vscode.TreeItem(anchor.symbol);
+  item.id = JSON.stringify(['finding-anchor', index, anchorIndex, anchor.file, anchor.symbol]);
+  item.description = anchor.file;
+  item.iconPath = new vscode.ThemeIcon('symbol-field');
+  item.command = { command: 'malt.showFindingLocation', title: 'Show where this applies', arguments: [index, anchorIndex] };
   return item;
 };

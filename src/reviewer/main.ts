@@ -5,6 +5,7 @@
 import { ClaudeCodeProvider } from './providers/claudeCode';
 import { createReviewerServer } from './server';
 import { ReviewService } from './service';
+import { ConversationLog } from './conversations';
 import { describeError, log } from './log';
 
 const required = (name: string): string => {
@@ -23,6 +24,7 @@ const optional = (name: string, fallback: string): string => {
 const main = (): void => {
   const port = Number.parseInt(required('MALT_PORT'), 10);
   const host = optional('MALT_HOST', '127.0.0.1');
+  const conversations = new ConversationLog();
   const service = new ReviewService(
     {
       workspaceRoot: required('MALT_WORKSPACE'),
@@ -31,8 +33,9 @@ const main = (): void => {
       standardsModel: optional('MALT_STANDARDS_MODEL', 'opus'),
     },
     new ClaudeCodeProvider(optional('MALT_CLAUDE_PATH', 'claude')),
+    conversations,
   );
-  const server = createReviewerServer(service, required('MALT_TOKEN'));
+  const server = createReviewerServer(service, required('MALT_TOKEN'), conversations);
   server.listen(port, host, () => {
     log(`listening on ${host}:${String(port)} (provider: ${service.providerName})`);
   });

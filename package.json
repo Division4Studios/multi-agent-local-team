@@ -71,7 +71,7 @@
       },
       {
         "command": "malt.scanStandards",
-        "title": "Scan Project Standards",
+        "title": "Scan Project Standards (Rescan)",
         "category": "MALT",
         "icon": "$(checklist)"
       },
@@ -134,6 +134,47 @@
         "title": "Show Consolidation Finding",
         "category": "MALT",
         "icon": "$(book)"
+      },
+      {
+        "command": "malt.showLiveLog",
+        "title": "Show Live Reviewer Log",
+        "category": "MALT",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "malt.showStandards",
+        "title": "Show Project Standards",
+        "category": "MALT",
+        "icon": "$(book)"
+      },
+      {
+        "command": "malt.showArchitecture",
+        "title": "Show Architecture Map",
+        "category": "MALT",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "malt.showRule",
+        "title": "Show Rule",
+        "category": "MALT"
+      },
+      {
+        "command": "malt.showGap",
+        "title": "Show Where This Gap Applies",
+        "category": "MALT",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "malt.showGapDetails",
+        "title": "Show Gap Details",
+        "category": "MALT",
+        "icon": "$(info)"
+      },
+      {
+        "command": "malt.showFindingLocation",
+        "title": "Show Where This Applies",
+        "category": "MALT",
+        "icon": "$(go-to-file)"
       }
     ],
     "menus": {
@@ -156,7 +197,7 @@
         {
           "command": "malt.showReviewerLogs",
           "when": "view == malt.reviewer",
-          "group": "navigation@3"
+          "group": "navigation@4"
         },
         {
           "command": "malt.setCredentials",
@@ -177,12 +218,27 @@
           "command": "malt.checkConsolidation",
           "when": "view == malt.changes",
           "group": "navigation@2"
+        },
+        {
+          "command": "malt.showLiveLog",
+          "when": "view == malt.reviewer",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
         {
           "command": "malt.reviewAgain",
           "when": "view == malt.changes && viewItem == malt.hunk",
+          "group": "inline"
+        },
+        {
+          "command": "malt.showGapDetails",
+          "when": "view == malt.reviewer && viewItem == malt.gap",
+          "group": "inline"
+        },
+        {
+          "command": "malt.showFinding",
+          "when": "view == malt.changes && viewItem == malt.finding",
           "group": "inline"
         }
       ],
@@ -201,6 +257,22 @@
         },
         {
           "command": "malt.showFinding",
+          "when": "false"
+        },
+        {
+          "command": "malt.showRule",
+          "when": "false"
+        },
+        {
+          "command": "malt.showGap",
+          "when": "false"
+        },
+        {
+          "command": "malt.showGapDetails",
+          "when": "false"
+        },
+        {
+          "command": "malt.showFindingLocation",
           "when": "false"
         }
       ]
@@ -263,7 +335,14 @@
         "malt.changes.autoOpen": {
           "type": "boolean",
           "default": true,
-          "description": "Bring a file into view (without taking focus) when new changes appear in it."
+          "description": "Bring a file into view (without taking focus) when new changes appear in it. Paused while you are working; see Auto Open Pause Seconds."
+        },
+        "malt.changes.autoOpenPauseSeconds": {
+          "type": "integer",
+          "default": 60,
+          "minimum": 0,
+          "maximum": 3600,
+          "markdownDescription": "While you are working (clicking, typing, scrolling, switching files, or opening something from MALT), auto-open waits until you have been idle this many seconds, so it never pulls you away from what you are investigating. New changes still appear in **Changes** right away."
         },
         "malt.changes.autoReview": {
           "type": "boolean",
@@ -307,6 +386,26 @@
           "highContrast": "#f85149",
           "highContrastLight": "#cf222e"
         }
+      },
+      {
+        "id": "malt.finding",
+        "description": "Outline of the declaration a standards gap or consolidation finding points at.",
+        "defaults": {
+          "dark": "#d29922",
+          "light": "#9a6700",
+          "highContrast": "#d29922",
+          "highContrastLight": "#9a6700"
+        }
+      },
+      {
+        "id": "malt.findingBackground",
+        "description": "Background of the declaration a standards gap or consolidation finding points at.",
+        "defaults": {
+          "dark": "#d2992214",
+          "light": "#9a670012",
+          "highContrast": "#00000000",
+          "highContrastLight": "#00000000"
+        }
       }
     ]
   },
@@ -337,10 +436,18 @@
     "typescript-eslint": "8.72.1"
   },
   "overrides": {
-    "@vscode/vsce@4.1.0": { "minimatch": "11.0.4" },
-    "eslint@10.14.0": { "minimatch": "11.0.4" },
-    "@eslint/config-array@0.23.5": { "minimatch": "11.0.4" },
-    "@typescript-eslint/typescript-estree@8.72.1": { "minimatch": "11.0.4" }
+    "@vscode/vsce@4.1.0": {
+      "minimatch": "11.0.4"
+    },
+    "eslint@10.14.0": {
+      "minimatch": "11.0.4"
+    },
+    "@eslint/config-array@0.23.5": {
+      "minimatch": "11.0.4"
+    },
+    "@typescript-eslint/typescript-estree@8.72.1": {
+      "minimatch": "11.0.4"
+    }
   },
   "icon": "media/icon.png",
   "keywords": [

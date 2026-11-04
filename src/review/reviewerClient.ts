@@ -1,6 +1,8 @@
 /** HTTP client for the reviewer service, bound to 127.0.0.1 and authenticated with a per-start token. */
 import { request as httpRequest } from 'node:http';
 import { isRecord, isString, parseArray } from '../shared/guards';
+import { parseConversationEvent } from '../shared/conversation';
+import type { ConversationEvent } from '../shared/conversation';
 import { parseFinding, parseHealthResponse, parseOverviewResponse, parseRuleCheck, parseStandardsScan } from '../shared/protocol';
 import type {
   CheckRequest,
@@ -122,4 +124,64 @@ export class ReviewerClient {
     }
     return findings;
   }
+
+  /**
+   * Subscribes to the live conversation stream. Every line is validated; invalid lines are ignored. `onClose`
+   * runs once when the stream ends for any reason. Returns a function that stops the subscription.
+   */
+  public streamConversations(onEvent: (event: ConversationEvent) => void, onClose: () => void): () => void {
+    let closed = false;
+    const close = (): void => {
+      if (!closed) {
+        closed = true;
+        onClose();
+      }
+    };
+    const req = httpRequest(
+      { host: '127.0.0.1', port: this.endpoint.port, method: 'GET', path: '/events', headers: { authorization: `Bearer ${this.endpoint.token}` } },
+      (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          close();
+          return;
+        }
+        res.on('data', ndjsonReader(onEvent, () => req.destroy()));
+        res.on('end', close);
+        res.on('error', close);
+      },
+    );
+    req.on('error', close);
+    req.on('close', close);
+    req.end();
+    return () => {
+      req.destroy();
+    };
+  }
 }
+
+const MAX_PENDING_CHARS = 2_000_000;
+
+/** Splits a byte stream into validated conversation events; `abort` if a single line grows unreasonably long. */
+const ndjsonReader = (onEvent: (event: ConversationEvent) => void, abort: () => void): ((chunk: Buffer) => void) => {
+  let pending = '';
+  return (chunk: Buffer): void => {
+    const lines = (pending + chunk.toString('utf8')).split('\n');
+    pending = lines.pop() ?? '';
+    if (pending.length > MAX_PENDING_CHARS) {
+      abort();
+      return;
+    }
+    for (const line of lines.filter((text) => text.trim() !== '')) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const event = parseConversationEvent(parsed);
+      if (event !== undefined) {
+        onEvent(event);
+      }
+    }
+  };
+};

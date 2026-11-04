@@ -1,7 +1,7 @@
 /**
  * HTTP API of the reviewer service. Every request needs the bearer token the extension generated at start-up.
  * Routes: GET /health, POST /review (block overview), POST /check (one rule), POST /consolidation (whole change),
- * POST /standards/scan (documents, code map and gaps).
+ * POST /standards/scan (documents, code map and gaps), GET /events (live conversation stream, not persisted).
  */
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
@@ -9,6 +9,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { PROTOCOL_VERSION, parseCheckRequest, parseConsolidationRequest, parseReviewRequest } from '../shared/protocol';
 import type { ReviewRequest } from '../shared/protocol';
 import type { ReviewService } from './service';
+import { ConversationLog } from './conversations';
 import { describeError, log } from './log';
 
 const MAX_BODY_BYTES = 1_000_000;
@@ -105,10 +106,43 @@ const route = async (service: ReviewService, request: IncomingMessage): Promise<
   }
 };
 
-export const createReviewerServer = (service: ReviewService, token: string): Server =>
+const HEARTBEAT_MS = 15_000;
+/** A viewer that stops reading is dropped rather than letting unsent events pile up in memory. */
+const MAX_UNSENT_BYTES = 8_000_000;
+
+/** GET /events: newline-delimited JSON, the recent backlog first, then live events and a periodic heartbeat. */
+const streamConversations = (conversations: ConversationLog, request: IncomingMessage, response: ServerResponse): void => {
+  response.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' });
+  const send = (line: string): void => {
+    if (response.writableLength > MAX_UNSENT_BYTES) {
+      response.destroy();
+      return;
+    }
+    response.write(`${line}\n`);
+  };
+  for (const event of conversations.recent()) {
+    send(JSON.stringify(event));
+  }
+  const unsubscribe = conversations.subscribe((event) => {
+    send(JSON.stringify(event));
+  });
+  const heartbeat = setInterval(() => {
+    send('');
+  }, HEARTBEAT_MS);
+  request.on('close', () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
+};
+
+export const createReviewerServer = (service: ReviewService, token: string, conversations = new ConversationLog()): Server =>
   createServer((request, response) => {
     if (!isAuthorized(request, token)) {
       sendJson(response, 401, { error: 'Unauthorized' });
+      return;
+    }
+    if (request.method === 'GET' && request.url === '/events') {
+      streamConversations(conversations, request, response);
       return;
     }
     route(service, request).then(

@@ -13,6 +13,8 @@ export interface MaltSettings {
   readonly claudePath: string;
   readonly dockerSocketPath: string;
   readonly autoOpen: boolean;
+  /** Seconds of no user activity before auto-open may move the editor again. */
+  readonly autoOpenPauseSeconds: number;
   readonly autoReview: boolean;
   readonly autoConsolidation: boolean;
 }
@@ -31,6 +33,7 @@ export const readSettings = (): MaltSettings => {
     claudePath: config.get<string>('reviewer.claudePath', 'claude'),
     dockerSocketPath: config.get<string>('docker.socketPath', ''),
     autoOpen: config.get<boolean>('changes.autoOpen', true),
+    autoOpenPauseSeconds: Math.max(0, config.get<number>('changes.autoOpenPauseSeconds', 60)),
     autoReview: config.get<boolean>('changes.autoReview', true),
     autoConsolidation: config.get<boolean>('changes.autoConsolidation', true),
   };

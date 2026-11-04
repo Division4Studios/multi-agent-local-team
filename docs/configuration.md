@@ -13,6 +13,7 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | `malt.reviewer.claudePath` | `claude` | Host CLI executable; restart reviewer |
 | `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise `DOCKER_HOST` or platform default; restart reviewer |
 | `malt.changes.autoOpen` | `true` | Show newly changed files in preview tabs, preserving keyboard focus |
+| `malt.changes.autoOpenPauseSeconds` | `60` | While you are working (clicking, typing, scrolling, switching files, or opening something from MALT), auto-open waits until you have been idle this long, so it never pulls you away from what you are investigating. New changes still appear in **Changes** right away |
 | `malt.changes.autoReview` | `true` | Queue new blocks automatically |
 | `malt.changes.autoConsolidation` | `true` | Run the whole-change consolidation check (one reviewer call) 30 seconds after new files stop appearing |
 
@@ -35,7 +36,10 @@ All commands below have the **MALT:** prefix.
 | Start Reviewer | Start/restart the selected backend |
 | Stop Reviewer | Stop the managed reviewer |
 | Scan Project Standards | Read docs, map the source files, infer undocumented conventions and list gaps; saves `.malt/standards.json` and `.malt/architecture.json` |
-| Show Standards Gaps | Reopen the gaps the last scan found (also from the **Gaps** row in the Reviewer view) |
+| Show Project Standards | Open the saved rules as a page grouped by category, with the MALT baseline checks (also the **Standards** row) |
+| Show Architecture Map | Open the saved map as a page grouped by folder (also the **Architecture** row) |
+| Show Standards Gaps | Reopen the gaps the last scan found as one page. In the Reviewer view, the **Gaps** row lists them; selecting one opens the file at the declaration it names, outlined, with the gap on hover |
+| Show Live Reviewer Log | Watch every model call as it happens: what it is for, the prompt sent and the answer streaming in, with elapsed time and a stall indicator. Nothing is saved (also the **Reviewer** row) |
 | Check Consolidation Across Changes | One reviewer call over the new declarations in every changed block; findings appear at the top of **Changes** |
 | Review All Unreviewed Changes | Queue pending and failed blocks; does not rerun completed reviews |
 | Show Reviewer Logs | Open the MALT Reviewer output channel |

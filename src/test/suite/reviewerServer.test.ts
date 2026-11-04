@@ -7,6 +7,9 @@ import { createReviewerServer } from '../../reviewer/server';
 import { ReviewService } from '../../reviewer/service';
 import type { ReviewProvider, StructuredCall } from '../../reviewer/providers/provider';
 import { ReviewerClient } from '../../review/reviewerClient';
+import { ConversationLog } from '../../reviewer/conversations';
+import type { ConversationEvent } from '../../shared/conversation';
+import { waitFor } from './testUtils';
 import {
   ARCHITECTURE_SCHEMA,
   BASELINE_RULES,
@@ -47,6 +50,7 @@ const createFakeProvider = (calls: StructuredCall[]): ReviewProvider => ({
   name: 'fake',
   callStructured: async (call: StructuredCall): Promise<unknown> => {
     calls.push(call);
+    call.onText?.('{"streamed":');
     const rule = { id: 'r1', title: 'Rule', check: 'Ok?', category: 'style', source: 'CLAUDE.md' };
     const answers = new Map<unknown, unknown>([
       [OVERVIEW_SCHEMA, OVERVIEW],
@@ -67,8 +71,9 @@ const startServer = async (calls: StructuredCall[]): Promise<{ server: Server; p
   await mkdir(join(root, '.malt'));
   await writeFile(join(root, '.malt', 'standards.json'), JSON.stringify(HOSTILE_STANDARDS));
   await writeFile(join(root, '.malt', 'architecture.json'), JSON.stringify(ARCHITECTURE));
-  const service = new ReviewService({ workspaceRoot: root, triageModel: 't', reviewModel: 'm', standardsModel: 's' }, createFakeProvider(calls));
-  const server = createReviewerServer(service, TOKEN);
+  const conversations = new ConversationLog();
+  const service = new ReviewService({ workspaceRoot: root, triageModel: 't', reviewModel: 'm', standardsModel: 's' }, createFakeProvider(calls), conversations);
+  const server = createReviewerServer(service, TOKEN, conversations);
   await new Promise<void>((resolvePromise) => {
     server.listen(0, '127.0.0.1', resolvePromise);
   });
@@ -149,6 +154,41 @@ export const tests: readonly TestCase[] = [
         const client = new ReviewerClient({ port, token: TOKEN });
         await assert.rejects(client.review({ filePath: '../../etc/passwd', startLine: 0, endLine: 0, patch: '@@' }), /outside the workspace/u);
         assert.equal(calls.length, 0);
+      });
+    },
+  },
+  {
+    name: 'reviewer server: streams each model call live (start, text, end) to an authorized viewer',
+    run: async (): Promise<void> => {
+      await withServer(async (port) => {
+        const client = new ReviewerClient({ port, token: TOKEN });
+        const events: ConversationEvent[] = [];
+        const stop = client.streamConversations((event) => events.push(event), () => undefined);
+        try {
+          await client.review({ filePath: 'src/a.ts', startLine: 1, endLine: 1, patch: '@@\n+const b = 2;' });
+          await waitFor(() => events.some((event) => event.kind === 'end'), 'the overview call ends');
+        } finally {
+          stop();
+        }
+        assert.deepEqual(events.map((event) => event.kind), ['start', 'text', 'end']);
+        const [start, text] = events;
+        assert.ok(start?.kind === 'start' && start.label === 'Overview · src/a.ts:2', 'readable label with the block location');
+        assert.ok(start.prompt.includes('const b = 2;'), 'the prompt sent is visible');
+        assert.ok(text?.kind === 'text' && text.text === '{"streamed":');
+      });
+    },
+  },
+  {
+    name: 'reviewer server: the live stream needs the token',
+    run: async (): Promise<void> => {
+      await withServer(async (port) => {
+        const events: ConversationEvent[] = [];
+        let closed = false;
+        new ReviewerClient({ port, token: 'wrong' }).streamConversations((event) => events.push(event), () => {
+          closed = true;
+        });
+        await waitFor(() => closed, 'unauthorized stream closes');
+        assert.equal(events.length, 0);
       });
     },
   },

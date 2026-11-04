@@ -6,6 +6,8 @@ export interface StructuredCall {
   readonly schema: Readonly<Record<string, unknown>>;
   readonly model: string;
   readonly timeoutMs: number;
+  /** Receives the answer as it streams in, for the live reviewer log. Display only; the result is the return value. */
+  readonly onText?: (text: string) => void;
 }
 
 export interface ReviewProvider {

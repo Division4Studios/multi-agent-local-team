@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Auto-open no longer pulls you away while you investigate: it waits until you have been idle for `malt.changes.autoOpenPauseSeconds` (default 60) after clicking, typing, scrolling, switching files or opening anything from MALT.
+- The Reviewer view's Queue row counts only work in progress; finished blocks drop off.
+- Selecting Standards or Architecture opens the saved results instead of starting a new scan; rescanning is the view's title-bar action.
+- One-line blocks read "Line 21" instead of "Lines 21–21".
+
 - Replace vulnerable minimatch toolchain dependencies with 11.0.4 using exact, parent-scoped security overrides; preserve ESLint and VSCE file selection.
 - Give repeated identical blocks distinct sidebar identities and navigate to the selected occurrence while retaining content-based review caching.
 
@@ -36,6 +41,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 
 ### Added
+
+- **Live reviewer log**: every model call streams as it happens (purpose, prompt sent, answer as it is written, elapsed time, stall indicator). Nothing is saved; the reviewer keeps a short in-memory backlog. Open it from the **Reviewer** row or the view title.
+- **Standards** page grouped by category, and the **Standards** row expands into categories → rules. **Architecture** page grouped by folder.
+- **Gaps** row lists each gap; selecting one opens the file at the declaration it names, outlined, with the gap on hover. Consolidation findings link to their declarations the same way. Findings now carry `anchors` (file + declaration name), resolved by MALT in the real file.
+- The **Reviewer** row combines health and where it runs (Docker container or local process).
 
 - MALT activity-bar sidebar with **Reviewer** (health, backend, standards, queue) and **Changes** (files → changed blocks) views, plus a status bar summary.
 - Change tracking through VS Code's built-in Git API: every changed block is outlined in the editor and colored by review verdict, and files are brought into view as changes land.
