@@ -66,7 +66,7 @@ Give the person the **Maintain** role (Settings → Collaborators), and add them
 | Setting | Value | Why |
 |---|---|---|
 | Issues | On, blank issues off | Every issue uses a form: bug, wrong review result, feature, baseline rule, dependency or toolchain change, documentation |
-| Discussions | On | Questions and early ideas, with Q&A and Ideas forms in `.github/DISCUSSION_TEMPLATE/` |
+| Discussions | On | Q&A, so answers stay searchable on the web. Ideas and chat live on the [MALT Discord](https://discord.gg/DwSpsGjvFY); the Ideas form points there |
 | Wiki | On, editing restricted to collaborators | Community-facing notes; anyone-can-edit wikis are a defacement and phishing risk |
 | Projects | On | [MALT roadmap](https://github.com/users/Division4Studios/projects/12) |
 | Forking | Allowed | Contributors work from forks |
@@ -90,6 +90,33 @@ Give the person the **Maintain** role (Settings → Collaborators), and add them
 | Actions can approve pull requests | No |
 | Workflows from fork pull requests | Need maintainer approval for every outside contributor, not just first-timers |
 
+## Community (Discord)
+
+Invite: [discord.gg/DwSpsGjvFY](https://discord.gg/DwSpsGjvFY), permanent with no use limit. Discord is for conversation; anything that needs a record becomes a GitHub issue. Security reports never go to Discord.
+
+**Trust ladder.** New accounts start with `@everyone`, which can read and talk but can't post links, files, embeds, reactions, threads or polls, can't change nicknames, and can't create invites. MEE6 grants **Member** at level 3 (XP counts at most one message a minute, so a spam burst earns nothing), which unlocks those. **Contributor** is given by a maintainer after a merged pull request. **Moderator** and **Maintainer** need two-factor authentication for moderation actions. MEE6 has no Administrator permission and sits below the staff roles, so a compromised bot can't touch them.
+
+**Server safety.** Verification level High, rules screening (members agree to the rules before chatting), Community onboarding, media filtering for all members, raid and DM-spam protection, and only admins can prune. AutoMod, alerting to the private #mod-log:
+
+| Rule | Action |
+|---|---|
+| Impersonation in profile names (maintainer, moderator, admin, MALT team, Discord staff) | Blocks interaction, alerts |
+| Mention spam (5+ mentions), mention raids | Blocks, alerts, 1 hour timeout |
+| Suspected spam, flagged words | Blocks, alerts |
+| Newcomer link gate (URLs from anyone below Member; links to this repo allowed) | Blocks with an explanation, alerts |
+| Discord invite links from anyone below Moderator | Blocks, alerts |
+| Leaked secrets (the token formats `redactSecrets` knows, plus Discord tokens and private keys), no exemptions | Blocks with "revoke it" message. No alert, so the secret is never copied anywhere |
+
+**Feeds.** Three channel webhooks, each managed only by Maintainers:
+
+| Discord channel | Source | Where its URL lives |
+|---|---|---|
+| #github-feed | This repository's webhook, Discord's GitHub format (pull requests, reviews, issues, discussions, check runs) | Settings → Webhooks, payload URL ending in `/github` |
+| #releases | This repository's webhook, releases only | Settings → Webhooks, payload URL ending in `/github` |
+| #shipped | `.github/workflows/discord-shipped.yml` | Secret `DISCORD_SHIPPED_WEBHOOK` in the `discord` environment, usable only by `dev`, `main` and `v*` tags |
+
+The #shipped workflow never checks out or runs pull request code, has no token permissions, and neutralizes the pull request title before posting (see the workflow's header). A webhook URL is a credential: if one leaks, delete the webhook in Discord and create a new one.
+
 ## Labels
 
 Labels are grouped by prefix. Issue forms apply the type label and `triage`, and maintainers add the area during triage.
@@ -102,6 +129,8 @@ Labels are grouped by prefix. Issue forms apply the type label and `triage`, and
 ## Set only in the GitHub UI
 
 These have no API, so check them by hand after changes:
+
+- Discord server settings, roles, channel permissions, AutoMod and onboarding (described in **Community (Discord)** above).
 
 - Wiki: "Restrict editing to collaborators only" is on (Settings → General → Features).
 - Discussion categories: GitHub's defaults (Announcements, General, Ideas, Polls, Q&A, Show and tell). The `q-a` and `ideas` forms match their slugs, so renaming those categories breaks the forms.

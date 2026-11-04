@@ -1,0 +1,75 @@
+name: Discord shipped feed
+
+# Posts merged pull requests (and first-time contributors) and published releases to the community
+# Discord's #shipped channel.
+#
+# Security, because a pull request title is written by whoever opened the pull request:
+# - The webhook URL is a secret in the `discord` environment, which only `dev`, `main` and `v*` tags may use.
+#   Forks and Dependabot never see it.
+# - pull_request_target runs this file from the default branch, never the pull request's copy, and only after
+#   a merge into dev, so the pull request was reviewed. Nothing from the pull request is checked out or run.
+# - The token has no permissions. Event fields reach the script as data (context.payload), never interpolated.
+# - Untrusted text is neutralized: control and invisible characters stripped, backticks replaced, length capped,
+#   and the title shown as inline code, so it can't format, link or ping. allowed_mentions is empty, so no
+#   @everyone, role or user ping is possible, and link previews are suppressed.
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [dev]
+  release:
+    types: [published]
+
+permissions: {}
+
+concurrency:
+  group: discord-shipped
+  cancel-in-progress: false
+
+jobs:
+  post:
+    if: github.event_name == 'release' || (github.event.pull_request.merged == true && github.event.pull_request.user.type != 'Bot')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: discord
+    steps:
+      - name: Post to #shipped
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_SHIPPED_WEBHOOK }}
+        with:
+          script: |
+            const url = process.env.DISCORD_WEBHOOK_URL ?? '';
+            if (!/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/.test(url)) {
+              core.notice('DISCORD_SHIPPED_WEBHOOK is not set to a Discord webhook URL; nothing posted.');
+              return;
+            }
+            const clean = (value, max) => String(value ?? '')
+              .normalize('NFKC')
+              .replace(/[\u0000-\u001f\u007f-\u009f­؜᠎​-‏ -‮⁠-⁯﻿]/g, ' ')
+              .replace(/`/g, "'")
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, max);
+            const login = (value) => (/^[A-Za-z0-9-]{1,39}$/.test(String(value)) ? String(value) : 'someone');
+            const repo = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+            let content;
+            if (context.eventName === 'release') {
+              const release = context.payload.release;
+              const tag = clean(release.tag_name, 60);
+              const name = clean(release.name || release.tag_name, 120);
+              content = `📦 **Released** \`${name}\` · ${repo}/releases/tag/${encodeURIComponent(tag)}`;
+            } else {
+              const pr = context.payload.pull_request;
+              const number = Number.parseInt(String(pr.number), 10);
+              const first = pr.author_association === 'FIRST_TIME_CONTRIBUTOR' || pr.author_association === 'FIRST_TIMER';
+              const lead = first ? `🌱 **First contribution!** Welcome, ${login(pr.user.login)}.` : '🎉 **Merged**';
+              content = `${lead} #${number} \`${clean(pr.title, 150)}\` by ${login(pr.user.login)} · ${repo}/pull/${number}`;
+            }
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ content, allowed_mentions: { parse: [] }, flags: 4 }),
+            });
+            if (!response.ok) {
+              core.setFailed(`Discord returned HTTP ${response.status}.`);
+            }
