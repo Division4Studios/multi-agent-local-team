@@ -2,7 +2,7 @@
 
 <p align="center"><img src="../design/brand/lockup-dark.png" alt="MALT" width="390" /></p>
 
-MALT's identity is an upright ear of malt barley, drawn from flat geometric shapes: rounded amber grains on a teal stem. It's warm, crafted and recognizable, and as precise as a developer tool should be. The project artwork (README hero, diagrams, social card) shares one look: a charcoal background with a faint 40 px grid, monospace headlines with one teal accent, and diagrams of rounded, color-coded boxes with dashed boundaries, labeled arrows and a legend.
+MALT's identity is an upright ear of malt barley: sharp, pointed almond grains, each split into a light and a shaded amber facet, long tapering awns, and a teal stem. It's warm, crafted and recognizable, and as precise as a developer tool should be. The silhouette follows the original extension icon. The project artwork (README hero, diagrams, social card) shares one look: a charcoal background with a faint 40 px grid, monospace headlines with one teal accent, and diagrams of rounded, color-coded boxes with dashed boundaries, labeled arrows and a legend.
 
 Keep the interface itself native to VS Code, so the user's theme, file icons, keyboard navigation and accessibility settings keep working. Brand colors belong to artwork, not to the editor UI.
 
@@ -11,7 +11,7 @@ Keep the interface itself native to VS Code, so the user's theme, file icons, ke
 | Role | Color |
 |---|---|
 | Charcoal (background) | `#0E1217` artwork, `#121821` icon tile |
-| Amber (grains, workspace) | `#E6B85C`, shaded `#C98F2E` |
+| Amber (grains, awns, workspace) | `#F2C66A` light facet, `#D9982F` shaded facet, `#E6B85C` awns and diagrams |
 | Teal (stem, accent, extension) | `#2BB8A6` |
 | Cream (wordmark on dark) | `#F7EFDA` |
 | Ink (wordmark on light) | `#191D24` |
