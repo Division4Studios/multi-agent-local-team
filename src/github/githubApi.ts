@@ -75,6 +75,16 @@ const parseFile = (value: unknown): PullRequestFile | undefined => {
   return { filename: value['filename'], status: value['status'], patch: isString(patch) ? patch : undefined };
 };
 
+/** A non-200 answer from the GitHub API. */
+export class GitHubApiError extends Error {
+  public readonly status: number;
+
+  public constructor(status: number, path: string) {
+    super(`GitHub API ${String(status)} for ${path}`);
+    this.status = status;
+  }
+}
+
 export class GitHubClient {
   private readonly token: string;
   private readonly repo: GitHubRepo;
@@ -82,6 +92,19 @@ export class GitHubClient {
   public constructor(repo: GitHubRepo, token: string) {
     this.repo = repo;
     this.token = token;
+  }
+
+  /** Whether this token can see the repository. GitHub answers 404 for a private repository the token cannot read. */
+  public async canRead(): Promise<boolean> {
+    try {
+      await this.get(`/repos/${this.path()}`);
+      return true;
+    } catch (error: unknown) {
+      if (error instanceof GitHubApiError && error.status === 404) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   public async openPullRequests(): Promise<PullRequestSummary[]> {
@@ -150,7 +173,7 @@ export class GitHubClient {
           res.on('end', () => {
             const status = res.statusCode ?? 0;
             if (status !== 200) {
-              reject(new Error(`GitHub API ${String(status)} for ${path.split('?')[0] ?? path}`));
+              reject(new GitHubApiError(status, path.split('?')[0] ?? path));
               return;
             }
             try {

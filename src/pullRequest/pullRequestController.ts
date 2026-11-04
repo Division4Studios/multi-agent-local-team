@@ -11,7 +11,7 @@ import { describeProfile } from '../shared/reviewProfiles';
 import { getGitApi } from '../git/gitApi';
 import type { GitRepository } from '../git/gitApi';
 import { GitHubClient } from '../github/githubApi';
-import type { PullRequestSummary } from '../github/githubApi';
+import type { GitHubRepo, PullRequestSummary } from '../github/githubApi';
 import type { ReviewerManager } from '../backend/reviewerManager';
 import type { ReviewerClient } from '../review/reviewerClient';
 import type { ChangesNode } from '../views/changesView';
@@ -41,6 +41,35 @@ const reviewTarget = async (): Promise<{ readonly folder: vscode.WorkspaceFolder
   const repository = folder === undefined ? undefined : await repositoryFor(folder);
   const remote = repository === undefined ? undefined : findGitHubRemote(repository);
   return folder === undefined || repository === undefined || remote === undefined ? undefined : { folder, repository, remote };
+};
+
+/**
+ * A client with the least GitHub access that can read the repository. MALT only reads, but GitHub has no read-only
+ * scope for private repositories: `repo` is requested only when a read-only sign-in cannot see this one, and only
+ * after the user agrees (or has already granted it).
+ */
+const gitHubClient = async (repo: GitHubRepo): Promise<GitHubClient | undefined> => {
+  const readOnly = await vscode.authentication.getSession('github', ['read:user'], { createIfNone: true });
+  const client = new GitHubClient(repo, readOnly.accessToken);
+  if (await client.canRead()) {
+    return client;
+  }
+  const granted = await vscode.authentication.getSession('github', ['repo'], { silent: true });
+  if (granted !== undefined) {
+    return new GitHubClient(repo, granted.accessToken);
+  }
+  const grant = 'Grant Access';
+  const answer = await vscode.window.showWarningMessage(
+    `MALT cannot see ${repo.owner}/${repo.repo} with read-only GitHub access.`,
+    {
+      modal: true,
+      detail: 'For a private repository GitHub only offers the full "repo" scope, which also allows writes. MALT only reads pull requests and never posts or pushes anything.',
+    },
+    grant,
+  );
+  return answer === grant
+    ? new GitHubClient(repo, (await vscode.authentication.getSession('github', ['repo'], { createIfNone: true })).accessToken)
+    : undefined;
 };
 
 const pickPullRequest = async (client: GitHubClient): Promise<PullRequestSummary | undefined> => {
@@ -94,8 +123,10 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
     }
     const { folder, repository, remote } = target;
     try {
-      const session = await vscode.authentication.getSession('github', ['repo'], { createIfNone: true });
-      const client = new GitHubClient(remote.repo, session.accessToken);
+      const client = await gitHubClient(remote.repo);
+      if (client === undefined) {
+        return;
+      }
       const picked = await pickPullRequest(client);
       if (picked === undefined || !(await this.confirmCheckout(picked, repository))) {
         return;
