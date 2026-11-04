@@ -16,6 +16,7 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | `malt.reviewer.reviewModel` / `reviewEffort` | `haiku` / `low` | Rule checks: one call per applicable rule per block, most of the usage |
 | `malt.reviewer.consolidationModel` / `consolidationEffort` | `sonnet` / `low` | The whole-change consolidation check |
 | `malt.reviewer.standardsModel` / `standardsEffort` | `opus` / `medium` | Scan Project Standards (three calls, only when you scan) |
+| `malt.reviewer.investigationModel` / `investigationEffort` | `sonnet` / `medium` | Investigate Gap (one call per gap you investigate) |
 | `malt.changes.autoOpen` | `true` | Show newly changed files in preview tabs, preserving keyboard focus |
 | `malt.changes.autoOpenPauseSeconds` | `60` | While you are working (clicking, typing, scrolling, switching files, or opening something from MALT), auto-open waits until you have been idle this long, so it never pulls you away from what you are investigating. New changes still appear in **Changes** right away |
 | `malt.changes.autoReview` | `true` | Queue new blocks automatically |

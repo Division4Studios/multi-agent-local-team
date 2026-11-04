@@ -191,5 +191,11 @@ const registerViewCommands = (deps: CommandDeps): vscode.Disposable =>
       highlight: deps.highlight,
       scan: async () => { await runScan(deps); },
       onUserFocus: () => { deps.attention.noteUserActivity(); },
+      reviewer: async () => {
+        if (deps.manager.client === undefined) {
+          await startReviewer(deps);
+        }
+        return deps.manager.client;
+      },
     }),
   );

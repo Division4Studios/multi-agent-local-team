@@ -2,6 +2,8 @@
 import { request as httpRequest } from 'node:http';
 import { isRecord, isString, parseArray } from '../shared/guards';
 import { parseConversationEvent } from '../shared/conversation';
+import { parseGapInvestigation } from '../shared/investigation';
+import type { GapInvestigation } from '../shared/investigation';
 import type { ConversationEvent } from '../shared/conversation';
 import { createLineSplitter } from '../shared/lineSplitter';
 import type { LineSplitter } from '../shared/lineSplitter';
@@ -23,6 +25,8 @@ export interface ReviewerEndpoint {
 }
 
 const REVIEW_TIMEOUT_MS = 240_000;
+/** One provider call (up to the scan timeout) plus margin. */
+const INVESTIGATION_TIMEOUT_MS = 960_000;
 /** Two scan calls run in parallel, then the gap analysis: up to two provider timeouts plus margin. */
 const SCAN_TIMEOUT_MS = 1_860_000;
 
@@ -125,6 +129,17 @@ export class ReviewerClient {
       throw new Error('Reviewer returned invalid consolidation findings');
     }
     return findings;
+  }
+
+  /** A deeper review of one recorded gap, named by id. The answer must be for that gap. */
+  public async investigateGap(id: string): Promise<GapInvestigation> {
+    const result = parseGapInvestigation(
+      await call(this.endpoint, { method: 'POST', path: '/standards/investigate', body: { gapId: id }, timeoutMs: INVESTIGATION_TIMEOUT_MS }),
+    );
+    if (result?.gapId !== id) {
+      throw new Error('Reviewer returned an invalid gap investigation');
+    }
+    return result;
   }
 
   /**

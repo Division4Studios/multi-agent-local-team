@@ -37,6 +37,17 @@ const SKIPPED_MARKDOWN: ReadonlySet<string> = new Set(['CHANGELOG.md', 'LICENSE.
 const isCandidate = (name: string): boolean =>
   (name.toLowerCase().endsWith('.md') && !SKIPPED_MARKDOWN.has(name)) || CONFIG_FILE.test(name);
 
+/**
+ * Whether a workspace-relative path is source code by the same rules the code scan uses: a code extension, and no
+ * hidden (dot) or dependency/build folder anywhere on the path. Stricter than discovery (no dot folders at all),
+ * so data files (`.env`, `secrets.json`, keys, notes) can never be read as "code".
+ */
+export const isSourceCodePath = (path: string): boolean => {
+  const segments = path.split('/');
+  const name = segments.at(-1) ?? '';
+  return CODE_FILE.test(name) && segments.every((segment) => segment !== '' && segment !== '..' && !segment.startsWith('.') && !SKIPPED_DIRECTORIES.has(segment));
+};
+
 const shouldDescend = (name: string): boolean =>
   !SKIPPED_DIRECTORIES.has(name) && (!name.startsWith('.') || ALLOWED_DOT_DIRECTORIES.has(name));
 

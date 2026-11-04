@@ -51,6 +51,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Investigate gap**: a deeper, on-demand review of one standards gap. The scan finds gaps from a one-line-per-file map, which cannot tell duplicated code from code that imports or implements a shared contract. The investigation reads the real code (the gap's files, their local imports, and other files exporting the same names) and returns a plain-English verdict: *Confirmed*, *Partly* or *Not a gap*, with confidence, what the code actually does, quoted evidence (checked word for word against the files; anything not found is discarded), the case against it being a gap, why it matters and what to do. Results show on the gap in the tray, on a report page, and as evidence entries that open the quoted code. **Investigate all** says what it will cost first. New review type **Gap investigation** (default Sonnet, medium effort) in **Models & effort**.
+- Gap descriptions from the scan are written for someone who has not seen the code, and say when names alone cannot tell duplication from a shared definition.
+
 - **Models & effort** in the Reviewer view: pick the model and reasoning effort for each review type (block overview, rule checks, consolidation, standards scan). New settings `malt.reviewer.{triage,review,consolidation,standards}Effort` and `malt.reviewer.consolidationModel`; changes offer a reviewer restart.
 - Lower-usage defaults: rule checks (most calls) on Haiku, overview and consolidation on Sonnet, all at low effort; the standards scan on Opus at medium effort.
 - The live reviewer log shows each call's model and effort, and its tokens and cost, with a running session total.

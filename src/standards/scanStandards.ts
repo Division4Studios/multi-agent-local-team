@@ -26,7 +26,8 @@ export const prepareStandardsDirectory = async (folder: vscode.WorkspaceFolder):
   }
 };
 
-const writeGenerated = async (folder: vscode.WorkspaceFolder, path: string, document: unknown): Promise<vscode.Uri> => {
+/** Writes a generated JSON document under `.malt/` (creating it, with its local ignore file, if needed). */
+export const writeGenerated = async (folder: vscode.WorkspaceFolder, path: string, document: unknown): Promise<vscode.Uri> => {
   const target = vscode.Uri.joinPath(folder.uri, path);
   await prepareStandardsDirectory(folder);
   await vscode.workspace.fs.writeFile(target, Buffer.from(`${JSON.stringify(document, null, 2)}\n`, 'utf8'));

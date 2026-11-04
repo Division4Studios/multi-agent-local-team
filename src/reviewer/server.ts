@@ -1,7 +1,8 @@
 /**
  * HTTP API of the reviewer service. Every request needs the bearer token the extension generated at start-up.
  * Routes: GET /health, POST /review (block overview), POST /check (one rule), POST /consolidation (whole change),
- * POST /standards/scan (documents, code map and gaps), GET /events (live conversation stream, not persisted).
+ * POST /standards/scan (documents, code map and gaps), POST /standards/investigate (deeper review of one recorded gap),
+ * GET /events (live conversation stream, not persisted).
  */
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
@@ -11,6 +12,8 @@ import type { ReviewRequest } from '../shared/protocol';
 import type { ReviewService } from './service';
 import { ConversationLog } from './conversations';
 import { describeError, log } from './log';
+import { isRecord } from '../shared/guards';
+import { isGapId } from '../shared/investigation';
 
 const MAX_BODY_BYTES = 1_000_000;
 
@@ -75,6 +78,17 @@ const readRequest = async <T>(request: IncomingMessage, parse: (value: unknown) 
   return value;
 };
 
+/** The body may only name a recorded gap by id; the service looks the gap itself up. */
+const investigate = async (service: ReviewService, request: IncomingMessage): Promise<unknown> => {
+  const body = await readJsonBody(request);
+  const id = isRecord(body) ? body['gapId'] : undefined;
+  if (!isGapId(id)) {
+    throw new HttpError(400, 'Invalid investigation request');
+  }
+  log(`gap investigation ${id}`);
+  return await service.investigateGap(id);
+};
+
 const lines = (request: ReviewRequest): string =>
   `${request.filePath}:${String(request.startLine + 1)}-${String(request.endLine + 1)}`;
 
@@ -101,6 +115,8 @@ const route = async (service: ReviewService, request: IncomingMessage): Promise<
     case 'POST /standards/scan':
       log('standards scan started');
       return await service.scanStandards();
+    case 'POST /standards/investigate':
+      return await investigate(service, request);
     default:
       throw new HttpError(404, 'Not found');
   }
