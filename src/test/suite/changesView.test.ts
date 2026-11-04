@@ -5,6 +5,8 @@ import { hunkId, newFileHunks } from '../../diff/unifiedDiff';
 import { HunkStore } from '../../review/hunkStore';
 import type { TrackedHunk } from '../../review/hunkStore';
 import { ChangesTreeProvider } from '../../views/changesView';
+import { ConsolidationCheck } from '../../review/consolidation';
+import type { ConsolidationRequest } from '../../shared/protocol';
 import { MemoryStorage, testCheck, testReview, testRule } from './testUtils';
 import type { TestCase } from './harness';
 
@@ -25,7 +27,7 @@ export const tests: readonly TestCase[] = [
     name: 'changes tree: repeated blocks have distinct stable rows and retain shared reviews after line shifts',
     run: (): void => {
       const store = new HunkStore(new MemoryStorage());
-      const provider = new ChangesTreeProvider(store);
+      const provider = new ChangesTreeProvider(store, new ConsolidationCheck(store, () => undefined));
       const uri = vscode.Uri.file('/workspace/repeated.txt');
       const blocks = blocksFor(uri, 'repeated.txt');
       const [first, second] = blocks;
@@ -58,7 +60,7 @@ export const tests: readonly TestCase[] = [
     name: 'changes tree: rules are grouped and sorted running, failed, passed, not run, not applicable',
     run: (): void => {
       const store = new HunkStore(new MemoryStorage());
-      const provider = new ChangesTreeProvider(store);
+      const provider = new ChangesTreeProvider(store, new ConsolidationCheck(store, () => undefined));
       const uri = vscode.Uri.file('/workspace/grouped.txt');
       const [block] = blocksFor(uri, 'grouped.txt');
       assert.ok(block !== undefined);
@@ -86,7 +88,7 @@ export const tests: readonly TestCase[] = [
     name: 'changes tree: identical content in different files has independent row identities',
     run: (): void => {
       const store = new HunkStore(new MemoryStorage());
-      const provider = new ChangesTreeProvider(store);
+      const provider = new ChangesTreeProvider(store, new ConsolidationCheck(store, () => undefined));
       try {
         for (const path of ['a.txt', 'b.txt']) {
           const uri = vscode.Uri.file(`/workspace/${path}`);
@@ -109,7 +111,7 @@ export const tests: readonly TestCase[] = [
       const uri = vscode.Uri.joinPath(folder.uri, 'repeated-navigation.txt');
       await vscode.workspace.fs.writeFile(uri, Buffer.from(CONTENT));
       const store = new HunkStore(new MemoryStorage());
-      const provider = new ChangesTreeProvider(store);
+      const provider = new ChangesTreeProvider(store, new ConsolidationCheck(store, () => undefined));
       const blocks = blocksFor(uri, 'repeated-navigation.txt');
       const [first, second] = blocks;
       assert.ok(first !== undefined && second !== undefined);
@@ -134,6 +136,38 @@ export const tests: readonly TestCase[] = [
         assert.equal(selectedLine(uri), 0, 'legacy id-only navigation still works');
       } finally {
         vscode.Disposable.from(provider, store).dispose();
+      }
+    },
+  },
+  {
+    name: 'consolidation: one call over every changed block; findings appear above the files',
+    run: async (): Promise<void> => {
+      const store = new HunkStore(new MemoryStorage());
+      const requests: ConsolidationRequest[] = [];
+      const finding = { title: 'Merge the card components', files: ['a.txt', 'b.txt'], note: 'n', detail: 'd' };
+      const check = new ConsolidationCheck(store, () => ({
+        consolidation: async (request: ConsolidationRequest): Promise<readonly (typeof finding)[]> => {
+          requests.push(request);
+          return await Promise.resolve([finding]);
+        },
+      }));
+      const provider = new ChangesTreeProvider(store, check);
+      try {
+        for (const path of ['a.txt', 'b.txt']) {
+          const uri = vscode.Uri.file(`/workspace/${path}`);
+          store.setFileHunks(uri, blocksFor(uri, path));
+        }
+        assert.equal(provider.getChildren().length, 2, 'no consolidation row before the first check');
+        await check.run();
+        assert.equal(requests.length, 1);
+        assert.equal(requests[0]?.blocks.length, 4);
+        const [top] = provider.getChildren();
+        assert.ok(top !== undefined);
+        assert.equal(provider.getTreeItem(top).label, 'Consolidation');
+        const findings = provider.getChildren(top).map((node) => provider.getTreeItem(node));
+        assert.deepEqual(findings.map((item) => [item.label, item.description, item.command?.arguments]), [[finding.title, 'a.txt, b.txt', [0]]]);
+      } finally {
+        vscode.Disposable.from(provider, check, store).dispose();
       }
     },
   },

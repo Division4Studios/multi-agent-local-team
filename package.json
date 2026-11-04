@@ -116,6 +116,18 @@
         "title": "Show Rule Result",
         "category": "MALT",
         "icon": "$(book)"
+      },
+      {
+        "command": "malt.checkConsolidation",
+        "title": "Check Consolidation Across Changes",
+        "category": "MALT",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "malt.showFinding",
+        "title": "Show Consolidation Finding",
+        "category": "MALT",
+        "icon": "$(book)"
       }
     ],
     "menus": {
@@ -154,6 +166,11 @@
           "command": "malt.reviewAll",
           "when": "view == malt.changes",
           "group": "navigation@1"
+        },
+        {
+          "command": "malt.checkConsolidation",
+          "when": "view == malt.changes",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -174,6 +191,10 @@
         },
         {
           "command": "malt.showRuleCheck",
+          "when": "false"
+        },
+        {
+          "command": "malt.showFinding",
           "when": "false"
         }
       ]
@@ -242,6 +263,11 @@
           "type": "boolean",
           "default": true,
           "description": "Review each new changed block automatically."
+        },
+        "malt.changes.autoConsolidation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check the whole change for code that should be consolidated (one reviewer call) 30 seconds after new files stop appearing."
         }
       }
     },

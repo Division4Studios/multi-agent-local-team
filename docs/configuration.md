@@ -14,6 +14,7 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise `DOCKER_HOST` or platform default; restart reviewer |
 | `malt.changes.autoOpen` | `true` | Show newly changed files in preview tabs, preserving keyboard focus |
 | `malt.changes.autoReview` | `true` | Queue new blocks automatically |
+| `malt.changes.autoConsolidation` | `true` | Run the whole-change consolidation check (one reviewer call) 30 seconds after new files stop appearing |
 
 For a manual workflow:
 
@@ -33,7 +34,8 @@ All commands below have the **MALT:** prefix.
 | --- | --- |
 | Start Reviewer | Start/restart the selected backend |
 | Stop Reviewer | Stop the managed reviewer |
-| Scan Project Standards | Discover rules and save generated output |
+| Scan Project Standards | Discover rules and map the source files; saves `.malt/standards.json` and `.malt/architecture.json` |
+| Check Consolidation Across Changes | One reviewer call over the new declarations in every changed block; findings appear at the top of **Changes** |
 | Review All Unreviewed Changes | Queue pending and failed blocks; does not rerun completed reviews |
 | Show Reviewer Logs | Open the MALT Reviewer output channel |
 | Set Claude Credentials | Store credentials; offers to restart the reviewer |

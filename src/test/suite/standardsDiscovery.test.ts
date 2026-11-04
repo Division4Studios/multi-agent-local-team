@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
-import { collectStandardsSources } from '../../reviewer/standardsSources';
+import { collectCodeSources, collectStandardsSources } from '../../reviewer/standardsSources';
 import { prepareStandardsDirectory } from '../../standards/scanStandards';
 import type { TestCase } from './harness';
 
@@ -22,6 +22,25 @@ export const tests: readonly TestCase[] = [
       assert.deepEqual(sources.map((source) => source.path).sort(), [
         '.agents/SKILL.md', '.claude/SKILL.md', '.codex/SKILL.md', '.cursor/SKILL.md',
       ]);
+    },
+  },
+  {
+    name: 'architecture discovery reads the head of source files, shallowest first, skipping tests and build output',
+    run: async (): Promise<void> => {
+      const root = await mkdtemp(join(tmpdir(), 'malt-code-'));
+      for (const folder of ['src/components', 'src/test', 'node_modules/x', 'out']) {
+        await mkdir(join(root, folder), { recursive: true });
+      }
+      await writeFile(join(root, 'main.py'), 'def main():\n    pass\n');
+      await writeFile(join(root, 'src', 'components', 'Modal.tsx'), `export const Modal = 1;\n${'x'.repeat(5_000)}`);
+      await writeFile(join(root, 'src', 'components', 'Modal.test.tsx'), 'test');
+      await writeFile(join(root, 'src', 'test', 'helper.ts'), 'helper');
+      await writeFile(join(root, 'node_modules', 'x', 'index.js'), 'dep');
+      await writeFile(join(root, 'out', 'main.js'), 'built');
+      await writeFile(join(root, 'README.md'), '# not code');
+      const sources = await collectCodeSources(root);
+      assert.deepEqual(sources.map((source) => source.path), ['main.py', 'src/components/Modal.tsx']);
+      assert.equal(sources[1]?.content.length, 1_500);
     },
   },
   {

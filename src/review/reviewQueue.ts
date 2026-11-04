@@ -28,7 +28,7 @@ interface Task {
   readonly rule?: Rule;
 }
 
-const requestFor = (tracked: TrackedHunk): ReviewRequest => ({
+export const requestFor = (tracked: TrackedHunk): ReviewRequest => ({
   filePath: tracked.relativePath,
   startLine: tracked.hunk.startLine,
   endLine: tracked.hunk.endLine,

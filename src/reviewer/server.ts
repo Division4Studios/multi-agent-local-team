@@ -1,11 +1,13 @@
 /**
  * HTTP API of the reviewer service. Every request needs the bearer token the extension generated at start-up.
- * Routes: GET /health, POST /review (block overview), POST /check (one rule), POST /standards/scan.
+ * Routes: GET /health, POST /review (block overview), POST /check (one rule), POST /consolidation (whole change),
+ * POST /standards/scan, POST /architecture/scan.
  */
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import { PROTOCOL_VERSION, parseCheckRequest, parseReviewRequest } from '../shared/protocol';
+import { PROTOCOL_VERSION, parseCheckRequest, parseConsolidationRequest, parseReviewRequest } from '../shared/protocol';
+import type { ReviewRequest } from '../shared/protocol';
 import type { ReviewService } from './service';
 import { describeError, log } from './log';
 
@@ -51,35 +53,55 @@ const sendJson = (response: ServerResponse, status: number, body: unknown): void
   response.end(payload);
 };
 
+const health = async (service: ReviewService): Promise<unknown> => {
+  const [rules, architecture] = await Promise.all([service.rules(), service.architecture()]);
+  return {
+    ok: true,
+    protocolVersion: PROTOCOL_VERSION,
+    provider: service.providerName,
+    rulesLoaded: rules.length,
+    modulesLoaded: architecture.modules.length,
+    architectureScannedAt: architecture.generatedAt,
+  };
+};
+
+const readRequest = async <T>(request: IncomingMessage, parse: (value: unknown) => T | undefined, name: string): Promise<T> => {
+  const value = parse(await readJsonBody(request));
+  if (value === undefined) {
+    throw new HttpError(400, `Invalid ${name} request`);
+  }
+  return value;
+};
+
+const lines = (request: ReviewRequest): string =>
+  `${request.filePath}:${String(request.startLine + 1)}-${String(request.endLine + 1)}`;
+
 const route = async (service: ReviewService, request: IncomingMessage): Promise<unknown> => {
   const key = `${request.method ?? ''} ${request.url ?? ''}`;
   switch (key) {
     case 'GET /health':
-      return {
-        ok: true,
-        protocolVersion: PROTOCOL_VERSION,
-        provider: service.providerName,
-        rulesLoaded: (await service.rules()).length,
-      };
+      return await health(service);
     case 'POST /review': {
-      const reviewRequest = parseReviewRequest(await readJsonBody(request));
-      if (reviewRequest === undefined) {
-        throw new HttpError(400, 'Invalid review request');
-      }
-      log(`review ${reviewRequest.filePath}:${String(reviewRequest.startLine + 1)}-${String(reviewRequest.endLine + 1)}`);
+      const reviewRequest = await readRequest(request, parseReviewRequest, 'review');
+      log(`review ${lines(reviewRequest)}`);
       return await service.review(reviewRequest);
     }
     case 'POST /check': {
-      const checkRequest = parseCheckRequest(await readJsonBody(request));
-      if (checkRequest === undefined) {
-        throw new HttpError(400, 'Invalid check request');
-      }
-      log(`check ${checkRequest.ruleId} ${checkRequest.filePath}:${String(checkRequest.startLine + 1)}-${String(checkRequest.endLine + 1)}`);
+      const checkRequest = await readRequest(request, parseCheckRequest, 'check');
+      log(`check ${checkRequest.ruleId} ${lines(checkRequest)}`);
       return await service.check(checkRequest);
+    }
+    case 'POST /consolidation': {
+      const consolidationRequest = await readRequest(request, parseConsolidationRequest, 'consolidation');
+      log(`consolidation over ${String(consolidationRequest.blocks.length)} block(s)`);
+      return { findings: await service.consolidation(consolidationRequest) };
     }
     case 'POST /standards/scan':
       log('standards scan started');
       return await service.scanStandards();
+    case 'POST /architecture/scan':
+      log('architecture scan started');
+      return { modules: await service.scanArchitecture() };
     default:
       throw new HttpError(404, 'Not found');
   }

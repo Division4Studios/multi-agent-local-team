@@ -8,6 +8,7 @@ import { Credentials } from './backend/credentials';
 import { ReviewerManager } from './backend/reviewerManager';
 import { HunkStore } from './review/hunkStore';
 import { ReviewQueue } from './review/reviewQueue';
+import { ConsolidationCheck } from './review/consolidation';
 import type { HunkReviewer } from './review/reviewQueue';
 import { ChangeTracker } from './review/changeTracker';
 import type { NewHunksEvent } from './review/changeTracker';
@@ -22,6 +23,13 @@ import type { CommandDeps } from './commands';
 
 /** On start-up, existing changes are only auto-reviewed if there are few of them (to avoid surprise cost). */
 const INITIAL_AUTO_REVIEW_LIMIT = 25;
+/** New files are where parallel components appear, so they trigger the (debounced) consolidation check. */
+const scheduleConsolidation = (deps: CommandDeps, event: NewHunksEvent): void => {
+  const hasNewFile = event.hunks.some((tracked) => tracked.hunk.header.startsWith('@@ -0,0 '));
+  if (readSettings().autoConsolidation && !event.initial && hasNewFile) {
+    deps.consolidation.schedule();
+  }
+};
 
 const onNewHunks = (deps: CommandDeps, event: NewHunksEvent): void => {
   const settings = readSettings();
@@ -31,6 +39,7 @@ const onNewHunks = (deps: CommandDeps, event: NewHunksEvent): void => {
       deps.queue.enqueue(tracked);
     }
   }
+  scheduleConsolidation(deps, event);
   const first = event.hunks[0];
   const isActive = vscode.window.activeTextEditor?.document.uri.toString() === event.uri.toString();
   if (settings.autoOpen && !event.initial && !isActive && first !== undefined) {
@@ -82,16 +91,18 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
     client: (): HunkReviewer | undefined => manager.client,
     concurrency: (): number => readSettings().maxConcurrentReviews,
   });
-  const deps: CommandDeps = { store, manager, queue, credentials, output };
+  const consolidation = new ConsolidationCheck(store, () => manager.client);
+  const deps: CommandDeps = { store, manager, queue, consolidation, credentials, output };
 
   context.subscriptions.push(
     output,
     store,
+    consolidation,
     manager,
     new HunkDecorations(store),
     vscode.languages.registerHoverProvider({ scheme: 'file' }, new ReviewHoverProvider(store)),
     vscode.window.registerTreeDataProvider('malt.reviewer', new ReviewerTreeProvider(manager, store)),
-    vscode.window.registerTreeDataProvider('malt.changes', new ChangesTreeProvider(store)),
+    vscode.window.registerTreeDataProvider('malt.changes', new ChangesTreeProvider(store, consolidation)),
     createStatusBar(manager, store),
     registerCommands(deps),
     manager.onDidChangeStatus((status) => {

@@ -49,6 +49,7 @@ MALT sends changed code to a reviewer service that calls an AI model. It's desig
   - The system prompts are static and contain no repository text.
   - Repository content goes in the user message as data, inside blocks marked with a random per-request code, so content can't fake the end of its block.
   - Project rules are sanitized (control and invisible characters removed, whitespace collapsed, lengths and count capped, ids validated, baseline rules can't be shadowed) and sent as JSON.
+  - The architecture map (`.malt/architecture.json`) is generated from repository files, so it is untrusted too. It only keeps paths the scan actually read, is sanitized like project rules, and is sent as JSON data. Consolidation findings may only name files MALT showed the model.
   - A baseline check, `no-reviewer-manipulation`, fails any code, comment or rule that tries to steer an AI reviewer. It runs on every block, whatever the overview call decided applies, so injected text can't talk the reviewer out of it.
 - **MALT doesn't take the model's word for it.** The overview call can only name rules MALT knows. Each rule is checked in its own call; the reviewer looks the rule up itself, takes the id and title from its own list, and sanitizes the model's text. A block passes only when every applicable rule has a passing check; one failing check makes it fail.
   - Residual risk: a model can still be persuaded to mark a rule as passed. MALT's verdicts help the people reviewing a change; they don't replace them.
