@@ -72,10 +72,13 @@ function connection(child) {
         return;
       }
       const key = ++id;
-      const timer = setTimeout(() => {
-        requests.delete(key);
-        reject(new Error('Chrome timed out: ' + method));
-      }, 12000);
+      const timer = setTimeout(
+        () => {
+          requests.delete(key);
+          reject(new Error('Chrome timed out: ' + method));
+        },
+        method.startsWith('Target.') ? 60_000 : 30_000,
+      );
       requests.set(key, {
         resolve: (v) => {
           clearTimeout(timer);
@@ -99,6 +102,7 @@ export async function browserCheck(file, choice, exerciseExports = false) {
       [
         '--headless=new',
         '--disable-gpu',
+        '--disable-dev-shm-usage',
         '--disable-extensions',
         '--no-first-run',
         '--disable-background-networking',
@@ -109,9 +113,11 @@ export async function browserCheck(file, choice, exerciseExports = false) {
       ],
       { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'], windowsHide: true },
     );
-    const send = connection(child),
-      { targetId } = await send('Target.createTarget', { url: 'about:blank' }),
-      { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+    const send = connection(child);
+    const { targetInfos } = await send('Target.getTargets');
+    const page = targetInfos.find((info) => info.type === 'page' && info.url === 'about:blank');
+    const targetId = page?.targetId ?? (await send('Target.createTarget', { url: 'about:blank' })).targetId;
+    const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
     const tab = (method, params) => send(method, params, sessionId),
       reports = [];
     for (const [width, height] of sizes) {
