@@ -52,6 +52,11 @@ export interface GitRepository {
   readonly state: GitRepositoryState;
   diffWithHEAD: (path: string) => Promise<string>;
   checkIgnore: (paths: string[]) => Promise<Set<string>>;
+  /** Read-only branch tree access for the architecture explorer. */
+  getRefs?: (query: { pattern: string }) => Promise<GitHeadRef[]>;
+  diffBetweenWithStats?: (from: string, to: string) => Promise<GitChange[]>;
+  getObjectDetails?: (ref: string, path: string) => Promise<{ mode: string; size: number }>;
+  show?: (ref: string, path: string) => Promise<string>;
   /** Used only to review a pull request (optional so change-tracking fakes need not implement them). */
   fetch?: (options: GitFetchOptions) => Promise<void>;
   checkout?: (treeish: string) => Promise<void>;

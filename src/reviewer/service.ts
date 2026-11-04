@@ -17,6 +17,10 @@ import type { ReviewProvider, StructuredCall } from './providers/provider';
 import { ConversationLog } from './conversations';
 import type { ReviewProfiles } from '../shared/reviewProfiles';
 import type { CallUsage } from '../shared/conversation';
+import { ground, groundModules, DISCUSSION_PROMPT } from './understanding';
+import { interpretationSchema, parseInterpretation } from '../shared/understanding';
+import type { DiscussionRequest, Interpretation } from '../shared/understanding';
+import { dataBlock } from './trust';
 import { architectureSlice, newDeclarations } from './architecture';
 import {
   ARCHITECTURE_SCHEMA,
@@ -197,6 +201,19 @@ export class ReviewService {
     }
   }
 
+  public async discuss(request: DiscussionRequest): Promise<Interpretation> {
+    const output = await this.ask('Architecture discussion', {
+      systemPrompt: DISCUSSION_PROMPT,
+      userPrompt: dataBlock(createNonce(), 'architecture discussion (untrusted json)', JSON.stringify(request)),
+      schema: interpretationSchema, ...this.config.profiles.investigation, timeoutMs: REVIEW_TIMEOUT_MS,
+    });
+    const answer = parseInterpretation(output);
+    if (answer === undefined) {
+      throw new Error('Invalid architecture discussion response');
+    }
+    return ground(answer, request.source);
+  }
+
   private async extractRules(sources: readonly SourceFile[]): Promise<readonly Rule[]> {
     if (sources.length === 0) {
       return [];
@@ -231,7 +248,7 @@ export class ReviewService {
     if (modules === undefined) {
       throw new Error('Provider returned an architecture map that does not match the protocol');
     }
-    return sanitizeModules(modules, new Set(sources.map((source) => source.path)));
+    return groundModules(sanitizeModules(modules, new Set(sources.map((source) => source.path))), sources);
   }
 
   /** Inferred rules never shadow baseline or documented ones, and MALT marks their source as inferred. */

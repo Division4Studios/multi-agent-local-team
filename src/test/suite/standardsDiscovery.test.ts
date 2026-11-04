@@ -38,7 +38,7 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
-    name: 'architecture discovery reads the head of source files, shallowest first, skipping tests and build output',
+    name: 'architecture discovery samples source implementations, shallowest first, skipping tests and build output',
     run: async (): Promise<void> => {
       const root = await mkdtemp(join(tmpdir(), 'malt-code-'));
       for (const folder of ['src/components', 'src/test', 'node_modules/x', 'out']) {
@@ -53,7 +53,7 @@ export const tests: readonly TestCase[] = [
       await writeFile(join(root, 'README.md'), '# not code');
       const sources = await collectCodeSources(root);
       assert.deepEqual(sources.map((source) => source.path), ['main.py', 'src/components/Modal.tsx']);
-      assert.equal(sources[1]?.content.length, 1_500);
+      assert.equal(sources[1]?.content.endsWith('x'.repeat(5_000)), true);
     },
   },
   {

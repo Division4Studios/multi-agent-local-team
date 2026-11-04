@@ -61,7 +61,7 @@ export const registerStandardsCommands = (deps: StandardsCommandDeps): vscode.Di
       }
       showListPage(standardsPage(deps.standards.standards));
     }),
-    register(deps, 'malt.showArchitecture', async () => {
+    register(deps, 'malt.showArchitectureSummaries', async () => {
       if (deps.standards.architecture === undefined) {
         await offerScan(deps, 'architecture map');
         return;

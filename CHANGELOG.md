@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Interactive architecture maps with tagged source relationships, path tracing and visual branch comparisons. The reviewer separates source evidence from hypotheses and can discuss a question with a developer before saving a clarification.
+
 ### Changed
 
 - New look: the barley sprig from the activity bar becomes the full-color mark (amber grains, teal stem) for the extension icon. The README, wiki and docs have a new hero image and diagrams of how a change is reviewed and of the trust boundary, all hand-built from reviewable SVG and HTML sources in `design/`.

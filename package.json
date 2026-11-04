@@ -163,6 +163,11 @@
         "icon": "$(type-hierarchy)"
       },
       {
+        "command": "malt.showArchitectureSummaries",
+        "title": "Show Architecture File Summaries",
+        "category": "MALT"
+      },
+      {
         "command": "malt.showRule",
         "title": "Show Rule",
         "category": "MALT"

@@ -209,13 +209,12 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
   }
 
   private architectureItem(): vscode.TreeItem {
-    const map = this.standards.architecture;
     const result = item('Architecture', {
-      description: map === undefined ? 'not mapped' : `${plural(map.modules.length, 'file')} mapped${scannedDate(map.generatedAt)}`,
+      description: 'interactive map',
       icon: new vscode.ThemeIcon('type-hierarchy'),
       command: { command: 'malt.showArchitecture', title: 'Show architecture map' },
     });
-    result.tooltip = 'Click to read the architecture map: each source file’s purpose and exports, grouped by folder.';
+    result.tooltip = 'Explore source relationships, open declarations, and compare branch maps.';
     return result;
   }
 

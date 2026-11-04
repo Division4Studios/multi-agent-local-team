@@ -13,6 +13,7 @@ import type { HunkReviewer } from './review/reviewQueue';
 import { ChangeTracker } from './review/changeTracker';
 import type { NewHunksEvent } from './review/changeTracker';
 import { getGitApi } from './git/gitApi';
+import { registerArchitecture } from './architecture/explorer';
 import { HunkDecorations } from './editor/decorations';
 import { ReviewHoverProvider } from './editor/reviewMarkdown';
 import { ChangesTreeProvider } from './views/changesView';
@@ -87,6 +88,12 @@ const reviewBacklog = async (deps: CommandDeps): Promise<void> => {
 const startTracking = async (context: vscode.ExtensionContext, deps: CommandDeps): Promise<void> => {
   const folder = vscode.workspace.workspaceFolders?.[0];
   const git = await getGitApi();
+  context.subscriptions.push(registerArchitecture(context.extensionUri, git, () => { deps.attention.noteUserActivity(); }, async () => {
+    if (deps.manager.client === undefined) {
+      await startReviewer(deps);
+    }
+    return deps.manager.client;
+  }));
   if (folder === undefined || git === undefined) {
     return;
   }

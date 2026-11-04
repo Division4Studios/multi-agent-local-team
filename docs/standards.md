@@ -35,13 +35,25 @@ Discovery deliberately does not apply Git ignore rules. Review the contents of t
 
 Scans are bounded: directory depth 6, up to 150 candidate files, at most 1 MB per source file, 30,000 characters per source, and 350,000 characters total. A scan is not an exhaustive inventory of arbitrarily large projects.
 
-## The architecture map
+## Explore the architecture
 
-The same scan reads the start of each source file (up to 1,500 characters: imports, exports and top-level declarations) and asks the model for one line per file: what it is for and what it exports. Test files and the build/dependency directories above are skipped. Files are read shallowest first, up to 400 files and 350,000 characters in total, so a very large repository is only partly mapped.
+Open **MALT → Reviewer → Architecture**. Select a folder to see its files and connections to other subsystems. Select a declaration to explore callers, callees, base types or rendered components. Navigate with **Back**, breadcrumbs, search, tags, relationship filters and zoom. Cards support Enter and Space. **Open source** opens the declaration. To trace a process, choose **Start here**, navigate to a destination and select **Find path to here**. Every step opens its own neighbourhood.
+
+**Compare branches…** asks for a base and a target. Choose two local branch tips, including branches you have never opened, or compare a base with **Current working tree** to include saved edits. Added (+), removed (−) and changed (~) nodes and relationships share one graph. Folders inherit change indicators from their contents. **Changes only** narrows the graph. **Trace in** selects one side for a directed path. Opening a removed declaration shows its base revision. Renames appear as removal and addition.
+
+**Scan Project Standards** asks the reviewer for a file-level interpretation of what the code does and why. The explorer displays these separately. A source-backed interpretation includes an excerpt MALT matched against the code. A working hypothesis lacks this evidence. Select the open question or **Discuss or clarify with reviewer…** on a working-tree node to open a conversation seeded with the interpretation, selected declaration, relevant code and graph context. You can correct the reviewer, ask follow-up questions and edit its proposed wording. **Apply to architecture map** records your statement as a developer clarification and includes it in later architectural reviews. A rescan preserves the clarification while the file fingerprint and branch match. A changed file version requires fresh evidence. Historical comparisons are read-only.
+
+MALT automatically indexes each trusted local workspace folder. A checkout or commit triggers a full rebuild. Saved edits update the active branch, including edits from other tools. Working snapshots, commit snapshots, scan interpretations and developer clarifications live in `.malt/maps/v1/`. The structural index runs without reviewer credentials. The agent scan and discussion use your configured reviewer. Git-ignored, hidden, dependency and build paths are excluded from working maps. Up to 6,000 eligible files of up to 512,000 bytes each are indexed. Skipped files are counted.
+
+Relationships are statically inferred. Relative JavaScript/TypeScript imports, Python from-imports, named declarations, common base lists, local/imported calls and JSX components have dedicated patterns. Other recognized languages have file and folder nodes and declarations where the syntax matches. A unique same-language base type can be inferred by name. Dynamic dispatch, generated code and package aliases can leave relationships unresolved.
+
+### File summaries used by the reviewer
+
+The same scan reads a budgeted sample of each source file (up to 8,000 characters from the beginning, middle and end) and asks the model for one line per file: what it is for and what it exports. Test files and the build/dependency directories above are skipped. Files are read shallowest first, up to 400 files and 350,000 characters in total, so a very large repository is only partly mapped.
 
 Reviews never send the whole map. Each block review gets up to 25 related entries: files whose names or exports share words with the added code count most, then files in the same, parent or sibling folder. The overview call and **Architecture**-group rule checks get this slice; other rule checks do not. The consolidation check gets up to 80 entries for the whole change. Writing your boundaries ("UI components live in `src/components`; extend before adding") as rules in an `ARCHITECTURE.md` or agent instructions turns them into Architecture rules on the next scan. Hard import boundaries are better enforced by a linter rule such as `no-restricted-imports`.
 
-The map goes stale as code changes. Rescan after adding or moving modules; the **Reviewer** view shows the map's date.
+Select **File summaries** to see the last scan and current clarifications. Rescan after moving modules to refresh the reviewer summaries.
 
 ## Inferred rules and gaps
 

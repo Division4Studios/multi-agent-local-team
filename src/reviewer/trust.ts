@@ -101,6 +101,8 @@ export const sanitizeModules = (modules: readonly ArchitectureModule[], scanned:
       const names = module.exports.map((name) => sanitizeText(name, MODULE_LIMITS.exportName)).filter((name) => name !== '');
       result.push({
         path: module.path,
+        ...(module.understanding === undefined ? {} : { understanding: module.understanding }),
+        ...(module.fingerprint === undefined ? {} : { fingerprint: module.fingerprint }),
         purpose: sanitizeText(module.purpose, MODULE_LIMITS.purpose),
         exports: [...new Set(names)].slice(0, MODULE_LIMITS.exports),
       });

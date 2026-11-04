@@ -1,0 +1,136 @@
+import { randomBytes } from 'node:crypto';
+import * as vscode from 'vscode';
+import { isRecord, isString } from '../shared/guards';
+import type { Interpretation, Understanding } from '../shared/understanding';
+import type { ReviewerClient } from '../review/reviewerClient';
+import { digest } from './extract';
+import type { MapNode, Snapshot } from './graph';
+import { saveNote } from './knowledge';
+import { headOf, workingReader } from './sources';
+import type { MapTracker } from './tracker';
+
+export type ReviewerAccess = () => Promise<ReviewerClient | undefined>;
+interface Context {
+  readonly tracker: MapTracker;
+  readonly file: MapNode;
+  readonly snapshot: Snapshot;
+  readonly focus: MapNode;
+}
+const initial = (context: Context): Interpretation => context.file.understanding ?? {
+  what: 'This file has no agent interpretation yet.', why: 'Its design intent is unknown.',
+  whatEvidence: '', whyEvidence: '', question: `What responsibility does ${context.focus.label} own, and why is it implemented here?`,
+};
+const checkedSource = async (context: Context): Promise<string> => {
+  const { tracker, file, snapshot } = context;
+  const source = await workingReader(tracker.folder)(file.path);
+  if (source === undefined || digest(source.replaceAll('\r\n', '\n')) !== file.hash || headOf(tracker.repository).branch !== snapshot.branch) {
+    throw new Error('The file or branch changed. Reopen the discussion from the current map.');
+  }
+  return source;
+};
+
+const graphContext = ({ snapshot, file, focus }: Context): string => {
+  const own = new Set(snapshot.nodes.filter((n) => n.path === file.path).map((n) => n.id));
+  const nearby = snapshot.edges.filter((e) => own.has(e.from) || own.has(e.to)).slice(0, 40);
+  return JSON.stringify({ selected: focus.label, file: file.path, understanding: file.understanding, relationships: nearby }).slice(0, 12_000);
+};
+
+const html = (view: vscode.Webview, media: vscode.Uri): string => {
+  const nonce = randomBytes(20).toString('hex');
+  const asset = (path: string): string => view.asWebviewUri(vscode.Uri.joinPath(media, path)).toString();
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${view.cspSource};">
+<link rel="stylesheet" href="${asset('architecture.css')}"><title>Architecture discussion</title></head><body>
+<header><div class="kicker">MALT / ARCHITECTURE DISCUSSION</div><h1 id="subject">Clarify understanding</h1><p id="scope"></p></header>
+<main><div id="thread" role="log" aria-live="polite"></div><form id="replyForm"><label>Your perspective
+<textarea id="reply" rows="3" maxlength="1600" placeholder="Explain the intent, correct an assumption, or ask for evidence."></textarea></label>
+<button id="send">Send to reviewer</button></form><p id="notice" role="status"></p>
+<section><h2>Developer clarification</h2><p>Edit the statement you want MALT to remember for this file on this branch.</p>
+<label>Statement to save<textarea id="proposal" rows="3" maxlength="1600"></textarea></label><button id="apply">Apply to architecture map</button></section>
+</main><script nonce="${nonce}" src="${asset('architectureChat.js')}"></script></body></html>`;
+};
+
+class Discussion {
+  private readonly panel: vscode.WebviewPanel;
+  private readonly context: Context;
+  private readonly reviewer: ReviewerAccess;
+  private answer: Interpretation;
+  private readonly turns: string[] = [];
+  private busy = false;
+  private closed = false;
+  public constructor(media: vscode.Uri, context: Context, reviewer: ReviewerAccess) {
+    this.context = context;
+    this.reviewer = reviewer;
+    this.answer = initial(context);
+    this.panel = vscode.window.createWebviewPanel('malt.architectureChat', `Clarify · ${context.focus.label}`, vscode.ViewColumn.Beside,
+      { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [media] });
+    const listener = this.panel.webview.onDidReceiveMessage((m: unknown) => { void this.receive(m); });
+    this.panel.onDidDispose(() => { this.closed = true; listener.dispose(); });
+    this.panel.webview.html = html(this.panel.webview, media);
+  }
+  private post(message: unknown): void {
+    if (!this.closed) {
+      void this.panel.webview.postMessage(message);
+    }
+  }
+  private async receive(m: unknown): Promise<void> {
+    if (this.busy || !isRecord(m)) {
+      return;
+    }
+    this.busy = true;
+    try {
+      if (m['action'] === 'ready') {
+        this.post({ type: 'initial', file: this.context.file.path, branch: this.context.snapshot.branch, answer: this.answer });
+        if (this.context.file.understanding === undefined) {
+          await this.ask('Analyze this code and ask the developer about anything the implementation cannot establish.');
+        }
+      } else if (isString(m['text']) && m['text'].trim() !== '' && m['text'].length <= 1600) {
+        await this.handleText(m['action'], m['text'].trim());
+      }
+    } catch (error: unknown) {
+      this.post({ type: 'notice', text: String(error) });
+    } finally {
+      this.busy = false;
+      this.post({ type: 'idle' });
+    }
+  }
+  private async handleText(action: unknown, text: string): Promise<void> {
+    if (action === 'send') {
+      await this.ask(text);
+    } else if (action === 'save') {
+      await checkedSource(this.context);
+      const { file, tracker, snapshot } = this.context;
+      const note: Understanding = { ...this.answer, confirmed: text };
+      await saveNote(tracker.folder.uri.fsPath, { branch: snapshot.branch, file }, note, () => !this.closed);
+      tracker.refresh();
+      this.post({ type: 'notice', text: 'Clarification saved to the branch map and reviewer context.' });
+    }
+  }
+  private async ask(text: string): Promise<void> {
+    const source = await checkedSource(this.context);
+    this.post({ type: 'busy' });
+    const client = await this.reviewer();
+    if (client === undefined || this.closed) {
+      throw new Error('The reviewer is unavailable. You can still record your own clarification below.');
+    }
+    const question = this.answer.question;
+    const turn = `Previous interpretation: ${JSON.stringify(this.answer)}\nDeveloper: ${text}`;
+    const dialogue = [...this.turns, turn].join('\n').slice(-22_000);
+    const start = Math.max(0, this.context.focus.line - 16);
+    const excerpt = source.length <= 48_000 ? source : source.split('\n').slice(start).join('\n').slice(0, 48_000);
+    const answer = await client.discuss({ path: this.context.file.path, source: excerpt, context: graphContext(this.context), dialogue });
+    this.turns.push(`Reviewer: ${question}\nDeveloper: ${text}\nReviewer: ${answer.why}`);
+    if (this.turns.length > 8) {
+      this.turns.shift();
+    }
+    this.answer = answer;
+    this.post({ type: 'answer', answer });
+  }
+}
+export const openDiscussion = (media: vscode.Uri, tracker: MapTracker, node: MapNode, reviewer: ReviewerAccess): void => {
+  const snapshot = tracker.snapshot;
+  const file = snapshot?.nodes.find((n) => n.kind === 'file' && n.path === node.path);
+  if (snapshot !== undefined && file !== undefined) {
+    new Discussion(media, { tracker, snapshot, file, focus: node }, reviewer);
+  }
+};

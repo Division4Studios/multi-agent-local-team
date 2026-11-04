@@ -2,6 +2,8 @@
  * Wire protocol between the MALT extension and the reviewer service.
  * Everything crossing the boundary is validated with the parsers below; nothing is trusted by shape.
  */
+import { parseUnderstanding } from './understanding';
+import type { Understanding } from './understanding';
 import { isNonNegativeInteger, isRecord, isString, parseArray, readStrings } from './guards';
 
 export const PROTOCOL_VERSION = 2;
@@ -67,6 +69,8 @@ export interface CheckRequest extends ReviewRequest {
 
 /** One entry of the architecture map: an existing source file, what it is for, and what it exports. */
 export interface ArchitectureModule {
+  readonly understanding?: Understanding;
+  readonly fingerprint?: string;
   readonly path: string;
   readonly purpose: string;
   readonly exports: readonly string[];
@@ -158,7 +162,11 @@ export const parseArchitectureModule = (value: unknown): ArchitectureModule | un
   }
   const strings = readStrings(value, ['path', 'purpose']);
   const names = parseArray(value['exports'], parseString);
-  return strings === undefined || names === undefined ? undefined : { ...strings, exports: names };
+  const understanding = parseUnderstanding(value['understanding']);
+  const fingerprint = value['fingerprint'];
+  return strings === undefined || names === undefined ? undefined : { ...strings, exports: names,
+    ...(understanding === undefined ? {} : { understanding }),
+    ...(typeof fingerprint === 'string' && /^[\da-f]{64}$/u.test(fingerprint) ? { fingerprint } : {}) };
 };
 
 export const parseModules = (value: unknown): ArchitectureModule[] | undefined => parseArray(value, parseArchitectureModule);

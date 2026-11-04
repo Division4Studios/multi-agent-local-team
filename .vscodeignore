@@ -2,6 +2,7 @@
 # (vsce applies "!" re-includes over excludes regardless of order, so list shipped folders explicitly.)
 **
 !out/*.js
+!out/architecture/**/*.js
 !out/backend/**/*.js
 !out/diff/**/*.js
 !out/editor/**/*.js

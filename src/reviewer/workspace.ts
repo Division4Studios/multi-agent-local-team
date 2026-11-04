@@ -113,11 +113,23 @@ const generatedFileLoader = <T>(path: string, parse: (value: unknown) => T | und
 };
 
 const readStandards = generatedFileLoader(STANDARDS_FILE, parseStandardsDocument);
+const readCurrentMap = generatedFileLoader('.malt/maps/v1/reviewer.json', parseArchitectureDocument);
 const readArchitecture = generatedFileLoader(ARCHITECTURE_FILE, parseArchitectureDocument);
 
 /** `.malt/standards.json`: documented and inferred rules, and the gaps the last scan found. */
 export const loadStandards = async (root: string): Promise<StandardsDocument | undefined> => await readStandards(root);
 
 /** The architecture map from `.malt/architecture.json`; empty if there is none. */
-export const loadArchitecture = async (root: string): Promise<ArchitectureDocument> =>
-  (await readArchitecture(root)) ?? { version: 1, generatedAt: '', modules: [] };
+export const loadArchitecture = async (root: string): Promise<ArchitectureDocument> => {
+  const [legacy, current] = await Promise.all([readArchitecture(root), readCurrentMap(root)]);
+  if (current === undefined) {
+    return legacy ?? { version: 1, generatedAt: '', modules: [] };
+  }
+  const previous = new Map(legacy?.modules.map((m) => [m.path, m]));
+  const modules = new Map(legacy?.modules.filter((m) => m.fingerprint === undefined).map((m) => [m.path, m]));
+  for (const item of current.modules) {
+    const original = previous.get(item.path);
+    modules.set(item.path, { ...item, exports: original?.fingerprint === item.fingerprint ? original?.exports ?? [] : item.exports });
+  }
+  return { ...current, modules: [...modules.values()] };
+};
