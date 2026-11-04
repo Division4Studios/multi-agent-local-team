@@ -12,6 +12,7 @@ export const DISCUSSION_PROMPT = [
   'Explain what the code does and separately why it exists. Cite a short exact source quote for each supported',
   'claim. For why, only quote an explicit design rationale. If unavailable, leave that evidence empty and give',
   'your best working explanation. A developer statement is attributed intent, not source evidence.',
+  'When a developer asks to revise a panel, keep earlier unrelated claims and update the relevant claims and role. An inferred edge has empty evidence unless an exact excerpt supports it.',
   'Respond to their latest clarification and formulate a concise revised rationale they can accept or edit.',
   'Use question for one concrete follow-up if needed. Never claim that a user has confirmed your own inference.',
 ].join('\n');
@@ -21,6 +22,8 @@ const verifiedQuote = (source: string, quote: string): string => {
   return text.length >= 6 && text.length <= 600 && source.includes(text) ? text : '';
 };
 export const ground = (input: Interpretation, source: string): Interpretation => ({
+  ...(input.claims===undefined ? {} : {claims:input.claims.map(c=>({...c,evidence:verifiedQuote(source,c.evidence)}))}),
+  ...(input.role === undefined ? {} : { role: sanitizeText(input.role, 100) }),
   what: sanitizeText(input.what, 800), why: sanitizeText(input.why, 800), question: sanitizeText(input.question, 400),
   whatEvidence: verifiedQuote(source, input.whatEvidence), whyEvidence: verifiedQuote(source, input.whyEvidence),
 });

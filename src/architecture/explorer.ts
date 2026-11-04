@@ -12,6 +12,11 @@ import { eligible, revision, revisionReader } from './sources';
 import type { MapHead } from './sources';
 import { openDiscussion } from './discussion';
 import type { ReviewerAccess } from './discussion';
+import { feedVerifier } from './feedSignature';
+import { Atlas } from './navigation';
+import { AtlasTree } from './atlasTree';
+import { finalizeFile } from './finalize';
+import { handleView, parsePlace, selectedSource, sendView } from './viewBridge';
 import { MapTracker } from './tracker';
 
 const page = (webview: vscode.Webview, media: vscode.Uri): string => {
@@ -20,11 +25,16 @@ const page = (webview: vscode.Webview, media: vscode.Uri): string => {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${webview.cspSource};">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Architecture map</title>
-<link rel="stylesheet" href="${resource('architecture.css')}"></head><body>
+<link rel="stylesheet" href="${resource('architecture.css')}"><link rel="stylesheet" href="${resource('perspectives.css')}"></head><body>
 <header><div class="kicker">MALT / ARCHITECTURE</div><h1 id="title">Project map</h1><p id="status" role="status">Indexing…</p>
 <div class="tools"><button id="compare">Compare branches…</button><button id="live">Working tree</button><button id="refresh">Rebuild map</button>
 <button id="summaries">File summaries</button></div></header>
-<main><div class="filters"><label>Find a file or symbol <input type="search" id="search" placeholder="Name or path"></label>
+<section id="modelNav"><div class="tools"><label>View<select id="modelKind"></select></label><label>Subject<select id="modelSubject"></select></label>
+<button id="modelBack">Previous view</button><button id="modelTray">Reveal in sidebar</button><button id="modelSide" hidden>Switch branch side</button><button id="modelExport">Finalize and export</button></div><p id="modelQuestion"></p></section>
+<main id="modelScreen" hidden><div class="tools"><label>Search items<input type="search" id="modelSearch"></label><label>Zoom<select id="modelZoom"><option>1</option><option>1.5</option><option>2</option><option>0.75</option></select></label><select id="modelZone" aria-label="Timezone"><option>UTC</option><option>Local</option></select><label id="modelFieldsWrap"><input type="checkbox" id="modelFields" checked>Show members</label>
+<button id="modelUp">Parent</button><button id="modelPlay">Play route</button></div><p id="modelRoute"></p><div id="modelDrawing"><svg id="modelSvg" role="group" aria-label="Interactive model"></svg></div>
+<div class="tools"><button id="modelPrev">Previous items</button><span id="modelCount" role="status"></span><button id="modelNext">Next items</button></div><p id="modelLegend"></p><section id="modelDetail"></section><nav id="relatedModels" aria-label="Related views"></nav></main>
+<main id="connectionMap"><div class="filters"><label>Find a file or symbol <input type="search" id="search" placeholder="Name or path"></label>
 <label>Tag <select id="tags"><option value="">All tags</option></select></label>
 <label>Connections <select id="relation"><option value="">All connections</option><option>structure</option><option>imports</option>
 <option>inherits</option><option>implements</option><option>calls</option><option>renders</option></select></label>
@@ -41,7 +51,7 @@ const page = (webview: vscode.Webview, media: vscode.Uri): string => {
 <label id="traceVersion" hidden>Trace in <select id="traceSide"><option value="target">Target</option><option value="base">Base</option></select></label>
 <button id="traceClear" hidden>Clear trace</button></div><div id="trail" aria-live="polite"></div></section>
 <section><h2 id="detail">Project</h2><p id="evidence"></p><button id="source" hidden>Open source</button></section></main>
-<script nonce="${nonce}" src="${resource('architecture.js')}"></script></body></html>`;
+<script nonce="${nonce}" src="${resource('perspectiveDrawing.js')}"></script><script nonce="${nonce}" src="${resource('perspectives.js')}"></script><script nonce="${nonce}" src="${resource('architecture.js')}"></script></body></html>`;
 };
 
 interface Comparison { readonly base: Snapshot; readonly target?: Snapshot }
@@ -63,6 +73,8 @@ const viewTitle = (map: Snapshot | undefined, comparison: Comparison | undefined
 };
 
 class MapPanel {
+  private readonly atlas: Atlas;
+  private readonly tray: AtlasTree;
   private readonly tracker: MapTracker;
   private readonly media: vscode.Uri;
   private readonly reviewer: ReviewerAccess;
@@ -71,13 +83,15 @@ class MapPanel {
   private sequence = 0;
   private readonly subscriptions: vscode.Disposable[] = [];
   private closed = false;
-  public constructor(tracker: MapTracker, media: vscode.Uri, reviewer: ReviewerAccess) {
+  public constructor(atlas: Atlas, tray: AtlasTree, media: vscode.Uri, reviewer: ReviewerAccess) {
+    this.atlas = atlas; this.tray = tray;
+    const tracker = atlas.tracker;
     this.media = media;
     this.reviewer = reviewer;
     this.tracker = tracker;
     this.panel = vscode.window.createWebviewPanel('malt.architecture', `Architecture · ${tracker.folder.name}`, vscode.ViewColumn.Active,
       { enableScripts: true, localResourceRoots: [media], retainContextWhenHidden: true });
-    this.subscriptions.push(tracker.onDidChange(() => { this.render(); }), this.panel.webview.onDidReceiveMessage((message: unknown) => {
+    this.subscriptions.push(atlas.onChange(() => { sendView(atlas,this.panel.webview); }), tracker.onDidChange(() => { this.render(); }), this.panel.webview.onDidReceiveMessage((message: unknown) => {
       void this.receive(message).catch((error: unknown) => { void vscode.window.showErrorMessage(`MALT: ${String(error)}`); });
     }));
     this.panel.onDidDispose(() => {
@@ -96,11 +110,16 @@ class MapPanel {
     switch (message['action']) {
       case 'ready': this.render(); break;
       case 'compare': await this.compare(); break;
-      case 'live': this.sequence++; this.comparison = undefined; this.render(); break;
+      case 'live': this.sequence++; this.comparison = undefined; this.atlas.compare(); this.render(); break;
       case 'refresh': this.tracker.refresh(); break;
       case 'summaries': showListPage(architecturePage(await loadArchitecture(this.tracker.folder.uri.fsPath))); break;
       case 'clarify': this.clarify(message['id']); break;
       case 'source': if (isString(message['id'])) { await this.openSource(message['id']); } break;
+      default: await handleView(this.atlas,message,{
+        tray:async () => { await this.tray.reveal(this.atlas); },
+        discuss:() => { const n=selectedSource(this.atlas); if(n!==undefined&&this.comparison===undefined){openDiscussion(this.media,this.tracker,n,this.reviewer);} },
+        source:async () => { await this.openSelected(); },
+      });
     }
   }
   private clarify(id: unknown): void {
@@ -119,6 +138,13 @@ class MapPanel {
     const message = viewMessage(current, skipped, this.tracker.message);
     void this.panel.webview.postMessage({ action: 'graph', title: viewTitle(current, this.comparison, this.tracker.folder.name), message,
       diff: base !== undefined, graph: current === undefined ? { nodes: [], edges: [] } : compareGraphs(current, base) });
+    sendView(this.atlas,this.panel.webview);
+  }
+  private async openSelected(): Promise<void> {
+    const n=selectedSource(this.atlas), snapshot=this.atlas.snapshot;
+    if(n===undefined||snapshot===undefined){return;}
+    if(this.atlas.side==='base'||this.atlas.target!==undefined){await this.openRevision(snapshot,n.id,n.line);}
+    else {await this.openWorking(n);}
   }
   private async compare(): Promise<void> {
     const repo = this.tracker.repository;
@@ -149,6 +175,7 @@ class MapPanel {
       if (live()) {
         const to = target.head === undefined ? undefined : await revision(this.tracker, repo, target.head, live);
         if (live()) {
+          this.atlas.compare(from,to);
           this.comparison = to === undefined ? { base: from } : { base: from, target: to };
           this.render();
         }
@@ -176,7 +203,7 @@ class MapPanel {
       await present(await vscode.workspace.openTextDocument(uri), node);
     }
   }
-  private async openRevision(snapshot: Snapshot, id: string): Promise<void> {
+  private async openRevision(snapshot: Snapshot, id: string, line?: number): Promise<void> {
     const node = snapshot.nodes.find((n) => n.id === id);
     if (node === undefined || node.line < 1) {
       return;
@@ -184,7 +211,7 @@ class MapPanel {
     const repo = this.tracker.repository;
     const source = repo === undefined ? undefined : await revisionReader(repo, snapshot.commit, this.tracker.folder.uri)(node.path);
     if (source !== undefined) {
-      await present(await vscode.workspace.openTextDocument({ content: source }), node);
+      await present(await vscode.workspace.openTextDocument({ content: source }), { ...node,line:line??node.line });
     }
   }
 }
@@ -193,10 +220,17 @@ export const registerArchitecture = (extension: vscode.Uri, map: { readonly git:
   const { git, noteKey } = map;
   const trackers = new Map<string, MapTracker>();
   const panels = new Map<string, MapPanel>();
+  const atlases = new Map<string, Atlas>();
+  const tree = new AtlasTree(atlases);
+  const open = (a: Atlas): void => {
+    const key=a.tracker.folder.uri.toString(), existing=panels.get(key);
+    if(existing?.visible===true){existing.reveal();}else{panels.set(key,new MapPanel(a,tree,vscode.Uri.joinPath(extension,'media'),reviewer));}
+  };
   const sync = (): void => {
     const folders = (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === 'file' && vscode.workspace.isTrusted);
     for (const [key, tracker] of trackers) {
       if (!folders.some((f) => f.uri.toString() === key)) {
+        atlases.get(key)?.dispose(); atlases.delete(key);
         tracker.dispose();
         panels.get(key)?.dispose();
         trackers.delete(key);
@@ -205,9 +239,11 @@ export const registerArchitecture = (extension: vscode.Uri, map: { readonly git:
     }
     for (const folder of folders) {
       if (!trackers.has(folder.uri.toString())) {
-        trackers.set(folder.uri.toString(), new MapTracker(folder, git, noteKey));
+        const key=folder.uri.toString(),tracker=new MapTracker(folder,git,noteKey),a=new Atlas(tracker);
+        trackers.set(key,tracker); atlases.set(key,a); a.onChange(()=>{tree.refresh();});
       }
     }
+    tree.refresh();
   };
   sync();
   const command = vscode.commands.registerCommand('malt.showArchitecture', async () => {
@@ -219,16 +255,21 @@ export const registerArchitecture = (extension: vscode.Uri, map: { readonly git:
     }
     const tracker = options.length === 1 ? options[0] : (await vscode.window.showQuickPick(options.map((t) => ({ label: t.folder.name, description: t.folder.uri.fsPath, tracker: t })), { title: 'Workspace folder to explore' }))?.tracker;
     if (tracker !== undefined) {
-      const key = tracker.folder.uri.toString();
-      const panel = panels.get(key);
-      if (panel?.visible === true) {
-        panel.reveal();
-      } else {
-        panels.set(key, new MapPanel(tracker, vscode.Uri.joinPath(extension, 'media'), reviewer));
-      }
+      const a=atlases.get(tracker.folder.uri.toString()); if(a!==undefined){open(a);}
     }
   });
-  return vscode.Disposable.from(command, vscode.workspace.onDidChangeWorkspaceFolders(sync), vscode.workspace.onDidGrantWorkspaceTrust(sync), new vscode.Disposable(() => {
-    vscode.Disposable.from(...panels.values(), ...trackers.values()).dispose();
+  const agentConnection=vscode.commands.registerCommand('malt.agentConnection',async()=>{
+    const folder=await vscode.window.showWorkspaceFolderPick({placeHolder:'Choose the workspace to connect to local agents'});
+    if(folder===undefined||!vscode.workspace.isTrusted){return;}
+    const args=[vscode.Uri.joinPath(extension,'out','architecture','agentBridge.js').fsPath,folder.uri.fsPath,feedVerifier(noteKey)];
+    await vscode.env.clipboard.writeText(JSON.stringify({mcpServers:{malt:{command:'node',args}}},null,2));
+    void vscode.window.showInformationMessage('Copied the local MCP server configuration for this workspace.');
+  });
+  const jump=vscode.commands.registerCommand('malt.openArchitectureView',(key:unknown,input:unknown)=>{
+    const a=typeof key==='string'?atlases.get(key):undefined,place=parsePlace(input);
+    if(a!==undefined&&place!==undefined){onFocus();a.visit(place);open(a);}
+  });
+  return vscode.Disposable.from(command,jump,tree,agentConnection,vscode.commands.registerCommand('malt.finalizeDiagram',finalizeFile), vscode.workspace.onDidChangeWorkspaceFolders(sync), vscode.workspace.onDidGrantWorkspaceTrust(sync), new vscode.Disposable(() => {
+    vscode.Disposable.from(...panels.values(), ...atlases.values(), ...trackers.values()).dispose();
   }));
 };

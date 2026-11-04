@@ -1,5 +1,8 @@
 /** A bounded, offline source index. Keep evidence as names and locations; never store source bodies. */
 import { createHash } from 'node:crypto';
+import type { Diagram } from './diagram';
+import { evidenceDiagrams, evidencePath } from './evidence';
+import { infraPath, infrastructure } from './infrastructure';
 import { posix } from 'node:path';
 
 export const digest = (value: string): string => createHash('sha256').update(value).digest('hex');
@@ -25,6 +28,8 @@ export interface ImportFact {
   readonly line: number;
 }
 export interface FileFacts {
+  readonly diagrams?: Diagram[];
+  readonly members?: Map<string, string[]>;
   readonly path: string;
   readonly hash: string;
   readonly tags: string[];
@@ -252,12 +257,26 @@ const collectLine = (cursor: Cursor, index: number): number => {
   }
   return end;
 };
+const signatureOf=(line:string|undefined):string=>(line??'').trim().split('{')[0]?.trim()??'';
+const addMember=(cursor:Cursor,index:number):void=>{
+    const owner = cursor.stack.at(-1)?.symbol;
+    const signature = signatureOf(cursor.code[index]);
+    if (owner !== undefined && typeKinds.has(owner.kind) && /[(:=;]/u.test(signature) && signature.length <= 300) {
+      const fields = cursor.file.members?.get(owner.qualified) ?? [];
+      fields.push(signature); cursor.file.members?.set(owner.qualified, fields);
+    }
+};
 export const extractFile = (path: string, source: string): FileFacts => {
+  if (evidencePath(path) || infraPath(path)) {
+    const diagrams = infraPath(path) ? infrastructure(path, source) : evidenceDiagrams(path, source);
+    return { path, hash: digest(source.replaceAll('\r\n','\n')), tags: ['model evidence'], symbols: [], imports: [], refs: [], diagrams };
+  }
   const python = path.endsWith('.py');
   const code = masked(source, python);
-  const file: FileFacts = { path, hash: digest(source.replaceAll('\r\n', '\n')), tags: tagsFor(path), imports: python ? pythonImports(code) : importsFor(source, code), symbols: [], refs: [] };
+  const file: FileFacts = { path, hash: digest(source.replaceAll('\r\n', '\n')), tags: tagsFor(path), imports: python ? pythonImports(code) : importsFor(source, code), symbols: [], refs: [], members: new Map() };
   const cursor: Cursor = { file, python, jsx: /\.(?:jsx?|tsx|svelte|vue)$/u.test(path), code: code.split(/\r?\n/u), lines: source.split(/\r?\n/u), stack: [], occurrences: new Map(), depth: 0 };
   for (let index = 0; index < cursor.code.length; index++) {
+    addMember(cursor,index);
     index = collectLine(cursor, index);
   }
   while (cursor.stack.length > 0) {

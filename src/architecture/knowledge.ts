@@ -78,7 +78,7 @@ const withNote = (node: MapNode, knowledge: Understanding | undefined): MapNode 
   }
   const tag = knowledge.confirmed === undefined ? 'agent interpretation' : 'developer clarified';
   const unresolved = knowledge.confirmed === undefined && (knowledge.whatEvidence === '' || knowledge.whyEvidence === '');
-  return { ...node, tags: [...node.tags, tag, ...(unresolved ? ['needs clarification'] : [])], understanding: knowledge };
+  return { ...node, tags: [...node.tags, ...(knowledge.role === undefined ? [] : [knowledge.role]), tag, ...(unresolved ? ['needs clarification'] : [])], understanding: knowledge };
 };
 
 export const withUnderstanding = async (root: string, key: Buffer, snapshot: Snapshot): Promise<Snapshot> => {

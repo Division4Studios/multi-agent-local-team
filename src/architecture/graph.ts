@@ -1,3 +1,5 @@
+import { codeDiagrams } from './typeDiagrams';
+import type { Diagram } from './diagram';
 import type { Understanding } from '../shared/understanding';
 import { posix } from 'node:path';
 import type { FileFacts, Reference, Relation } from './extract';
@@ -20,7 +22,7 @@ export interface MapEdge {
   readonly kind: Relation;
   readonly line: number;
 }
-export interface ArchitectureGraph { readonly nodes: MapNode[]; readonly edges: MapEdge[] }
+export interface ArchitectureGraph { readonly diagrams?: Diagram[]; readonly nodes: MapNode[]; readonly edges: MapEdge[] }
 export interface Snapshot extends ArchitectureGraph {
   readonly version: 1;
   readonly branch: string;
@@ -149,14 +151,17 @@ export const buildGraph = (files: readonly FileFacts[]): ArchitectureGraph => {
   }
   const index = indexNames(nodes.values(), files);
   const edges = new Map<string, MapEdge>();
+  const diagrams: Diagram[] = [];
   for (const file of files) {
-    for (const edge of fileEdges(file, index)) {
+    const occurrences = fileEdges(file, index);
+    diagrams.push(...(file.diagrams ?? codeDiagrams(file,nodes,occurrences,index.names)));
+    for (const edge of occurrences) {
       if (!edges.has(edgeId(edge))) {
         edges.set(edgeId(edge), edge);
       }
     }
   }
-  return { nodes: [...nodes.values()], edges: [...edges.values()] };
+  return { nodes: [...nodes.values()], edges: [...edges.values()], diagrams };
 };
 
 const nodeStatus = (node: MapNode, old: MapNode | undefined): Delta => {

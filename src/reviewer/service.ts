@@ -181,7 +181,7 @@ export class ReviewService {
   public async scanStandards(): Promise<StandardsScan> {
     const root = this.config.workspaceRoot;
     const [sources, code] = await Promise.all([collectStandardsSources(root), collectCodeSources(root)]);
-    const [documented, mapped] = await Promise.allSettled([this.extractRules(sources), this.mapCode(code)]);
+    const [documented, mapped] = await Promise.allSettled([this.extractRules(sources), this.mapCode(code,sources)]);
     if (documented.status === 'rejected') {
       throw new Error(describeError(documented.reason));
     }
@@ -233,13 +233,13 @@ export class ReviewService {
   }
 
   /** Maps each source file to a purpose and its exports; the extension saves the result as the architecture map. */
-  private async mapCode(sources: readonly SourceFile[]): Promise<readonly ArchitectureModule[]> {
+  private async mapCode(sources: readonly SourceFile[], guidance: readonly SourceFile[]): Promise<readonly ArchitectureModule[]> {
     if (sources.length === 0) {
       return [];
     }
     const output = await this.ask(`Architecture map · ${String(sources.length)} source file(s)`, {
       systemPrompt: ARCHITECTURE_SYSTEM_PROMPT,
-      userPrompt: buildArchitectureUserPrompt(sources, createNonce()),
+      userPrompt: buildArchitectureUserPrompt(sources, createNonce(), guidance),
       schema: ARCHITECTURE_SCHEMA,
       ...this.config.profiles.standards,
       timeoutMs: SCAN_TIMEOUT_MS,

@@ -106,5 +106,19 @@ jobs:
         if: runner.os != 'Linux'
         run: npm run test:compiled
 
+      - name: Check out the publication integration fixture
+        if: runner.os == 'Linux'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: tt-a1i/archify
+          ref: a4065941f12be7967436261d9934784e381d423c
+          path: .publication-fixture
+          sparse-checkout: archify
+          persist-credentials: false
+
+      - name: Validate all ten publication formats and browser-check a delivered artifact
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/verify-architecture-publication.mjs .publication-fixture/archify/bin/archify.mjs --browser-check
+
       - name: Package contents check
         run: npx --no-install vsce ls --no-dependencies

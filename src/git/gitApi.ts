@@ -53,6 +53,7 @@ export interface GitRepository {
   diffWithHEAD: (path: string) => Promise<string>;
   checkIgnore: (paths: string[]) => Promise<Set<string>>;
   /** Read-only branch tree access for the architecture explorer. */
+  log?: (options: { range: string; maxEntries: number }) => Promise<{ hash: string; message: string; commitDate?: Date }[]>;
   getRefs?: (query: { pattern: string }) => Promise<GitHeadRef[]>;
   diffBetweenWithStats2?: (range: string) => Promise<GitChange[]>;
   getObjectDetails?: (ref: string, path: string) => Promise<{ mode: string; size: number }>;

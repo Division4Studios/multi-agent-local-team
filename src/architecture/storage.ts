@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { readWorkspaceFile } from '../reviewer/workspace';
 import { isNonNegativeInteger, isRecord, isString, parseArray, readStrings } from '../shared/guards';
+import { parseDiagram } from './diagram';
 import { digest } from './extract';
 import type { MapEdge, MapNode, Snapshot } from './graph';
 
@@ -76,19 +77,21 @@ const parseEdge = (value: unknown): MapEdge | undefined => {
   return fields !== undefined && valid && isNonNegativeInteger(line) ? { ...fields, kind, line } : undefined;
 };
 
+const snapshotHeader=(v:unknown,commit:string):v is Readonly<Record<string,unknown>>=>isRecord(v)&&v['version']===1&&v['commit']===commit;
 export const loadRevision = async (root: string, commit: string): Promise<Snapshot | undefined> => {
   try {
     const raw = await readWorkspaceFile(root, `${mapDirectory}/${key('commit', commit)}`, 64_000_000);
     const value: unknown = JSON.parse(raw ?? '');
-    if (!isRecord(value) || value['version'] !== 1 || value['commit'] !== commit) {
+    if (!snapshotHeader(value,commit)) {
       return undefined;
     }
     const fields = readStrings(value, ['branch', 'generatedAt']);
     const skipped = value['skipped'];
     const nodes = parseArray(value['nodes'], parseNode);
     const edges = parseArray(value['edges'], parseEdge);
-    return fields !== undefined && isNonNegativeInteger(skipped) && nodes !== undefined && edges !== undefined
-      ? { ...fields, version: 1, commit, skipped, nodes, edges } : undefined;
+    const diagrams = parseArray(value['diagrams'], (d) => parseDiagram(d));
+    return fields !== undefined && isNonNegativeInteger(skipped) && nodes !== undefined && edges !== undefined && diagrams !== undefined
+      ? { ...fields, version: 1, commit, skipped, nodes, edges, diagrams } : undefined;
   } catch {
     return undefined;
   }

@@ -6,6 +6,7 @@
  * and every read goes through the confined reader.
  */
 import { createHash } from 'node:crypto';
+import { infraPath, infrastructure } from '../architecture/infrastructure';
 import { readdir, realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { readWorkspaceFile } from './workspace';
@@ -110,6 +111,10 @@ const implementationSample = (source: string, limit: number): string => {
 const readSource = async (root: string, path: string, maxChars: number, sample: boolean): Promise<SourceFile | undefined> => {
   try {
     const raw = await readWorkspaceFile(root, path, MAX_SOURCE_BYTES);
+    if(raw!==undefined&&infraPath(path)){
+      const entries=infrastructure(path,raw).flatMap(d=>d.items.map(item=>({name:item.label,kind:item.group})));
+      return {path,content:JSON.stringify(entries).slice(0,maxChars),fingerprint:createHash('sha256').update(raw.replaceAll('\\r\\n','\\n')).digest('hex')};
+    }
     return raw === undefined ? undefined : { path, content: sample ? implementationSample(raw, maxChars) : raw.slice(0, maxChars), fingerprint: createHash('sha256').update(raw.replaceAll('\r\n', '\n')).digest('hex') };
   } catch {
     return undefined;
@@ -151,7 +156,7 @@ export const collectStandardsSources = async (root: string): Promise<SourceFile[
 export const collectCodeSources = async (root: string): Promise<SourceFile[]> => {
   const realRoot = await realpath(root);
   const depth = (path: string): number => path.split('/').length;
-  const paths = (await findFiles(realRoot, (name) => CODE_FILE.test(name)))
+  const paths = (await findFiles(realRoot, (name) => CODE_FILE.test(name) || infraPath(name)))
     .filter((path) => !TEST_FILE.test(path))
     .sort((a, b) => (depth(a) === depth(b) ? a.localeCompare(b) : depth(a) - depth(b)));
   return await readSources(realRoot, paths.slice(0, MAX_CODE_FILES), { fileChars: MAX_CODE_HEAD_CHARS, totalChars: MAX_CODE_TOTAL_CHARS, sample: true });

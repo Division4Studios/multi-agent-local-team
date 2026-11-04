@@ -51,6 +51,10 @@
           "name": "Reviewer"
         },
         {
+          "id": "malt.architectureViews",
+          "name": "Architecture Explorer"
+        },
+        {
           "id": "malt.changes",
           "name": "Changes"
         },
@@ -169,6 +173,17 @@
         "icon": "$(type-hierarchy)"
       },
       {
+        "command": "malt.finalizeDiagram",
+        "title": "Finalize Diagram or One-page Answer",
+        "category": "MALT"
+      },
+      {
+        "command": "malt.agentConnection",
+        "title": "Copy Local Agent MCP Configuration",
+        "icon": "$(plug)",
+        "category": "MALT"
+      },
+      {
         "command": "malt.showArchitectureSummaries",
         "title": "Show Architecture File Summaries",
         "category": "MALT"
@@ -253,6 +268,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "malt.agentConnection",
+          "when": "view == malt.architectureViews",
+          "group": "navigation@1"
+        },
         {
           "command": "malt.startReviewer",
           "when": "view == malt.reviewer && malt.reviewerState != running && malt.reviewerState != starting",
@@ -412,6 +432,14 @@
     "configuration": {
       "title": "MALT",
       "properties": {
+        "malt.architecture.archifyPath": {
+          "type": "string", "default": "", "scope": "machine",
+          "description": "Trusted local Archify bin/archify.mjs used for validated HTML delivery. Selected on first export."
+        },
+        "malt.architecture.nodePath": {
+          "type": "string", "default": "", "scope": "machine",
+          "description": "Absolute path to Node.js used to run the optional Archify publication task."
+        },
         "malt.reviewer.backend": {
           "type": "string",
           "enum": [

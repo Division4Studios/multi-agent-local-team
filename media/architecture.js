@@ -16,10 +16,12 @@
     b.addEventListener('click', action);
     return b;
   };
-  function visit(id) {
+  const lenses = window.startMaltViews?.(m => host.postMessage(m), id => visit(id, false));
+  function visit(id, sync = true) {
     if (!nodes.has(id)) { return; }
     if (id !== focus) { history.push(focus); }
     focus = id;
+    if (sync && lenses) { host.postMessage({action:"graphFocus",id}); }
     page = 0;
     el('search').value = '';
     el('matches').replaceChildren();
@@ -255,6 +257,7 @@
   function receive(event) {
     if (event.origin !== window.origin) { return; }
     const m = event.data;
+    if (m?.action === 'perspective') { lenses?.(m); return; }
     if (!m || m.action !== 'graph') { return; }
     comparing = m.diff;
     el('title').textContent = m.title;

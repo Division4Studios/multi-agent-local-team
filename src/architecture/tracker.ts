@@ -2,8 +2,9 @@ import * as vscode from 'vscode';
 import type { GitApi, GitRepository } from '../git/gitApi';
 import type { FileFacts } from './extract';
 import type { Snapshot } from './graph';
-import { allowedPaths, bounded, eligible, headOf, readFacts, relativePath, snapshotOf, SOURCE_GLOB, workingFiles, workingReader } from './sources';
+import { allowedPaths, bounded, eligible, headOf, readFacts, relativePath, snapshotOf, SOURCE_GLOB, WORKFLOW_GLOB, workingFiles, workingReader } from './sources';
 import { reviewerMap, withUnderstanding } from './knowledge';
+import { publishGuidance } from './guidance';
 import { saveMapFile, saveSnapshot } from './storage';
 
 /** One serial writer per folder. A checkout invalidates even an in-flight scan of the old branch. */
@@ -32,6 +33,8 @@ export class MapTracker implements vscode.Disposable {
     this.folder = folder;
     this.noteKey = noteKey;
     const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, SOURCE_GLOB));
+    const workflow = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, WORKFLOW_GLOB));
+    this.subscriptions.push(workflow, workflow.onDidCreate((u) => { this.fileChanged(u,true); }), workflow.onDidDelete((u) => { this.fileChanged(u,true); }), workflow.onDidChange((u) => { this.fileChanged(u,false); }));
     const ignores = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, '**/.gitignore'));
     const ignoreChanged = (uri: vscode.Uri): void => {
       if (!relativePath(folder.uri, uri).split('/').includes('.malt')) {
@@ -127,6 +130,7 @@ export class MapTracker implements vscode.Disposable {
     const snapshot = await withUnderstanding(this.folder.uri.fsPath, this.noteKey, snapshotOf(next, head, total));
     await saveSnapshot(this.folder.uri.fsPath, 'branch', snapshot, current);
     await saveMapFile(this.folder.uri.fsPath, 'reviewer.json', reviewerMap(snapshot), current);
+    await publishGuidance(this.folder.uri.fsPath,snapshot,this.noteKey,current);
     if (current()) {
       this.total = total;
       this.facts = next;

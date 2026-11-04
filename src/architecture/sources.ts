@@ -4,6 +4,8 @@ import * as vscode from 'vscode';
 import type { GitRepository } from '../git/gitApi';
 import { isSourceCodePath } from '../reviewer/standardsSources';
 import { readWorkspaceFile } from '../reviewer/workspace';
+import { evidencePath, workflowPath } from './evidence';
+import { infraPath } from './infrastructure';
 import { extractFile } from './extract';
 import type { FileFacts } from './extract';
 import { buildGraph } from './graph';
@@ -15,9 +17,11 @@ const MAX_BYTES = 512_000;
 const MAX_FILES = 6000;
 const GROUP_SIZE = 6;
 const EXCLUDE = '**/{.*,node_modules,out,dist,build,coverage,target,vendor,bin,obj,__pycache__}/**';
-export const SOURCE_GLOB = '**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,py,go,rs,java,kt,cs,rb,php,swift,vue,svelte,c,cc,cpp,h,hpp}';
+export const SOURCE_GLOB = '**/{*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,py,go,rs,java,kt,cs,rb,php,swift,vue,svelte,c,cc,cpp,h,hpp,sql,mmd,mermaid,tf},*.malt-model.json,*.trace.json,Dockerfile*,*compose*.yml,*compose*.yaml}';
+export const WORKFLOW_GLOB = '.github/workflows/*.{yml,yaml}';
 export const relativePath = (folder: vscode.Uri, uri: vscode.Uri): string => relative(folder.fsPath, uri.fsPath).replaceAll('\\', '/');
-export const eligible = (path: string): boolean => isSourceCodePath(path) && !/(?:^|\/)(?:bin|obj|__pycache__)\//u.test(path) && !/[\\:]/u.test(path);
+const modelPath = (path: string): boolean => workflowPath(path) || ((evidencePath(path) || infraPath(path)) && isSourceCodePath(`${path  }.ts`));
+export const eligible = (path: string): boolean => (isSourceCodePath(path) || modelPath(path)) && !/(?:^|\/)(?:bin|obj|__pycache__)\//u.test(path) && !/[\\:]/u.test(path);
 
 export interface MapHead { readonly branch: string; readonly commit: string }
 export const headOf = (repository: GitRepository | undefined): MapHead => {
@@ -26,7 +30,8 @@ export const headOf = (repository: GitRepository | undefined): MapHead => {
 };
 
 export const workingFiles = async (folder: vscode.WorkspaceFolder): Promise<string[]> => {
-  const uris = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, SOURCE_GLOB), EXCLUDE);
+  const [files, workflows] = await Promise.all([vscode.workspace.findFiles(new vscode.RelativePattern(folder, SOURCE_GLOB), EXCLUDE), vscode.workspace.findFiles(new vscode.RelativePattern(folder, WORKFLOW_GLOB), null)]);
+  const uris = [...files, ...workflows];
   return uris.map((uri) => relativePath(folder.uri, uri)).filter(eligible);
 };
 export const allowedPaths = async (folder: vscode.Uri, repo: GitRepository | undefined, paths: string[]): Promise<string[]> => {

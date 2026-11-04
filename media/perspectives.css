@@ -1,0 +1,14 @@
+[hidden]{display:none!important}
+#modelNav,#modelScreen{max-width:1300px;margin:15px auto}
+#modelNav select{max-width:min(38ch,80vw)}#modelKind{font-weight:600}
+#modelQuestion{margin:0.4rem 0;color:var(--vscode-descriptionForeground)}
+#modelDrawing{overflow:auto;max-height:65vh;border:1px solid var(--vscode-panel-border);margin:1rem 0}
+#modelSvg text{font:13px var(--vscode-font-family);fill:var(--vscode-foreground)}
+#modelSvg .caption{font-size:12px}#modelSvg .card-title{font-weight:600}
+.model-card{cursor:pointer}.model-card rect{fill:var(--vscode-editor-background);stroke:var(--role);stroke-width:2}
+.model-card.selected rect,.model-card:focus rect{stroke:var(--vscode-focusBorder);stroke-width:4}
+.wire,.lifeline,.lane{stroke:var(--vscode-descriptionForeground);stroke-width:1.4}
+.lifeline,.dependency,.implements,.realization{stroke-dasharray:5 4}.lane{opacity:.35}
+.role0{--role:#468ed1}.role1{--role:#ba7ac8}.role2{--role:#40a499}.role3{--role:#bf8750}.role4{--role:#dd697e}.role5{--role:#82a451}.role6{--role:#9496ca}
+.timebar{fill:var(--role)}#modelDetail div{white-space:pre-wrap;overflow-wrap:anywhere}
+#modelDetail button,#relatedModels button{margin:3px}

@@ -1,3 +1,4 @@
+import { isSourceCodePath } from '../reviewer/standardsSources';
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import { isRecord, isString } from '../shared/guards';
@@ -123,7 +124,7 @@ class Discussion {
     } else if (action === 'save') {
       await checkedSource(this.context);
       const { file, tracker, snapshot } = this.context;
-      const note: Understanding = { ...this.answer, confirmed: text };
+      const note: Understanding = { ...file.understanding, ...this.answer, confirmed: text };
       await saveNote(tracker.folder.uri.fsPath, { key: tracker.noteKey, branch: snapshot.branch, file }, note, () => !this.closed);
       tracker.refresh();
       this.post({ type: 'notice', text: 'Clarification saved to the branch map and reviewer context.' });
@@ -148,7 +149,7 @@ class Discussion {
 export const openDiscussion = (media: vscode.Uri, tracker: MapTracker, node: MapNode, reviewer: ReviewerAccess): void => {
   const snapshot = tracker.snapshot;
   const file = snapshot?.nodes.find((n) => n.kind === 'file' && n.path === node.path);
-  if (snapshot !== undefined && file !== undefined) {
+  if (snapshot !== undefined && file !== undefined && isSourceCodePath(file.path)) {
     new Discussion(media, { tracker, snapshot, file, focus: node }, reviewer);
   }
 };
