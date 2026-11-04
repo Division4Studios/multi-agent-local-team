@@ -1,8 +1,8 @@
 /** A bounded, offline source index. Keep evidence as names and locations; never store source bodies. */
 import { createHash } from 'node:crypto';
-import type { Diagram } from './diagram';
+import type { Diagram } from '../shared/diagram';
 import { evidenceDiagrams, evidencePath } from './evidence';
-import { infraPath, infrastructure } from './infrastructure';
+import { infraPath, infrastructure } from '../shared/infrastructure';
 import { posix } from 'node:path';
 
 export const digest = (value: string): string => createHash('sha256').update(value).digest('hex');

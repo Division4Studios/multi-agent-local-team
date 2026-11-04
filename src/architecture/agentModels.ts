@@ -1,5 +1,5 @@
-import { newDiagram, isView } from './diagram';
-import type { Diagram } from './diagram';
+import { newDiagram, isView } from '../shared/diagram';
+import type { Diagram } from '../shared/diagram';
 import type { MapNode } from './graph';
 import type { ModelClaim } from '../shared/understanding';
 

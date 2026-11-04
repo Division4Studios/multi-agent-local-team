@@ -1,5 +1,5 @@
-import { newDiagram } from './diagram';
-import type { Diagram } from './diagram';
+import { newDiagram } from '../shared/diagram';
+import type { Diagram } from '../shared/diagram';
 import type { Snapshot } from './graph';
 
 const visibleIds = (s: Snapshot, focus: string): Set<string> => {

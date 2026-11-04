@@ -1,4 +1,4 @@
-import type { Diagram, Part } from './diagram';
+import type { Diagram, Part } from '../shared/diagram';
 import type { Understanding } from '../shared/understanding';
 
 interface PublicationOptions {

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { isRecord } from '../shared/guards';
-import { isView, views } from './diagram';
+import { isView, views } from '../shared/diagram';
 import { finalizeView } from './finalize';
 import type { Atlas } from './navigation';
 import type { Place } from './catalog';

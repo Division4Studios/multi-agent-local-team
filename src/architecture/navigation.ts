@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { catalog, home, location, related } from './catalog';
 import type { Place } from './catalog';
-import { diagramKey, newDiagram, views } from './diagram';
-import type { Diagram, Part, ViewKind } from './diagram';
+import { diagramKey, newDiagram, views } from '../shared/diagram';
+import type { Diagram, Part, ViewKind } from '../shared/diagram';
 import type { Snapshot } from './graph';
 import type { MapTracker } from './tracker';
 

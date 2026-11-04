@@ -1,5 +1,5 @@
-import { newDiagram } from './diagram';
-import type { Diagram, Part } from './diagram';
+import { newDiagram } from '../shared/diagram';
+import type { Diagram, Part } from '../shared/diagram';
 
 const ident = String.raw`(?:"(?:[^"]|"")*"|${'\x60'}[^${'\x60'}]+${'\x60'}|\[[^\]]+\]|[\w$]+)`;
 const qualified = `${ident}(?:\\.${ident})?`;

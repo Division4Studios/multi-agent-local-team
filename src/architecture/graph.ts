@@ -1,5 +1,5 @@
 import { codeDiagrams } from './typeDiagrams';
-import type { Diagram } from './diagram';
+import type { Diagram } from '../shared/diagram';
 import type { Understanding } from '../shared/understanding';
 import { posix } from 'node:path';
 import type { FileFacts, Reference, Relation } from './extract';

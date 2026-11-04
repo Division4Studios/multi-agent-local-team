@@ -6,12 +6,13 @@ import { randomBytes } from 'node:crypto';
 import { evidenceDiagrams } from '../../architecture/evidence';
 import { extractFile } from '../../architecture/extract';
 import { buildGraph } from '../../architecture/graph';
-import { parseDiagram } from '../../architecture/diagram';
-import { infrastructure } from '../../architecture/infrastructure';
+import { parseDiagram } from '../../shared/diagram';
+import { infrastructure } from '../../shared/infrastructure';
 import { publishGuidance, readGuidance, shareHandoff, guidanceFeed } from '../../architecture/guidance';
 import { feedVerifier } from '../../architecture/feedSignature';
 import { catalog, related } from '../../architecture/catalog';
 import { publication } from '../../architecture/publication';
+import { isRecord } from '../../shared/guards';
 import type { TestCase } from './harness';
 
 export const tests: TestCase[] = [
@@ -134,6 +135,14 @@ export const tests: TestCase[] = [
         assert.notEqual(after.cursor, before.cursor);
         assert.doesNotMatch(JSON.stringify(after.content), /\u202e/u);
         assert.match(JSON.stringify(after.content), /worker A/u);
+        const content: unknown = after.content;
+        assert.ok(isRecord(content) && isRecord(content['guidance']) && isRecord(content['untrustedPeerHandoffs']));
+        assert.doesNotMatch(JSON.stringify(content['guidance']), /worker A/u, 'peer text never sits inside the signed guidance');
+        const dir = join(root, '.malt/maps/v1');
+        for (let index = 0; index < 100; index += 1) {
+          await writeFile(join(dir, `handoff-${first.revision}-${index.toString(16).padStart(4, '0')}.json`), '{}');
+        }
+        await assert.rejects(shareHandoff(root, verifier, { revision: first.revision, agent: 'C', message: 'flood' }), /maximum/u);
         await publishGuidance(root, { ...s, branch: 'feature' }, key, () => true);
         assert.doesNotMatch(JSON.stringify((await guidanceFeed(root, verifier)).content), /worker A/u);
         await assert.rejects(shareHandoff(root, verifier, { revision: first.revision, agent: 'B', message: 'stale' }), /changed/u);

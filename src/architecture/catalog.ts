@@ -1,6 +1,6 @@
 import { agentModels } from './agentModels';
-import { diagramKey, newDiagram } from './diagram';
-import type { Diagram, Part, ViewKind } from './diagram';
+import { diagramKey, newDiagram } from '../shared/diagram';
+import type { Diagram, Part, ViewKind } from '../shared/diagram';
 import type { MapNode, Snapshot } from './graph';
 
 export interface Place {

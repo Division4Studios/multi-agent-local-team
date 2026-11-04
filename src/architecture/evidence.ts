@@ -1,6 +1,6 @@
 import { isRecord } from '../shared/guards';
-import { newDiagram, parseDiagram } from './diagram';
-import type { Diagram, Part } from './diagram';
+import { newDiagram, parseDiagram } from '../shared/diagram';
+import type { Diagram, Part } from '../shared/diagram';
 import { sqlDiagrams } from './sqlDiagram';
 
 export const workflowPath = (p: string): boolean => /^\.github\/workflows\/[\w.-]+\.ya?ml$/iu.test(p);

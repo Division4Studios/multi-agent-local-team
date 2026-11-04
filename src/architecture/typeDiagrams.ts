@@ -1,5 +1,5 @@
-import { newDiagram } from './diagram';
-import type { Diagram } from './diagram';
+import { newDiagram } from '../shared/diagram';
+import type { Diagram } from '../shared/diagram';
 import type { FileFacts } from './extract';
 import type { MapEdge, MapNode } from './graph';
 

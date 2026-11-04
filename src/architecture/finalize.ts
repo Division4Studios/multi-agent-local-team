@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
 import { isAbsolute, join, resolve } from 'node:path';
-import { isView } from './diagram';
+import { isView } from '../shared/diagram';
 import { catalog } from './catalog';
 import { exportScope } from './exportScope';
-import { diagramKey } from './diagram';
+import { diagramKey } from '../shared/diagram';
 import { digest } from './extract';
 import type { Atlas } from './navigation';
 import { publication } from './publication';
 import { mapDirectory, saveMapFile } from './storage';
-import type { Diagram } from './diagram';
+import type { Diagram } from '../shared/diagram';
 import type { Snapshot } from './graph';
 
 const pickTool = async (key: string, title: string): Promise<string | undefined> => {

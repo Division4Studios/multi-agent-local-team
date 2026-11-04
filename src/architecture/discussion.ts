@@ -1,4 +1,4 @@
-import type { Diagram } from './diagram';
+import type { Diagram } from '../shared/diagram';
 import { isSourceCodePath } from '../reviewer/standardsSources';
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';

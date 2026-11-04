@@ -5,7 +5,7 @@ import type { GitRepository } from '../git/gitApi';
 import { isSourceCodePath } from '../reviewer/standardsSources';
 import { readWorkspaceFile } from '../reviewer/workspace';
 import { evidencePath, workflowPath } from './evidence';
-import { infraPath } from './infrastructure';
+import { infraPath } from '../shared/infrastructure';
 import { extractFile } from './extract';
 import type { FileFacts } from './extract';
 import { buildGraph } from './graph';

@@ -1,4 +1,4 @@
-import { isRecord, parseArray } from '../shared/guards';
+import { isRecord, parseArray } from './guards';
 
 export const views = {
   architecture: ['Architecture', 'What is it made of?'],

@@ -6,9 +6,10 @@
  * and every read goes through the confined reader.
  */
 import { createHash } from 'node:crypto';
-import { infraPath, infrastructure } from '../architecture/infrastructure';
+import { infraPath, infrastructure } from '../shared/infrastructure';
 import { readdir, realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+import { redactSecrets } from './redact';
 import { readWorkspaceFile } from './workspace';
 
 export interface SourceFile {
@@ -107,15 +108,27 @@ const implementationSample = (source: string, limit: number): string => {
   return [source.slice(0, part), source.slice(middle, middle + part), source.slice(-part)].join(marker);
 };
 
-/** Reads a source through the confined reader; unsafe (linked/outside) or oversized files are skipped. */
+/** What the model sees of a file: infrastructure as its resource names, anything else (sampled) as text. */
+const promptContent = (path: string, raw: string, maxChars: number, sample: boolean): string => {
+  if (infraPath(path)) {
+    return JSON.stringify(infrastructure(path, raw).flatMap((d) => d.items.map((item) => ({ name: item.label, kind: item.group })))).slice(0, maxChars);
+  }
+  return sample ? implementationSample(raw, maxChars) : raw.slice(0, maxChars);
+};
+
+/**
+ * Reads a source through the confined reader; unsafe (linked/outside) or oversized files are skipped. Secrets are
+ * redacted from the whole file before sampling, so no credential reaches the model, not even one cut in half by an
+ * excerpt boundary. The fingerprint is of the raw file, so it still matches the map.
+ */
 const readSource = async (root: string, path: string, maxChars: number, sample: boolean): Promise<SourceFile | undefined> => {
   try {
     const raw = await readWorkspaceFile(root, path, MAX_SOURCE_BYTES);
-    if(raw!==undefined&&infraPath(path)){
-      const entries=infrastructure(path,raw).flatMap(d=>d.items.map(item=>({name:item.label,kind:item.group})));
-      return {path,content:JSON.stringify(entries).slice(0,maxChars),fingerprint:createHash('sha256').update(raw.replaceAll('\\r\\n','\\n')).digest('hex')};
+    if (raw === undefined) {
+      return undefined;
     }
-    return raw === undefined ? undefined : { path, content: sample ? implementationSample(raw, maxChars) : raw.slice(0, maxChars), fingerprint: createHash('sha256').update(raw.replaceAll('\r\n', '\n')).digest('hex') };
+    const fingerprint = createHash('sha256').update(raw.replaceAll('\r\n', '\n')).digest('hex');
+    return { path, content: promptContent(path, redactSecrets(raw), maxChars, sample), fingerprint };
   } catch {
     return undefined;
   }

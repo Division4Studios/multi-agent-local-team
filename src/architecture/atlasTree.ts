@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { home, location, related } from './catalog';
 import type { Place } from './catalog';
-import { diagramKey, views, isView } from './diagram';
-import type { Diagram, Part, ViewKind } from './diagram';
+import { diagramKey, views, isView } from '../shared/diagram';
+import type { Diagram, Part, ViewKind } from '../shared/diagram';
 import type { Atlas } from './navigation';
 
 type RowType = 'folder' | 'view' | 'model' | 'item' | 'jump' | 'page';

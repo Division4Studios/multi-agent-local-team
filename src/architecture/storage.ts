@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { readWorkspaceFile } from '../reviewer/workspace';
 import { isNonNegativeInteger, isRecord, isString, parseArray, readStrings } from '../shared/guards';
-import { parseDiagram } from './diagram';
+import { parseDiagram } from '../shared/diagram';
 import { digest } from './extract';
 import type { MapEdge, MapNode, Snapshot } from './graph';
 
