@@ -2,21 +2,23 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    labels: [dependencies]
+    labels: [dependencies, 'area: toolchain']
     commit-message:
       prefix: chore
       include: scope
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday
-    labels: [dependencies, ci]
+    labels: [dependencies, 'area: ci']
     commit-message:
       prefix: ci

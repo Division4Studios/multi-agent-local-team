@@ -1,6 +1,6 @@
 <div align="center">
 
-![MALT — Review changes as you code](media/banner.png)
+<img src="design/hero.png" alt="MALT: review every block as it lands. A VS Code editor with changed blocks outlined, a hover card explaining a block and the rule it failed, and the Changes view." width="960" />
 
 # MALT
 
@@ -75,6 +75,12 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 | 🐳 **Always-hot, isolated reviewer** | The reviewer runs in a hardened Docker container (read-only workspace, no privileges, localhost-only), or as a local daemon when Docker isn't available. |
 | 🗂️ **Sidebar & status bar** | A MALT sidebar shows reviewer health and every changed block, and the status bar keeps a running pass/concern/fail count. |
 
+## 🔁 How it works
+
+<p align="center"><img src="design/pipeline.png" alt="How MALT reviews a change: an edit becomes git blocks; each block gets an overview call and one isolated call per applicable rule in the reviewer sandbox; verdicts appear in the editor and the Changes view; consolidation compares new declarations across the change." width="960" /></p>
+
+Code under review can try to talk to the reviewer, so repository text only ever reaches the model as fenced data, and every answer is checked before you see it. See [the trust boundary](SECURITY.md#the-trust-boundary).
+
 ## 🧭 Principles
 
 | | |
@@ -146,15 +152,17 @@ A tool that keeps slop out of other repos has to keep it out of its own first. T
 - **No type assertions, no `any`, no `!`, no `@ts-ignore`.** If the types don't prove it, the code doesn't ship.
 - **Isolated native builds.** TypeScript 7 runs in Docker without external network access, with read-only inputs and host writes restricted to `out/`. ESLint uses Microsoft's TypeScript 6 compatibility API and retains Node permission restrictions. Those restrictions are safeguards, not a boundary against malicious code. See the [toolchain guide](docs/toolchain.md).
 - **Tiny, frozen toolchain.** A fixed allowlist of dev tools, exact versions, a committed lockfile, install scripts disabled, and CI that fails if anything else appears. See [Supply-chain policy](SECURITY.md#supply-chain-policy).
+- **Protected, signed history.** Every change reaches `dev` through a reviewed pull request whose commits are all signed, with every check green and no new CodeQL alerts; `main` only takes releases from `dev`. Nobody can bypass that, maintainers included. See [repository settings](docs/repository-settings.md).
 - **AI-assisted contributions welcome — with disclosure and ownership.** See [CONTRIBUTING.md](CONTRIBUTING.md#ai-assisted-contributions).
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) before opening a pull request, and follow our [**Code of Conduct**](CODE_OF_CONDUCT.md).
+Contributions are welcome! Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) before opening a pull request, and follow our [**Code of Conduct**](CODE_OF_CONDUCT.md). Work happens on **`dev`**: branch from it and open pull requests against it. `main` only receives releases from `dev`.
 
 - 🐛 Found a bug? [Open a bug report](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=bug_report.yml)
-- ✨ Have an idea? [Request a feature](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml)
-- ❓ Need help? See [SUPPORT.md](SUPPORT.md)
+- 🎯 MALT got a verdict wrong? [Report a wrong review result](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=review_quality.yml)
+- ✨ Have an idea? [Discuss it](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/ideas) or [request a feature](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml)
+- ❓ Need help? [Ask in Discussions](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/q-a) or see [SUPPORT.md](SUPPORT.md)
 
 ## 🔒 Security
 

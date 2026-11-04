@@ -1,18 +1,49 @@
 # Visual design and assets
 
-MALT's identity is an upright ear of malt barley: warm, crafted and recognizable, with a precise silhouette suited to a developer tool. The banner and extension icon use amber grains on charcoal; the activity bar uses a simplified monochrome sprig. Keep the interface native to VS Code so the user's theme, file icons, keyboard navigation and accessibility settings continue to work.
+<p align="center"><img src="../design/brand/lockup-dark.png" alt="MALT" width="390" /></p>
 
-| Asset | Use |
-| --- | --- |
-| `media/malt.svg` | Simplified monochrome 24 px barley activity-bar mark, using `currentColor` |
-| `media/barley.svg` | Editable gold vector companion for documentation and small-scale use |
-| `media/icon.png` | Generated square barley icon for VSIX/Marketplace metadata |
-| `media/banner.png` | Generated repository header with MALT wordmark and tagline |
+MALT's identity is an upright ear of malt barley: the sprig from the activity bar, with a pointed top grain, two pairs of sharp leaf-shaped grains and two awns. In color, the grains are amber, light on the left and shaded on the right, on a teal stem. It's warm, crafted and recognizable, and as precise as a developer tool should be. The project artwork (README hero, diagrams, social card) shares one look: a charcoal background with a faint 40 px grid, monospace headlines with one teal accent, and diagrams of rounded, color-coded boxes with dashed boundaries, labeled arrows and a legend.
 
-Brand colors: charcoal `#191D24`, amber `#E6B85C`, cream `#F7EFDA`. Brand colors belong to identity assets. Review states use contributed theme colors, so light and high-contrast themes remain supported. Amber branding does not replace the green/red verdict colors.
+Keep the interface itself native to VS Code, so the user's theme, file icons, keyboard navigation and accessibility settings keep working. Brand colors belong to artwork, not to the editor UI.
 
-Use VS Code product icons for actions and review status: play/stop for lifecycle, checklist for standards, output for logs, key/trash for credentials, refresh for retries, pass/warning/error for verdicts, and disconnected for request errors. These icons are deliberately native and respond to product icon themes. Do not replace them with platform-dependent emoji.
+## Palette
+
+| Role | Color |
+|---|---|
+| Charcoal (background) | `#0E1217` artwork, `#121821` icon tile |
+| Amber (grains, awns, workspace) | `#F2C66A` light facet, `#D9982F` shaded facet, `#E6B85C` awns and diagrams |
+| Teal (stem, accent, extension) | `#2BB8A6` |
+| Cream (wordmark on dark) | `#F7EFDA` |
+| Ink (wordmark on light) | `#191D24` |
+| Diagram categories | violet `#A78BFA` reviewer, orange `#F59E5B` model, green `#3FC98A` what you see, red `#F0646E` dropped or failed |
+
+Review states in the editor use contributed theme colors, so light and high-contrast themes stay supported. Amber branding never replaces the green/red verdict colors.
+
+## Assets
+
+Every asset is hand-authored as SVG or HTML/CSS and is reviewable as text. No image generator is involved, so there's no garbled text and nothing to re-prompt. The mark is a vector, so it stays sharp at any size; the PNGs are renders of it.
+
+| File | Use | Ships in the VSIX |
+|---|---|---|
+| `media/malt.svg` | Activity-bar icon: the mark's paths in `currentColor`, so it follows the theme. The source of the shape. | Yes |
+| `media/icon.png` | 256 px Marketplace and VSIX icon, rendered from `design/icon.html` | Yes |
+| `design/brand/mark.svg` | The full-color mark: the same paths as `media/malt.svg` in brand colors (`mark.png`: 1024 px render) | No |
+| `design/brand/lockup-dark.svg`, `lockup-light.svg` | The mark's paths and a drawn wordmark, for dark or light backgrounds (PNG exports beside them) | No |
+| `design/hero.html` → `hero.png` | README and wiki header: the editor mock-up with MALT's real labels and hover layout | No |
+| `design/pipeline.html` → `pipeline.png` | How a change is reviewed (README, architecture guide, wiki) | No |
+| `design/trust.html` → `trust.png` | The prompt-injection trust boundary (`SECURITY.md`, wiki) | No |
+| `design/social-preview.png` | 1280×640 GitHub social card, scaled and cropped from `hero.png` | No |
+
+The wordmark is drawn as strokes, not set in a font, so it looks the same everywhere. The PNG exports exist because the VS Code Marketplace rejects SVG images in a README, and GitHub's social preview needs a raster image. How to re-render them is in [`design/README.md`](../design/README.md).
+
+The diagrams describe real behavior. When the review pipeline or the trust boundary changes, update `pipeline.html` or `trust.html` in the same pull request, re-render, and check the wording against [architecture.md](architecture.md) and [SECURITY.md](../SECURITY.md).
+
+The wiki (`images/`) and the project board link to copies of these PNGs. Refresh those copies when you re-render.
+
+## Product icons
+
+Use VS Code product icons for actions and review status: play/stop for lifecycle, checklist for standards, output for logs, key/trash for credentials, refresh for retries, pass/warning/error for verdicts, and disconnected for request errors. These icons are deliberately native and respond to product icon themes. Don't replace them with platform-dependent emoji.
 
 Keep inline labels short; the hover owns the explanation. Use text with status icons so meaning survives monochrome display and assistive technology. Keep untrusted reviewer text escaped, including when changing hover layout. Only MALT's retry command is enabled in hover links.
 
-The PNG banner and icon were created with the built-in image-generation tool; prompts are recorded in [asset prompts](asset-prompts.md). The SVG companions are hand-authored simplified adaptations, not exact vector traces of the raster art. Keep fine facets and texture in large artwork; preserve the bolder silhouette for the activity bar. Use `currentColor` for all monochrome UI branding. All project assets in this directory are distributed under the repository's MIT license.
+All project assets are distributed under the repository's MIT license.

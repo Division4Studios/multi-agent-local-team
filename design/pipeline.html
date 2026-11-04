@@ -1,0 +1,100 @@
+<!doctype html>
+<!--
+  Source for design/pipeline.png (1600×820): how MALT reviews a change. Render with design/render.mjs.
+  Keep it true to docs/architecture.md and CLAUDE.md "Feature architecture" when either changes.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #0E1217; --text: #E6EAF0; --muted: #8B95A5; --line: #5B6676;
+    --mono: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace; --sans: 'Segoe UI', Inter, system-ui, sans-serif;
+    --amber: #E6B85C; --teal: #2BB8A6; --violet: #A78BFA; --orange: #F59E5B; --green: #3FC98A; --red: #F0646E;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1600px; height: 820px; overflow: hidden; }
+  body {
+    font-family: var(--mono); color: var(--text); position: relative; font-variant-ligatures: none;
+    background:
+      linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 40px 40px,
+      linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 40px 40px,
+      var(--bg);
+  }
+  h2 { position: absolute; left: 60px; top: 34px; margin: 0; font-size: 26px; font-weight: 700; }
+  h2 span { color: var(--teal); }
+  .sub { position: absolute; left: 60px; top: 74px; color: var(--muted); font-size: 15px; font-family: var(--mono); }
+  .node { position: absolute; width: 230px; padding: 14px 16px; border: 2px solid; border-radius: 12px; text-align: center; }
+  .node b { display: block; font-size: 17px; margin-bottom: 6px; }
+  .node span { display: block; font-size: 13px; color: #B8C0CC; line-height: 1.45; }
+  .node i { position: absolute; left: 12px; top: 9px; font-style: normal; font-size: 13px; opacity: .9; }
+  .ws { border-color: var(--amber); background: rgba(230,184,92,.10); } .ws i { color: var(--amber); }
+  .ext { border-color: var(--teal); background: rgba(43,184,166,.10); } .ext i { color: var(--teal); }
+  .rev { border-color: var(--violet); background: rgba(167,139,250,.10); } .rev i { color: var(--violet); }
+  .model { border-color: var(--orange); background: rgba(245,158,91,.10); } .model i { color: var(--orange); }
+  .ui { border-color: var(--green); background: rgba(63,201,138,.10); } .ui i { color: var(--green); }
+  .zone { position: absolute; border: 2px dashed; border-radius: 16px; }
+  .zone > em { position: absolute; top: -13px; left: 18px; padding: 0 8px; background: var(--bg); font-style: normal; font-size: 13px; }
+  svg { position: absolute; inset: 0; }
+  .tag { position: absolute; font-size: 12.5px; padding: 1px 7px; background: var(--bg); color: var(--muted); border-radius: 4px; }
+  .legend { position: absolute; left: 60px; bottom: 34px; display: flex; gap: 26px; align-items: center; font-size: 14px; color: #C9D1DC; }
+  .legend b { font-size: 15px; margin-right: 6px; }
+  .sw { display: inline-block; width: 22px; height: 14px; border: 2px solid; border-radius: 4px; vertical-align: -2px; margin-right: 8px; }
+</style>
+</head>
+<body>
+  <h2>How MALT reviews a change <span>· one block at a time</span></h2>
+  <div class="sub">Every changed block gets one overview call, then one isolated call per rule that applies.</div>
+
+  <div class="zone" style="left:568px;top:160px;width:294px;height:390px;border-color:rgba(167,139,250,.7)"><em style="color:var(--violet)">Reviewer sandbox</em></div>
+  <div class="tag" style="left:576px;top:560px;width:300px;line-height:1.5">Docker: read-only workspace,<br>no capabilities, 127.0.0.1 only</div>
+
+  <div class="node ws" style="left:60px;top:200px"><i>✎</i><b>You or your agent</b><span>edit files in the workspace</span></div>
+  <div class="node ext" style="left:60px;top:370px"><i>⎇</i><b>Change tracking</b><span>VS Code's Git extension<br>diff with HEAD</span></div>
+  <div class="node ext" style="left:310px;top:370px;width:210px"><i>▦</i><b>Blocks</b><span>one per git hunk<br>new files: 30–80 lines</span></div>
+
+  <div class="node rev" style="left:600px;top:200px"><i>◎</i><b>Overview</b><span>summary, purpose, technical, design · which rules apply</span></div>
+  <div class="node rev" style="left:600px;top:420px"><i>✓</i><b>Rule checks</b><span>one isolated call per<br>applicable rule</span></div>
+  <div class="node ws" style="left:1050px;top:200px;width:240px"><i>▤</i><b>.malt/standards.json</b><span>rules from your docs, configs and agent skills</span></div>
+  <div class="node model" style="left:1050px;top:420px;width:240px"><i>✦</i><b>Claude</b><span>tool-less, fresh call each time · structured output</span></div>
+
+  <div class="node ui" style="left:1360px;top:200px;width:200px"><i>▢</i><b>Editor</b><span>outlined blocks, inline status, hover card</span></div>
+  <div class="node ui" style="left:1360px;top:420px;width:200px"><i>☰</i><b>Changes view</b><span>files → blocks → rule groups</span></div>
+  <div class="node rev" style="left:600px;top:670px;width:690px;text-align:left"><i>⇄</i><b style="padding-left:18px">Consolidation</b><span style="padding-left:18px">one call over every new declaration and the architecture map: catches the second date formatter and three near-identical components</span></div>
+
+  <svg viewBox="0 0 1600 820">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#8B95A5"/></marker>
+      <marker id="t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#2BB8A6"/></marker>
+      <marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#F59E5B"/></marker>
+    </defs>
+    <g fill="none" stroke-width="2.5">
+      <path d="M175 286V366" stroke="#8B95A5" marker-end="url(#a)"/>
+      <path d="M290 420H306" stroke="#8B95A5" marker-end="url(#a)"/>
+      <path d="M415 370V250H596" stroke="#2BB8A6" marker-end="url(#t)"/>
+      <path d="M715 300V416" stroke="#2BB8A6" marker-end="url(#t)"/>
+      <path d="M1046 245H834" stroke="#8B95A5" stroke-dasharray="6 6" marker-end="url(#a)"/>
+      <path d="M830 470H1046" stroke="#F59E5B" stroke-dasharray="7 6" marker-end="url(#o)"/>
+      <path d="M1046 250H1040" stroke="none"/>
+      <path d="M1290 470H1356" stroke="#8B95A5" marker-end="url(#a)"/>
+      <path d="M1170 420V330Q1170 310 1190 310H1330Q1340 310 1340 290V250H1356" stroke="#8B95A5" marker-end="url(#a)"/>
+      <path d="M415 470V710H596" stroke="#8B95A5" stroke-dasharray="6 6" marker-end="url(#a)"/>
+      <path d="M1290 705H1460V514" stroke="#8B95A5" stroke-dasharray="6 6" marker-end="url(#a)"/>
+    </g>
+  </svg>
+  <span class="tag" style="left:440px;top:236px;color:var(--teal)">POST /review</span>
+  <span class="tag" style="left:724px;top:350px;color:var(--teal)">POST /check × n</span>
+  <span class="tag" style="left:880px;top:232px">rules, sanitized</span>
+  <span class="tag" style="left:866px;top:432px;color:var(--orange)">repo text as data</span>
+  <span class="tag" style="left:1190px;top:298px">verdicts</span>
+  <span class="tag" style="left:430px;top:660px">on demand · or 30 s after new files</span>
+
+  <div class="legend"><b>Legend</b>
+    <span><i class="sw" style="border-color:var(--amber);background:rgba(230,184,92,.15)"></i>Workspace</span>
+    <span><i class="sw" style="border-color:var(--teal);background:rgba(43,184,166,.15)"></i>Extension</span>
+    <span><i class="sw" style="border-color:var(--violet);background:rgba(167,139,250,.15)"></i>Reviewer</span>
+    <span><i class="sw" style="border-color:var(--orange);background:rgba(245,158,91,.15)"></i>Model</span>
+    <span><i class="sw" style="border-color:var(--green);background:rgba(63,201,138,.15)"></i>What you see</span>
+  </div>
+</body>
+</html>

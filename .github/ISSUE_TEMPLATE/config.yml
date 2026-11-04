@@ -2,4 +2,13 @@ blank_issues_enabled: false
 contact_links:
   - name: 🔒 Report a security vulnerability
     url: https://github.com/Division4Studios/multi-agent-local-team/security/advisories/new
-    about: Please report security issues privately, never in a public issue.
+    about: Report vulnerabilities privately, never in a public issue.
+  - name: 🛡️ Report a way to manipulate the reviewer
+    url: https://github.com/Division4Studios/multi-agent-local-team/security/advisories/new
+    about: Code or project files that make MALT's reviewer ignore, rewrite or leak its rules (prompt injection) are security issues. Report them privately.
+  - name: 💬 Ask a question
+    url: https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/q-a
+    about: Setup, configuration and "how do I" questions belong in Discussions.
+  - name: 💡 Discuss an idea
+    url: https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/ideas
+    about: Talk an idea through before opening a feature request.

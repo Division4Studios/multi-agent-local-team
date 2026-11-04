@@ -1,0 +1,59 @@
+name: 📦 Dependency or toolchain change
+description: Request a new package, a GitHub Action, or a change to the build, lint or test toolchain
+labels: ['policy: dependency', triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        <img src="https://raw.githubusercontent.com/wiki/Division4Studios/multi-agent-local-team/images/mark.png" alt="MALT" width="40">
+
+        MALT has **zero runtime dependencies** and a fixed list of development dependencies, enforced by `npm run check-deps` (see [CONTRIBUTING.md](https://github.com/Division4Studios/multi-agent-local-team/blob/dev/CONTRIBUTING.md#dependency-policy)). CI uses only `actions/*` and `github/*` actions pinned to full commit SHAs.
+
+        **Don't write code that needs the change until a maintainer approves this issue.** Routine version bumps come from Dependabot and don't need a request.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of change?
+      options:
+        - New npm package
+        - Replace an allowed npm package
+        - New GitHub Action
+        - Change to the compiler sandbox, lint configuration or test runner
+        - Change to the Docker image pins
+    validations:
+      required: true
+  - type: input
+    id: package
+    attributes:
+      label: Package or action, with exact version
+      placeholder: example-package@1.2.3
+    validations:
+      required: true
+  - type: textarea
+    id: need
+    attributes:
+      label: Why it's needed
+      description: What can't be done with the Node.js standard library, the VS Code API, or the existing toolchain? Show what you tried.
+    validations:
+      required: true
+  - type: textarea
+    id: supply-chain
+    attributes:
+      label: Supply-chain review
+      description: Maintainers and their history, download count, provenance or signatures, install scripts, number of transitive dependencies, license, and recent advisories.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including writing the needed part ourselves.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I understand no code that needs this change is merged before maintainer approval
+          required: true

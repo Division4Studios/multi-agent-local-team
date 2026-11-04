@@ -1,0 +1,32 @@
+name: Branch policy
+
+# main only accepts pull requests from this repository's dev branch. Everything else targets dev.
+#
+# pull_request_target runs this file as it is on the default branch (dev, which is protected), never the copy in the
+# pull request, so a pull request cannot edit the check it is judged by.
+# It is safe here because nothing from the pull request is checked out or executed: the job only compares two names,
+# passed through environment variables rather than interpolated into the script, with no token permissions.
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited]
+
+permissions: {}
+
+jobs:
+  source-branch:
+    name: Source branch is dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require dev from this repository
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          if [ "$HEAD_REPO" != "$BASE_REPO" ] || [ "$HEAD_REF" != "dev" ]; then
+            echo "::error::Pull requests into main must come from the dev branch of $BASE_REPO. Retarget this pull request to dev."
+            exit 1
+          fi
+          echo "Source is $BASE_REPO:dev."
