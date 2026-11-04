@@ -9,7 +9,7 @@
 | An explanation is missing or still says **Working hypothesis** | The structural map updates automatically. Run **Scan Project Standards** for model interpretations, or open a file’s discussion. A source-backed claim needs a matched excerpt. An accepted clarification applies only to the branch and file version where it was recorded. |
 | No spans, lifecycle or SQL tables | Select an applicable evidence file or supply an authored model. The waterfall needs measured spans, and the timeline requires timestamps with an explicit offset. [Supported inputs](architecture-views.md) |
 | An agent cannot read a clarification | Confirm the workspace is trusted and indexed. Recopy its MCP configuration if the verifier changed. Read the new revision before posting a handoff. |
-| Publication reports a failed gate | Read the finalization receipt and task terminal. Check the selected Archify installation, Node executable and Chrome availability. An artifact can have been delivered before a later check failed. |
+| Publication reports a failed gate | Read the finalization receipt and task terminal. Check the reported layout diagnostics, Node executable and Chrome availability. An artifact can have been delivered before a later check failed. |
 | Reviewer won't start | Open **MALT: Show Reviewer Logs**. For host mode, verify the configured Claude CLI is installed and authenticated. For Docker, check the engine and stored credentials. |
 | Docker was expected, but sidebar says Host daemon | `auto` can fall back to host. Select `malt.reviewer.backend: docker` to require Docker. |
 | Files keep appearing in the editor | Turn off `malt.changes.autoOpen`. You can still select blocks in the sidebar. |

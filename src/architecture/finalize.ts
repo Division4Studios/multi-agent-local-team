@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { basename, isAbsolute, join } from 'node:path';
+import { basename, isAbsolute, join, resolve } from 'node:path';
 import { isView } from './diagram';
 import { catalog } from './catalog';
 import { exportScope } from './exportScope';
 import { diagramKey } from './diagram';
 import { digest } from './extract';
 import type { Atlas } from './navigation';
-import { publication, publicationKind } from './publication';
+import { publication } from './publication';
 import { mapDirectory, saveMapFile } from './storage';
 import type { Diagram } from './diagram';
 import type { Snapshot } from './graph';
@@ -42,10 +42,9 @@ const run = async (folder: vscode.WorkspaceFolder, args: string[]): Promise<void
   if (!vscode.workspace.isTrusted) {
     return;
   }
-  const cli = await pickTool('archifyPath', 'Select the trusted Archify installation’s bin/archify.mjs');
-  if (cli === undefined) {
-    return;
-  }
+  const cli = resolve(__dirname, '../../bin/malt-diagram.mjs');
+  const chrome = vscode.workspace.getConfiguration('malt.architecture').inspect<string>('chromePath')?.globalValue;
+  const browser = chrome !== undefined && isAbsolute(chrome) ? ['--browser', chrome] : [];
   const node = await pickTool('nodePath', 'Select the Node.js executable for diagram publication');
   if (node === undefined) {
     return;
@@ -55,7 +54,7 @@ const run = async (folder: vscode.WorkspaceFolder, args: string[]): Promise<void
     folder,
     'Finalize architecture artifact',
     'MALT',
-    new vscode.ProcessExecution(node, [cli, ...args], { cwd: folder.uri.fsPath }),
+    new vscode.ProcessExecution(node, [cli, ...args, ...browser], { cwd: folder.uri.fsPath }),
   );
   task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, panel: vscode.TaskPanelKind.Dedicated };
   await vscode.tasks.executeTask(task);
@@ -76,6 +75,7 @@ const modelFile = async (a: Atlas, raw: Diagram, s: Snapshot, output: string): P
     output: basename(output),
     locale: locale(),
     paths,
+    quotes: new Map(s.nodes.map((n) => [n.id, n.understanding?.whatEvidence ?? ''])),
     ...(repository === undefined ? {} : { repository }),
   });
   const name = `export-${digest(JSON.stringify(ir))}.json`;
@@ -110,7 +110,7 @@ export const finalizeView = async (a: Atlas): Promise<void> => {
       return;
     }
   }
-  await run(folder, ['finalize', publicationKind(d), input, output.fsPath, '--repo-root', folder.uri.fsPath, '--browser-check']);
+  await run(folder, ['finalize', input, output.fsPath]);
 };
 const exportDelta = async (a: Atlas, d: Diagram, output: string): Promise<void> => {
   const base = a.base,
@@ -121,9 +121,8 @@ const exportDelta = async (a: Atlas, d: Diagram, output: string): Promise<void> 
   const matching = (s: Snapshot): Diagram => catalog(s).find((m) => diagramKey(m) === diagramKey(d)) ?? { ...d, items: [], links: [] };
   const before = await modelFile(a, matching(base), base, output);
   const after = await modelFile(a, matching(target), target, output);
-  await run(a.tracker.folder, ['compare', 'architecture', before, after, output, '--repo-root', a.tracker.folder.uri.fsPath]);
+  await run(a.tracker.folder, ['compare', before, after, output]);
 };
-/** Native Archify inputs retain custom design, translations, source cards and panel metadata verbatim. */
 export const finalizeFile = async (): Promise<void> => {
   if (!vscode.workspace.isTrusted) {
     return;
@@ -140,13 +139,6 @@ export const finalizeFile = async (): Promise<void> => {
   if (folder === undefined) {
     throw new Error('Choose a model in an open workspace folder.');
   }
-  const kind = await vscode.window.showQuickPick(
-    ['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle', 'erd', 'class', 'tree', 'timeline', 'waterfall', 'explainer'],
-    { title: 'Publication type' },
-  );
-  if (kind === undefined) {
-    return;
-  }
   const out = await vscode.window.showSaveDialog({
     filters: { HTML: ['html'] },
     defaultUri: vscode.Uri.file(uri.fsPath.replace(/\.json$/iu, '.html')),
@@ -154,21 +146,10 @@ export const finalizeFile = async (): Promise<void> => {
   if (out === undefined) {
     return;
   }
-  const browser =
-    kind === 'explainer'
-      ? await vscode.window.showQuickPick(['Include browser check', 'Skip browser check'], {
-          title: 'Check the one-page answer in Chrome?',
-        })
-      : 'Include browser check';
+  const browser = await vscode.window.showQuickPick(['Default (diagrams only)', 'Also check one-page answers'], {
+    title: 'Browser verification',
+  });
   if (browser !== undefined) {
-    await run(folder, [
-      'finalize',
-      kind,
-      uri.fsPath,
-      out.fsPath,
-      '--repo-root',
-      folder.uri.fsPath,
-      ...(browser === 'Include browser check' ? ['--browser-check'] : []),
-    ]);
+    await run(folder, ['finalize', uri.fsPath, out.fsPath, ...(browser.startsWith('Also') ? ['--browser-check'] : [])]);
   }
 };

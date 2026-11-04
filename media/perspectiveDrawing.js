@@ -1,8 +1,8 @@
 /* Layout coordinates are shared by live and still display. All repository strings are text nodes. */
-window.drawMaltPerspective = function (svg, d, visible, select, settings) {
+globalThis.drawMaltPerspective = function (svg, d, visible, select, settings) {
   const ns = 'http://www.w3.org/2000/svg';
   const element = (type, attrs, text, parent = svg) => {
-    const n = document.createElementNS(ns, type);
+    const n = svg.ownerDocument.createElementNS(ns, type);
     for (const [k, v] of Object.entries(attrs)) {
       n.setAttribute(k, String(v));
     }
@@ -27,6 +27,8 @@ window.drawMaltPerspective = function (svg, d, visible, select, settings) {
       role: 'button',
       tabindex: 0,
       'aria-label': part.label,
+      'data-item': part.id,
+      'data-change': part.change || '',
     });
     element('title', {}, [part.label, part.detail, ...(part.fields || [])].filter(Boolean).join('\n'), g);
     element('rect', { x, y, width, height, rx: 5 }, undefined, g);
@@ -53,6 +55,12 @@ window.drawMaltPerspective = function (svg, d, visible, select, settings) {
   function linkLabel(w) {
     return [w.fromEnd, w.label || w.kind, w.toEnd].filter(Boolean).join(' · ');
   }
+  const identify = (shape, w) => {
+    shape.setAttribute('data-wire', String(d.links.indexOf(w)));
+    shape.setAttribute('data-change', w.change || '');
+    return shape;
+  };
+  const labelRows = [];
   function route(w, i) {
     const a = places.get(w.from),
       b = places.get(w.to);
@@ -71,6 +79,7 @@ window.drawMaltPerspective = function (svg, d, visible, select, settings) {
       d: 'M ' + x + ' ' + y + ' H ' + channel + ' V ' + bend + ' H ' + end,
       fill: 'none',
     });
+    identify(p, w);
     element('title', {}, linkLabel(w), p);
     if (d.kind === 'er') {
       crow(x, y, w.fromEnd);
@@ -86,7 +95,15 @@ window.drawMaltPerspective = function (svg, d, visible, select, settings) {
     } else {
       text(end + 2, bend - 3, '◀');
     }
-    text(channel + 4, (y + bend) / 2, linkLabel(w).slice(0, 42));
+    const gutter = Math.max(...[...places.values()].map((p) => p.x + p.w)) + 52 + Math.min(d.links.length, 12) * 14;
+    let row = (y + bend) / 2 - 3;
+    while (labelRows.some((previous) => Math.abs(previous - row) < 18)) row += 18;
+    labelRows.push(row);
+    const caption = String(i + 1) + '. ' + linkLabel(w).slice(0, 42);
+    const label = text(gutter, row, caption, 'edge-label');
+    label.setAttribute('data-wire-label', String(i));
+    width = Math.max(width, gutter + caption.length * 9 + 20);
+    height = Math.max(height, row + 22);
   }
   function crow(x, y, cardinality) {
     if (!cardinality) {
@@ -142,9 +159,12 @@ window.drawMaltPerspective = function (svg, d, visible, select, settings) {
           y1 = a.y + 21,
           y2 = b.y + 21,
           mid = (x1 + b.x) / 2;
-        element('path', { class: 'wire', fill: 'none', d: 'M ' + x1 + ' ' + y1 + ' H ' + mid + ' V ' + y2 + ' H ' + b.x });
+        identify(
+          element('path', { class: 'wire', fill: 'none', d: 'M ' + x1 + ' ' + y1 + ' H ' + mid + ' V ' + y2 + ' H ' + b.x }),
+          w,
+        );
         text(b.x - 14, y2 - 2, '›');
-        text(mid + 3, Math.min(y1, y2) - 7, w.label.slice(0, 24));
+        text(x1 + 3, Math.min(a.y, b.y) - 8, w.label.slice(0, 24), 'edge-label');
       } else {
         route(w, i);
       }
@@ -180,7 +200,7 @@ window.drawMaltPerspective = function (svg, d, visible, select, settings) {
       const a = places.get(p.id);
       hit(p, a.x, a.y, a.w, a.h, [p.label, ...(settings.fields ? p.fields || [] : [])]);
     }
-    height = y + 15;
+    height = Math.max(height, y + 15);
   }
   function lanes() {
     const groups = [...new Set(visible.map((p) => p.group || 'Stage'))];
@@ -206,7 +226,15 @@ window.drawMaltPerspective = function (svg, d, visible, select, settings) {
       const a = places.get(w.from),
         b = places.get(w.to);
       if (a && b) {
-        line(a.x + a.w, a.y + 17, b.x, b.y + 17);
+        const mid = (a.x + a.w + b.x) / 2;
+        identify(
+          element('path', {
+            class: 'wire',
+            fill: 'none',
+            d: 'M ' + (a.x + a.w) + ' ' + (a.y + 17) + ' H ' + mid + ' V ' + (b.y + 17) + ' H ' + b.x,
+          }),
+          w,
+        );
         text(b.x - 15, b.y + 14, '›');
       }
     }
@@ -231,12 +259,12 @@ window.drawMaltPerspective = function (svg, d, visible, select, settings) {
         b = participants.get(m.to),
         y = 86 + 47 * i;
       if (a === b) {
-        element('path', { class: 'wire', fill: 'none', d: 'M ' + a + ' ' + y + ' h 42 v 14 h -42' });
+        identify(element('path', { class: 'wire', fill: 'none', d: 'M ' + a + ' ' + y + ' h 42 v 14 h -42' }), m);
       } else {
-        line(a, y, b, y, m.kind === 'return' ? 'lifeline' : 'wire');
+        identify(line(a, y, b, y, m.kind === 'return' ? 'lifeline' : 'wire'), m);
       }
       text(b + (a < b ? -12 : 3), y - 2, a < b ? '›' : '‹');
-      text(Math.min(a, b) + 7, y - 7, i + 1 + '. ' + m.label);
+      text(Math.min(a, b) + 7, y - 7, i + 1 + '. ' + m.label, 'edge-label');
     });
   }
   function hierarchy() {
@@ -250,9 +278,11 @@ window.drawMaltPerspective = function (svg, d, visible, select, settings) {
       if (indent > 30) {
         line(45, y + 15, indent, y + 15, 'wire');
       }
+      places.set(p.id, { x: indent, y, w: 355, h: 38 });
       hit(p, indent, y, 355, 38, [p.label]);
       y += 55;
     }
+    d.links.forEach(route);
     height = y + 15;
   }
   function timeAxis() {

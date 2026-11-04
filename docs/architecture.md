@@ -55,7 +55,7 @@ Each trusted local workspace folder has its own graph tracker. The working graph
 
 The standards scan supplies file-level interpretations. The reviewer checks evidence excerpts before the explorer marks a claim as source-backed. An open question starts a conversation through the authenticated reviewer service. Applying a clarification stores the developer’s wording under `.malt/maps/v1/` with its branch, file path and content fingerprint, signed with a per-user key from VS Code SecretStorage so a repository cannot plant one. The tracker publishes applicable explanations to `reviewer.json` for later architecture-aware reviews.
 
-The sidebar and editor share a folder-specific navigation state. Evidence diagrams are included in branch and commit snapshots. The optional publisher hands a frozen input to the configured Archify tool using a VS Code process task. The local stdio MCP server verifies an Ed25519 signature bound to the workspace before returning guidance. Its public verifier can be shared with clients without sharing the note-signing secret. [Views and agent protocol](architecture-views.md)
+The sidebar and editor share a folder-specific navigation state. Evidence diagrams are included in branch and commit snapshots. The bundled MALT publisher renders the same versioned model using the extension’s SVG layouts and runs delivery checks in an explicit VS Code process task. The local stdio MCP server verifies an Ed25519 signature bound to the workspace before returning guidance. Its public verifier can be shared with clients without sharing the note-signing secret. [Views and agent protocol](architecture-views.md)
 
 ## Making changes
 

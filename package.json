@@ -433,13 +433,13 @@
     "configuration": {
       "title": "MALT",
       "properties": {
-        "malt.architecture.archifyPath": {
+        "malt.architecture.chromePath": {
           "type": "string", "default": "", "scope": "machine",
-          "description": "Trusted local Archify bin/archify.mjs used for validated HTML delivery. Selected on first export."
+          "description": "Optional absolute Chrome or Chromium executable for MALT browser checks. MALT detects common installations by default."
         },
         "malt.architecture.nodePath": {
           "type": "string", "default": "", "scope": "machine",
-          "description": "Absolute path to Node.js used to run the optional Archify publication task."
+          "description": "Absolute path to Node.js used to run the MALT publication task."
         },
         "malt.reviewer.backend": {
           "type": "string",

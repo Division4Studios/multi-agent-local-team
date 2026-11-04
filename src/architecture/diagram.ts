@@ -27,6 +27,7 @@ export interface Part {
   line?: number;
 }
 export interface Wire {
+  id?: string;
   from: string;
   to: string;
   label: string;
@@ -93,7 +94,7 @@ const parseWire = (v: unknown): Wire | undefined => {
     return undefined;
   }
   const link: Wire = { from: v['from'], to: v['to'], label: short(v['label']) ? v['label'] : '' };
-  for (const k of ['kind', 'fromEnd', 'toEnd'] as const) {
+  for (const k of ['id', 'kind', 'fromEnd', 'toEnd'] as const) {
     if (short(v[k])) {
       link[k] = v[k];
     }

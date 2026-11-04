@@ -47,15 +47,28 @@ The supported `kind` values are `architecture`, `workflow`, `sequence`, `dataflo
 
 ## Publish a checked, standalone artifact
 
-VS Code navigation and scanning work with MALT alone. **Finalize and export** uses the official [Archify 3.2 installation](https://github.com/tt-a1i/archify/tree/a4065941f12be7967436261d9934784e381d423c/archify) for its publication pipeline. Install the complete Archify skill on your machine. On first use, select its trusted `bin/archify.mjs` and your Node.js executable. Chrome or Chromium must be available for browser checks. These executable paths are machine settings. The extension launches an explicit VS Code process task when you request an export.
+Choose **Finalize and export** in the editor to share the selected view. MALT freezes the current diagram under `.malt/maps/v1/` and runs its bundled publisher. The VS Code viewer and portable HTML use the same drawing code and the same part and relationship IDs. Select your Node executable on first use. The publisher locates Chrome or Chromium on the machine, or accepts `malt.architecture.chromePath`.
 
-1. Select a diagram and a destination HTML file. On the project map, focus the component layer you want to share. MALT writes a content-addressed input under `.malt/maps/v1/`.
-2. Archify validates the schema, references and layout, stages and delivers the HTML atomically, reads back the delivered file, and records the source and artifact hashes. The diagram task requests a real browser check across desktop sizes. Read its finalization receipt for exact results and diagnostics. A later check failure leaves an already delivered file available.
-3. Open the delivered HTML directly. The viewer supplies dark/light themes, live/still motion, route inspection and playback. Its export menu supports SVG, PNG, JPEG, WebP, WebM and clipboard where the browser supports those APIs. Raster export supports up to 4×. The viewer carries its assets and localization inside the file.
-4. To finalize an authored Archify diagram or one-page answer with custom translations, source cards or content panels, use **MALT: Finalize Diagram or One-page Answer**. For one-page answers, choose whether to run the browser check. Archify’s `patch explainer` command accepts an exact panel ID and replacement file.
-5. In an architecture branch comparison, choose **Export branch delta and receipt** to publish the base and target as a delta diagram. A clean working tree or a pinned branch revision can include full-commit GitHub or GitLab source links. Local edits do not acquire a misleading committed source link.
+1. **Validate.** Check the source model, unique IDs, references, nesting, clocks and ER cardinalities. Lay out the diagram and check card overlap, route crossings and label clearance. A missing measurement is an error.
+2. **Deliver.** Render the HTML to a temporary file beside the destination. Read it back and verify its digest before atomically replacing the destination. Validation and staging failures preserve any previous HTML.
+3. **Check.** Reopen the delivered HTML and compute its SHA-256. The `*.finalize.json` receipt records the exact source and HTML hashes, per-view layout counts, and each gate’s result.
+4. **Browser-check.** Load that local HTML in Chrome at 1440×900, 1600×1000, 1920×1080 and 2048×1320. Check overflow, legend clearance, text fit and interactive controls. A browser failure leaves the delivered HTML in place and records the failure. One-page answers use a browser check when requested.
 
-Publication can stop on difficult geometry or unsupported input. The task terminal shows the actual failure. A receipt with a failed browser gate is distinct from one whose delivered HTML passed every gate.
+Open the HTML directly, choose a component or related view, and inspect its fields and source. Connected links appear in ordered journeys that stop at the last relationship. Choose Live or Still, a theme and a display language. Export SVG, PNG, JPEG, WebP, WebM or clipboard from the same diagram. Raster output supports 1× to 4×. Clipboard and WebM require compatible browser APIs. Source cards can quote evidence and link to GitHub or GitLab at a full commit. MALT omits commit links for dirty working-tree evidence.
+
+### Use the publisher directly
+
+```sh
+node bin/malt-diagram.mjs validate model.json
+node bin/malt-diagram.mjs finalize model.json model.html
+node bin/malt-diagram.mjs check model.json model.html
+node bin/malt-diagram.mjs compare base.json head.json changes.html
+node bin/malt-diagram.mjs patch answer.json storage replacement.json revised.html --browser-check
+```
+
+The version 1 document uses the same `diagrams` array as the authored model above. Multiple diagrams can share `ref` values so readers can jump between views at the same component. An optional `id` on a relationship keeps its identity through reroutes. Compare writes a `*.delta.json` receipt alongside the visual delta. Without explicit relationship IDs, ambiguous changes are reported as separate additions and removals.
+
+For a one-page answer, supply `{"version":1,"answer":{"title":"Storage","panels":[{"id":"storage","title":"Where records land","body":"Records go to the ledger."}]}}`. Follow up on a panel or selected passage with **Ask about selection**. It copies a scoped prompt for your agent. The patch command takes a replacement panel with the same ID and produces a revised HTML artifact. Only the selected panel is replaced. Set `meta.locale` to `en`, `zh-CN`, `zh-TW`, `es` or `ko`. Supply additional control labels through `meta.translations[locale]`. A publication with difficult geometry can fail validation; the receipt identifies the offending gate.
 
 ## Connect active local agents
 

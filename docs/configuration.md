@@ -44,7 +44,7 @@ All commands below have the **MALT:** prefix.
 | Show Project Standards | Open the saved rules as a page grouped by category, with the MALT baseline checks (also the **Standards** row) |
 | Show Architecture Map | Explore files, symbols and relationships in the **Architecture** row. Compare local branch tips or a branch against saved edits. |
 | Copy Local Agent MCP Configuration | Copy the stdio connection and public verifier for Claude, Codex or another local MCP client. |
-| Finalize Diagram or One-page Answer | Publish an authored Archify model. Diagram exports request Chrome checks. One-page answers offer a choice. |
+| Finalize Diagram or One-page Answer | Publish a version 1 MALT model. Diagram exports request Chrome checks. One-page answers offer a choice. |
 | Show Architecture File Summaries | Read the reviewer’s file summaries and applicable developer clarifications. |
 | Show Standards Gaps | Reopen the gaps the last scan found as one page. In the Reviewer view, the **Gaps** row lists them; selecting one opens the file at the declaration it names, outlined, with the gap on hover |
 | Show Live Reviewer Log | Watch every model call as it happens: what it is for, the prompt sent and the answer streaming in, with elapsed time and a stall indicator. Nothing is saved (also the **Reviewer** row) |
