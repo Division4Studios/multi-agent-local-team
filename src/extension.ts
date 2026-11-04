@@ -21,6 +21,8 @@ import { StandardsModel } from './standards/standardsModel';
 import { FindingHighlight } from './editor/findingHighlight';
 import { AttentionGuard } from './editor/attention';
 import { watchReviewSettings } from './views/reviewSettings';
+import { PullRequestController } from './pullRequest/pullRequestController';
+import type { PullRequestReview } from './pullRequest/pullRequestReview';
 import { createStatusBar } from './views/statusBar';
 import { registerCommands, revealHunk, startReviewer } from './commands';
 import type { CommandDeps } from './commands';
@@ -94,6 +96,20 @@ const startTracking = async (context: vscode.ExtensionContext, deps: CommandDeps
   }));
 };
 
+/** The Pull Request view: its own review session, sharing the reviewer and the user's attention guard. */
+const createPullRequests = (deps: CommandDeps): { readonly controller: PullRequestController; readonly disposable: vscode.Disposable } => {
+  const controller = new PullRequestController({
+    manager: deps.manager,
+    startReviewer: async (): Promise<void> => {
+      await startReviewer(deps);
+    },
+  });
+  const commands = controller.registerCommands(() => {
+    deps.attention.noteUserActivity();
+  });
+  return { controller, disposable: vscode.Disposable.from(controller, commands) };
+};
+
 export const activate = async (context: vscode.ExtensionContext): Promise<void> => {
   const output = vscode.window.createOutputChannel('MALT Reviewer', { log: true });
   const store = new HunkStore(context.workspaceState);
@@ -108,6 +124,8 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
   const standards = new StandardsModel(vscode.workspace.workspaceFolders?.[0]);
   const highlight = new FindingHighlight();
   const attention = new AttentionGuard(() => readSettings().autoOpenPauseSeconds * 1000);
+  // Late-bound: the controller needs deps, and deps exposes the controller's active review.
+  const pullRequests: { current?: PullRequestController } = {};
   const deps: CommandDeps = {
     store,
     manager,
@@ -119,7 +137,10 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
     highlight,
     attention,
     extensionUri: context.extensionUri,
+    pullRequest: (): PullRequestReview | undefined => pullRequests.current?.active,
   };
+  const pullRequestFeature = createPullRequests(deps);
+  pullRequests.current = pullRequestFeature.controller;
 
   context.subscriptions.push(
     output,
@@ -135,6 +156,7 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
     vscode.window.registerTreeDataProvider('malt.changes', new ChangesTreeProvider(store, consolidation)),
     createStatusBar(manager, store),
     registerCommands(deps),
+    pullRequestFeature.disposable,
     watchReviewSettings(() => manager.status.state === 'running', async () => {
       await startReviewer(deps);
     }),

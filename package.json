@@ -47,6 +47,10 @@
         {
           "id": "malt.changes",
           "name": "Changes"
+        },
+        {
+          "id": "malt.pullRequest",
+          "name": "Pull Request"
         }
       ]
     },
@@ -54,6 +58,11 @@
       {
         "view": "malt.changes",
         "contents": "Your next change starts here.\nSave a file in a Git repository to see its changed blocks. MALT skips Git-ignored files and its own .malt folder. Select a block to jump to it; hover in the editor for the review.\n[Start Reviewer](command:malt.startReviewer)\n[Scan Project Standards](command:malt.scanStandards)"
+      },
+      {
+        "view": "malt.pullRequest",
+        "contents": "Review a GitHub pull request the same way MALT reviews your own changes: every changed block outlined and checked against your project standards, with plain-English hover cards.\nMALT checks the pull request out in this workspace (it refuses if you have uncommitted changes) and returns you to your branch when you finish. Results stay in VS Code; nothing is posted to GitHub.\n[Review Pull Request…](command:malt.reviewPullRequest)",
+        "when": "!malt.pullRequestActive"
       }
     ],
     "commands": [
@@ -205,6 +214,30 @@
         "title": "Show Evidence in the Code",
         "category": "MALT",
         "icon": "$(quote)"
+      },
+      {
+        "command": "malt.reviewPullRequest",
+        "title": "Review Pull Request…",
+        "category": "MALT",
+        "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "malt.finishPullRequestReview",
+        "title": "Finish Pull Request Review",
+        "category": "MALT",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "malt.reviewPullRequestBlocks",
+        "title": "Review All Pull Request Blocks",
+        "category": "MALT",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "malt.openPullRequestOnGitHub",
+        "title": "Open Pull Request on GitHub",
+        "category": "MALT",
+        "icon": "$(github)"
       }
     ],
     "menus": {
@@ -253,12 +286,32 @@
           "command": "malt.showLiveLog",
           "when": "view == malt.reviewer",
           "group": "navigation@3"
+        },
+        {
+          "command": "malt.reviewPullRequest",
+          "when": "view == malt.pullRequest && !malt.pullRequestActive",
+          "group": "navigation@1"
+        },
+        {
+          "command": "malt.reviewPullRequestBlocks",
+          "when": "view == malt.pullRequest && malt.pullRequestActive",
+          "group": "navigation@1"
+        },
+        {
+          "command": "malt.openPullRequestOnGitHub",
+          "when": "view == malt.pullRequest && malt.pullRequestActive",
+          "group": "navigation@2"
+        },
+        {
+          "command": "malt.finishPullRequestReview",
+          "when": "view == malt.pullRequest && malt.pullRequestActive",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
         {
           "command": "malt.reviewAgain",
-          "when": "view == malt.changes && viewItem == malt.hunk",
+          "when": "(view == malt.changes || view == malt.pullRequest) && viewItem == malt.hunk",
           "group": "inline"
         },
         {
@@ -268,7 +321,7 @@
         },
         {
           "command": "malt.showFinding",
-          "when": "view == malt.changes && viewItem == malt.finding",
+          "when": "(view == malt.changes || view == malt.pullRequest) && viewItem == malt.finding",
           "group": "inline"
         },
         {
@@ -330,6 +383,18 @@
         {
           "command": "malt.showEvidence",
           "when": "false"
+        },
+        {
+          "command": "malt.finishPullRequestReview",
+          "when": "malt.pullRequestActive"
+        },
+        {
+          "command": "malt.reviewPullRequestBlocks",
+          "when": "malt.pullRequestActive"
+        },
+        {
+          "command": "malt.openPullRequestOnGitHub",
+          "when": "malt.pullRequestActive"
         }
       ]
     },
@@ -496,12 +561,14 @@
         "malt.reviewer.claudePath": {
           "type": "string",
           "default": "claude",
-          "description": "Path to the Claude Code CLI, used by the host backend."
+          "scope": "machine",
+          "markdownDescription": "Path to the Claude Code CLI, used by the host backend. Machine-level only: a repository's workspace settings can never set this, because it decides what MALT runs or connects to."
         },
         "malt.docker.socketPath": {
           "type": "string",
           "default": "",
-          "description": "Docker Engine socket or named pipe. Empty uses DOCKER_HOST or the platform default."
+          "scope": "machine",
+          "markdownDescription": "Docker Engine socket or named pipe. Empty uses DOCKER_HOST or the platform default. Machine-level only: a repository's workspace settings can never set this, because it decides what MALT runs or connects to."
         },
         "malt.changes.autoOpen": {
           "type": "boolean",
@@ -632,5 +699,15 @@
   "galleryBanner": {
     "color": "#191D24",
     "theme": "dark"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In Restricted Mode, MALT ignores workspace values for settings that choose which programs it runs or connects to.",
+      "restrictedConfigurations": [
+        "malt.reviewer.claudePath",
+        "malt.docker.socketPath"
+      ]
+    }
   }
 }

@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- `malt.reviewer.claudePath` and `malt.docker.socketPath` are machine-scoped: a repository's `.vscode/settings.json` can no longer choose the program MALT runs or the Docker endpoint it talks to. In untrusted workspaces they are restricted too.
+
 - Changed files are only read when they really live in the workspace: symlinks (and files reached through linked folders) are skipped, so a link in the repository can never pull an outside file into a review or the editor.
 - Opening a gap or finding resolves its real path and refuses anything outside the workspace.
 - The live log page only accepts messages from the extension host (same origin).
@@ -50,6 +52,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 
 ### Added
+
+- **Review Pull Request**: pick an open pull request on the workspace's GitHub repository and review it with the same outlines, hover cards, per-rule checks and consolidation as local changes, in a new **Pull Request** view. MALT checks the PR out with VS Code's Git (refusing while you have uncommitted changes, and verifying HEAD is GitHub's exact head commit), turns GitHub's diff into blocks, and says what reviewing them will cost before anything runs. **Finish Pull Request Review** returns you to your branch (refusing, and keeping your work, if you changed files on the checkout). Results stay in VS Code and are discarded when you finish; nothing is posted to GitHub. Sign-in uses VS Code's built-in GitHub account.
 
 - **Investigate gap**: a deeper, on-demand review of one standards gap. The scan finds gaps from a one-line-per-file map, which cannot tell duplicated code from code that imports or implements a shared contract. The investigation reads the real code (the gap's files, their local imports, and other files exporting the same names) and returns a plain-English verdict: *Confirmed*, *Partly* or *Not a gap*, with confidence, what the code actually does, quoted evidence (checked word for word against the files; anything not found is discarded), the case against it being a gap, why it matters and what to do. Results show on the gap in the tray, on a report page, and as evidence entries that open the quoted code. **Investigate all** says what it will cost first. New review type **Gap investigation** (default Sonnet, medium effort) in **Models & effort**.
 - Gap descriptions from the scan are written for someone who has not seen the code, and say when names alone cannot tell duplication from a shared definition.

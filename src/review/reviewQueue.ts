@@ -41,6 +41,8 @@ export class ReviewQueue {
   private readonly waiting: Task[] = [];
   private readonly busy = new Map<string, number>();
   private inFlight = 0;
+  private stopped = false;
+  private readonly idleWaiters: (() => void)[] = [];
   private readonly options: QueueOptions;
 
   public constructor(options: QueueOptions) {
@@ -54,7 +56,7 @@ export class ReviewQueue {
   public enqueue(tracked: TrackedHunk, force = false): void {
     const { store } = this.options;
     const state = store.state(tracked.id);
-    if (this.busy.has(tracked.id) || (!force && state.status === 'reviewed')) {
+    if (!this.accepts(tracked.id, state, force)) {
       return;
     }
     if (this.options.client() === undefined) {
@@ -72,6 +74,11 @@ export class ReviewQueue {
     this.pump();
   }
 
+  /** Whether a block may be queued: not after `stop`, not while busy, and a reviewed block only with `force`. */
+  private accepts(id: string, state: HunkState, force: boolean): boolean {
+    return !this.stopped && !this.busy.has(id) && (force || state.status !== 'reviewed');
+  }
+
   /** Queues every tracked block whose review is missing or incomplete (e.g. once the reviewer comes online). */
   public enqueueUnreviewed(): void {
     for (const tracked of this.options.store.allHunks()) {
@@ -82,8 +89,26 @@ export class ReviewQueue {
     }
   }
 
+  /**
+   * Stops for good: drops waiting work, never starts or schedules anything again, and resolves once the calls already
+   * in flight have finished. Their results are dropped too (an overview that finishes later records nothing and queues
+   * no rule checks): a review stops because its files may no longer be the ones the calls read.
+   */
+  public async stop(): Promise<void> {
+    this.stopped = true;
+    this.waiting.length = 0;
+    if (this.inFlight > 0) {
+      await new Promise<void>((resolvePromise) => {
+        this.idleWaiters.push(resolvePromise);
+      });
+    }
+  }
+
   /** Adds tasks; `first` puts them ahead of other blocks so a started block finishes before the next begins. */
   private push(tasks: readonly Task[], first = false): void {
+    if (this.stopped) {
+      return;
+    }
     for (const task of tasks) {
       this.busy.set(task.tracked.id, (this.busy.get(task.tracked.id) ?? 0) + 1);
     }
@@ -95,7 +120,7 @@ export class ReviewQueue {
   }
 
   private pump(): void {
-    while (this.inFlight < this.options.concurrency()) {
+    while (!this.stopped && this.inFlight < this.options.concurrency()) {
       const task = this.waiting.shift();
       if (task === undefined) {
         return;
@@ -104,6 +129,11 @@ export class ReviewQueue {
       void this.run(task).finally(() => {
         this.inFlight -= 1;
         this.finish(task.tracked.id);
+        if (this.inFlight === 0) {
+          this.idleWaiters.splice(0).forEach((resolveIdle) => {
+            resolveIdle();
+          });
+        }
         this.pump();
       });
     }
@@ -126,6 +156,9 @@ export class ReviewQueue {
   private async runOverview(client: HunkReviewer, tracked: TrackedHunk): Promise<void> {
     this.options.store.setState(tracked.id, { status: 'reviewing' });
     const response = await client.review(requestFor(tracked));
+    if (this.stopped) {
+      return;
+    }
     const review = { ...response, checks: [] };
     this.options.store.setState(tracked.id, { status: 'reviewing', review });
     this.push(missingRules(review).map((rule) => ({ tracked, rule })), true);
@@ -136,7 +169,7 @@ export class ReviewQueue {
     this.update(tracked.id, (state) => ({ ...state, running: [...running(state), rule.id] }));
     try {
       const check = await client.check({ ...requestFor(tracked), ruleId: rule.id });
-      this.update(tracked.id, (state) => (state.review === undefined ? state : {
+      this.update(tracked.id, (state) => (this.stopped || state.review === undefined ? state : {
         ...state,
         review: { ...state.review, checks: [...state.review.checks.filter((other) => other.ruleId !== rule.id), check] },
       }));

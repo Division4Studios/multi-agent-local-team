@@ -6,6 +6,8 @@
 !out/diff/**/*.js
 !out/editor/**/*.js
 !out/git/**/*.js
+!out/github/**/*.js
+!out/pullRequest/**/*.js
 !out/review/**/*.js
 !out/reviewer/**/*.js
 !out/shared/**/*.js

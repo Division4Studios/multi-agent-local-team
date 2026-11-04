@@ -13,9 +13,15 @@ import type { RuleRow, RuleRun } from '../review/reviewProgress';
 import { buildReviewMarkdown } from '../editor/reviewMarkdown';
 import { COLOR_IDS, ICONS, RUN_LABELS, statusLabel, visualFor } from '../editor/visuals';
 
+/**
+ * Which review a consolidation finding belongs to. Finding commands carry it, because the local changes and a pull
+ * request each have their own consolidation check, and a finding index only means something within one of them.
+ */
+export type FindingSource = 'changes' | 'pullRequest';
+
 type Node =
   | { readonly kind: 'consolidation' }
-  | { readonly kind: 'finding'; readonly finding: Finding; readonly index: number }
+  | { readonly kind: 'finding'; readonly finding: Finding; readonly index: number; readonly source: FindingSource }
   | { readonly kind: 'findingAnchor'; readonly anchor: FindingAnchor; readonly index: number; readonly anchorIndex: number }
   | { readonly kind: 'file'; readonly hunks: readonly TrackedHunk[] }
   | { readonly kind: 'hunk'; readonly tracked: TrackedHunk }
@@ -37,6 +43,9 @@ const anchorNodes = (finding: Finding, index: number): Node[] =>
     : [];
 
 /** "Line 21" for a one-line block, "Lines 21–24" otherwise. */
+/** A row in a Changes-style tree (also used by the Pull Request view). */
+export type ChangesNode = Node;
+
 export const lineLabel = (startLine: number, endLine: number): string =>
   startLine === endLine ? `Line ${String(startLine + 1)}` : `Lines ${String(startLine + 1)}–${String(endLine + 1)}`;
 
@@ -70,10 +79,12 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<Node>, vscod
   private readonly subscription: vscode.Disposable;
   private readonly store: HunkStore;
   private readonly consolidation: ConsolidationCheck;
+  private readonly source: FindingSource;
 
-  public constructor(store: HunkStore, consolidation: ConsolidationCheck) {
+  public constructor(store: HunkStore, consolidation: ConsolidationCheck, source: FindingSource = 'changes') {
     this.store = store;
     this.consolidation = consolidation;
+    this.source = source;
     const refresh = (): void => {
       this.changeEmitter.fire(undefined);
     };
@@ -85,7 +96,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<Node>, vscod
       case undefined:
         return this.roots();
       case 'consolidation':
-        return this.consolidation.state.findings.map((finding, index) => ({ kind: 'finding', finding, index }));
+        return this.consolidation.state.findings.map((finding, index) => ({ kind: 'finding', finding, index, source: this.source }));
       case 'file':
         return node.hunks.map((tracked) => ({ kind: 'hunk', tracked }));
       case 'hunk':
@@ -105,9 +116,9 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<Node>, vscod
       case 'consolidation':
         return consolidationItem(this.consolidation.state);
       case 'finding':
-        return findingItem(node.finding, node.index);
+        return findingItem(node.finding, node.index, this.source);
       case 'findingAnchor':
-        return findingAnchorItem(node.anchor, node.index, node.anchorIndex);
+        return findingAnchorItem(node.anchor, node.index, node.anchorIndex, this.source);
       case 'file':
         return this.fileItem(node.hunks);
       case 'hunk':
@@ -230,7 +241,7 @@ const consolidationItem = (state: ConsolidationState): vscode.TreeItem => {
 };
 
 /** Selecting a finding shows where it applies (its first declaration); the inline action opens its details. */
-const findingItem = (finding: Finding, index: number): vscode.TreeItem => {
+const findingItem = (finding: Finding, index: number, source: FindingSource): vscode.TreeItem => {
   const item = new vscode.TreeItem(
     finding.title,
     finding.anchors.length > 1 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
@@ -240,15 +251,15 @@ const findingItem = (finding: Finding, index: number): vscode.TreeItem => {
   item.tooltip = finding.note;
   item.iconPath = new vscode.ThemeIcon('git-merge');
   item.contextValue = 'malt.finding';
-  item.command = { command: 'malt.showFindingLocation', title: 'Show where this applies', arguments: [index, 0] };
+  item.command = { command: 'malt.showFindingLocation', title: 'Show where this applies', arguments: [index, 0, source] };
   return item;
 };
 
-const findingAnchorItem = (anchor: FindingAnchor, index: number, anchorIndex: number): vscode.TreeItem => {
+const findingAnchorItem = (anchor: FindingAnchor, index: number, anchorIndex: number, source: FindingSource): vscode.TreeItem => {
   const item = new vscode.TreeItem(anchor.symbol);
   item.id = JSON.stringify(['finding-anchor', index, anchorIndex, anchor.file, anchor.symbol]);
   item.description = anchor.file;
   item.iconPath = new vscode.ThemeIcon('symbol-field');
-  item.command = { command: 'malt.showFindingLocation', title: 'Show where this applies', arguments: [index, anchorIndex] };
+  item.command = { command: 'malt.showFindingLocation', title: 'Show where this applies', arguments: [index, anchorIndex, source] };
   return item;
 };
