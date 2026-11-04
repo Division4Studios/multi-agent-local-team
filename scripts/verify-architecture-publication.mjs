@@ -7,7 +7,7 @@ import { command } from '../bin/malt-diagram.mjs';
 import { browserCheck } from '../bin/publication/browser.mjs';
 import { hash } from '../bin/publication/html.mjs';
 import { publication } from '../out/architecture/publication.js';
-import { views } from '../out/architecture/diagram.js';
+import { views } from '../out/shared/diagram.js';
 
 const directory = mkdtempSync(join(tmpdir(), 'malt-publication-'));
 const file = (name) => join(directory, name);
