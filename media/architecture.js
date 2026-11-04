@@ -253,8 +253,9 @@
     el('more').disabled = page + 1 >= pages;
   }
   function receive(event) {
+    if (event.origin !== window.origin) { return; }
     const m = event.data;
-    if (m.action !== 'graph') { return; }
+    if (!m || m.action !== 'graph') { return; }
     comparing = m.diff;
     el('title').textContent = m.title;
     el('status').textContent = m.message + (m.diff ? '   ·   + added   − removed   ~ changed' : '');

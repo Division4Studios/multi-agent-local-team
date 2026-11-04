@@ -30,6 +30,7 @@
     if (text) { lock(true); api.postMessage({ action: 'save', text }); }
   });
   window.addEventListener('message', e => {
+    if (e.origin !== window.origin || !e.data) { return; }
     const m = e.data;
     if (m.type === 'initial') {
       el('scope').textContent = m.branch + ' / ' + m.file;

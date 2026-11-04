@@ -54,7 +54,7 @@ export interface GitRepository {
   checkIgnore: (paths: string[]) => Promise<Set<string>>;
   /** Read-only branch tree access for the architecture explorer. */
   getRefs?: (query: { pattern: string }) => Promise<GitHeadRef[]>;
-  diffBetweenWithStats?: (from: string, to: string) => Promise<GitChange[]>;
+  diffBetweenWithStats2?: (range: string) => Promise<GitChange[]>;
   getObjectDetails?: (ref: string, path: string) => Promise<{ mode: string; size: number }>;
   show?: (ref: string, path: string) => Promise<string>;
   /** Used only to review a pull request (optional so change-tracking fakes need not implement them). */

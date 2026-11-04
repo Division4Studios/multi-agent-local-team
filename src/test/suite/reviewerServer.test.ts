@@ -30,6 +30,7 @@ import {
   OVERVIEW_SCHEMA,
   OVERVIEW_SYSTEM_PROMPT,
 } from '../../reviewer/prompts';
+import { interpretationSchema } from '../../shared/understanding';
 import type { TestCase } from './harness';
 
 const TOKEN = 'test-token-0123456789';
@@ -66,6 +67,7 @@ const createFakeProvider = (calls: StructuredCall[]): ReviewProvider => ({
     const answers = new Map<unknown, unknown>([
       [OVERVIEW_SCHEMA, OVERVIEW],
       [CHECK_SCHEMA, CHECK],
+      [interpretationSchema, { what: 'Stores the value.', whatEvidence: 'const a = 1', why: 'Possibly a compatibility default.', whyEvidence: 'unsupported reason', question: 'Which clients require the default?' }],
       [CONSOLIDATION_SCHEMA, { findings: [FINDING] }],
       [GAPS_SCHEMA, GAPS],
       [ARCHITECTURE_SCHEMA, { modules: [{ path: 'src/a.ts', purpose: 'A', exports: ['a'] }, { path: 'invented.ts', purpose: 'x', exports: [] }] }],
@@ -106,6 +108,19 @@ const withServer = async (
 };
 
 export const tests: readonly TestCase[] = [
+  {
+    name: 'architecture discussion: sends user clarification as untrusted context and downgrades unsupported rationale',
+    run: async (): Promise<void> => {
+      await withServer(async (port, calls) => {
+        const client = new ReviewerClient({ port, token: TOKEN });
+        const response = await client.discuss({ path: 'a.ts', source: 'const a = 1;', context: 'Why is it here?', dialogue: 'Our mobile client needs this.' });
+        assert.equal(response.whatEvidence, 'const a = 1');
+        assert.equal(response.whyEvidence, '');
+        assert.ok(calls[0]?.userPrompt.includes('Our mobile client needs this.') === true);
+        assert.equal(calls[0].systemPrompt.includes('Our mobile client'), false);
+      });
+    },
+  },
   {
     name: 'reviewer server: rejects requests without the token',
     run: async (): Promise<void> => {

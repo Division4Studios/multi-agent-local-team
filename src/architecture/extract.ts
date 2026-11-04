@@ -40,13 +40,16 @@ const LANGUAGES: Readonly<Record<string, string>> = {
 };
 const tagsFor = (path: string): string[] => {
   const tags = [LANGUAGES[posix.extname(path).slice(1)] ?? 'source'];
+  if (/\.(?:[jt]sx|vue|svelte)$/iu.test(path)) {
+    tags.push('UI');
+  }
   for (const [tag, pattern] of [
-    ['UI', /(?:^|\/)(?:ui|components?|widgets?|views?)\/|\.([jt]sx|vue|svelte)$/iu],
+    ['UI', /(?:^|\/)(?:ui|components?|widgets?|views?)\//iu],
     ['test', /(?:^|\/)(?:tests?|__tests__)\/|\.(?:test|spec)\./iu],
     ['data', /(?:^|\/)(?:db|data|models?|storage|repositories)\//iu],
     ['service', /(?:^|\/)(?:backend|api|services?|server)\//iu],
   ] satisfies [string, RegExp][]) {
-    if (pattern.test(path)) {
+    if (!tags.includes(tag) && pattern.test(path)) {
       tags.push(tag);
     }
   }
@@ -126,11 +129,25 @@ const importsFor = (source: string, code: string): ImportFact[] => {
 };
 
 const lastName = (base: string): string => base.trim().split('.').at(-1) ?? '';
+const withoutTypeArguments = (header: string): string => {
+  let depth = 0;
+  let result = '';
+  for (const character of header) {
+    if (character === '<') {
+      depth++;
+    } else if (character === '>') {
+      depth = Math.max(0, depth - 1);
+    } else if (depth === 0) {
+      result += character;
+    }
+  }
+  return result;
+};
 const bases = (code: string, symbol: SymbolFact, python: boolean): Reference[] => {
   if (!typeKinds.has(symbol.kind)) {
     return [];
   }
-  const header = (code.split('{')[0] ?? '').replace(/<[^<>]*>/gu, '');
+  const header = withoutTypeArguments(code.split('{')[0] ?? '');
   const clauses = python ? /\(([^)]*)\)/gu : /(?:\b(extends|implements)\s+|:\s*)([\w.,\s]+?)(?=\s+implements\b|$)/gu;
   const refs: Reference[] = [];
   for (const match of header.matchAll(clauses)) {

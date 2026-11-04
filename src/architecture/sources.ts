@@ -88,11 +88,11 @@ export const revision = async (folder: vscode.WorkspaceFolder, repo: GitReposito
   if (cached !== undefined) {
     return await withUnderstanding(folder.uri.fsPath, { ...cached, branch: head.branch });
   }
-  if (repo.diffBetweenWithStats === undefined || repo.show === undefined || repo.getObjectDetails === undefined) {
+  if (repo.diffBetweenWithStats2 === undefined || repo.show === undefined || repo.getObjectDetails === undefined) {
     throw new Error('This Git provider cannot read branch trees.');
   }
   const emptyTree = createHash(head.commit.length === 64 ? 'sha256' : 'sha1').update('tree 0\0').digest('hex');
-  const changes = await repo.diffBetweenWithStats(emptyTree, head.commit);
+  const changes = await repo.diffBetweenWithStats2(`${emptyTree}..${head.commit}`);
   const paths = changes.map((change) => relativePath(folder.uri, change.uri)).filter(eligible);
   const facts = await readFacts(bounded(paths), revisionReader(repo, head.commit, folder.uri), live);
   const snapshot = snapshotOf(facts, head, paths.length);
