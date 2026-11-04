@@ -47,6 +47,16 @@ Each protected branch has two rulesets. The **gate** has no bypass at all, not e
 
 - `v*` tags can only be created by the admin role, and nobody can move or delete them.
 
+### Signed commits
+
+Both gates require **every commit in a pull request** to carry a signature GitHub can verify, not just the commit that lands. GitHub checks each signature against a key on the committer's own account, so each contributor uses their own key; nobody is ever given one. Setup is a few minutes, once: [CONTRIBUTING.md → Signing your commits](../CONTRIBUTING.md#signing-your-commits). Commits made on github.com are signed by GitHub automatically.
+
+Commits from tools that can't sign (for example, cloud coding agents) block the pull request until someone re-signs them locally (`git rebase --exec "git commit --amend --no-edit -S" origin/dev`, then `git push --force-with-lease`).
+
+### Merging your own pull request as the sole maintainer
+
+GitHub never lets authors approve their own pull requests. When every check is green and the conversations are resolved, the admin sees **Merge without waiting for requirements to be met (bypass rules)** in the merge box. Ticking it skips only the *maintainer approval* ruleset; the gate still applies. Every bypass is recorded under Settings → Rules → Insights. Once there's a second maintainer, approve each other's pull requests instead.
+
 ### Adding maintainers
 
 Give the person the **Maintain** role (Settings → Collaborators), and add them to `.github/CODEOWNERS` so their approval counts as a code-owner review. Don't add them to a ruleset bypass list.
@@ -93,7 +103,17 @@ Labels are grouped by prefix. Issue forms apply the type label and `triage`, and
 
 These have no API, so check them by hand after changes:
 
-- Wiki → "Restrict editing to users in teams with push access" (Settings → General → Features).
-- Discussion categories (Discussions → Categories).
-- Project views and built-in workflows (auto-add from this repository, close → Done).
-- Social preview image (Settings → General); `media/banner.png` is the source.
+- Wiki: "Restrict editing to collaborators only" is on (Settings → General → Features).
+- Discussion categories: GitHub's defaults (Announcements, General, Ideas, Polls, Q&A, Show and tell). The `q-a` and `ideas` forms match their slugs, so renaming those categories breaks the forms.
+- Social preview: a 1280×640 copy of `media/banner.png` on the banner's background color (Settings → General). GitHub's limit is 1 MB, and the banner itself is larger.
+- Project built-in workflows ([MALT roadmap → Workflows](https://github.com/users/Division4Studios/projects/12/workflows)). Changing the Status options breaks any workflow that sets one, so re-check these after editing the field:
+
+  | Workflow | Sets Status to |
+  |---|---|
+  | Auto-add to project (`is:issue is:open` in this repository) | — |
+  | Item added to project | Triage |
+  | Item reopened | Backlog |
+  | Pull request linked to issue | In progress |
+  | Pull request merged | Done |
+  | Item closed | Done |
+  | Auto-close issue (Status set to Done) | — |

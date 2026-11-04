@@ -12,6 +12,7 @@ Closes #
 
 - [ ] `npm run verify` passes locally
 - [ ] This pull request targets `dev`
+- [ ] Every commit is signed ([how](https://github.com/Division4Studios/multi-agent-local-team/blob/dev/CONTRIBUTING.md#signing-your-commits))
 
 ## AI assistance
 

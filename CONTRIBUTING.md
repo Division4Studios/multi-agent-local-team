@@ -67,10 +67,47 @@ Rules that are enforced and will not be waived in review:
 
 - **Branch from `dev` and open your pull request against `dev`.** A pull request into `main` from any other branch fails the *Source branch is dev* check and can't merge.
 - Both branches are protected by repository rulesets. Nobody can push to them directly, force-push or delete them. Every change needs a pull request with an approving code-owner review, all review conversations resolved, and every CI check passing: the build, tests on Linux, macOS and Windows, CodeQL with no new alerts, and dependency review. New commits dismiss earlier approvals.
-- Commits that land on `dev` and `main` must be signed. GitHub signs the squash and merge commits it makes, so your own commits don't need to be signed, though it's encouraged.
+- **Every commit in your pull request must be signed** with a key on your own GitHub account. It takes a few minutes, once. See [Signing your commits](#signing-your-commits).
 - Release tags (`v*`) can only be created by maintainers, and can't be moved or deleted.
 
 [docs/repository-settings.md](docs/repository-settings.md) lists every repository setting and the reason for it.
+
+### Signing your commits
+
+A signature proves a commit really came from your GitHub account, and wasn't made by someone who only borrowed your name and email. MALT reviews code before people trust it, so its own history has to be trustworthy too. You use **your own key** and add it to **your own account**. Nobody shares keys, and maintainers never hand them out.
+
+**One-time setup with an SSH key** (works with Git 2.34+ on Windows, macOS and Linux):
+
+1. Create a signing key. Choose a passphrase if you like; you'll then need `ssh-agent` running when you commit.
+
+   ```sh
+   ssh-keygen -t ed25519 -C "git signing" -f ~/.ssh/id_ed25519_git_signing
+   ```
+
+2. Tell Git to sign every commit and tag with it:
+
+   ```sh
+   git config --global gpg.format ssh
+   git config --global user.signingkey ~/.ssh/id_ed25519_git_signing.pub
+   git config --global commit.gpgsign true
+   git config --global tag.gpgsign true
+   ```
+
+3. On GitHub, open **Settings → SSH and GPG keys → New SSH key**, set **Key type** to **Signing Key**, and paste the contents of `~/.ssh/id_ed25519_git_signing.pub` (the `.pub` file, never the private key). With the GitHub CLI you can do the same with `gh ssh-key add ~/.ssh/id_ed25519_git_signing.pub --type signing` (run `gh auth refresh -s admin:ssh_signing_key` first).
+4. Make sure the email in `git config user.email` is a verified email on your GitHub account, or your `ID+username@users.noreply.github.com` address. GitHub only verifies a signature when the commit's email belongs to the key's account.
+
+To check it worked, run `git log --show-signature -1` after your next commit. After you push, GitHub shows a **Verified** badge on the commit. You can use a GPG key or an S/MIME certificate instead; see [GitHub's guide](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+
+**Already pushed unsigned commits?** Sign them all again and update your branch:
+
+```sh
+git rebase --exec "git commit --amend --no-edit -S" origin/dev
+git push --force-with-lease
+```
+
+**Commits made on github.com** (editing a file in the browser, or accepting a suggested change) are signed by GitHub automatically, so small fixes need no setup at all.
+
+Commits made by tools that can't sign, such as some cloud coding agents, have to be signed again locally the same way before the pull request can merge.
 
 ## Pull request guidelines
 
@@ -129,7 +166,7 @@ docs: clarify dependency policy
 chore: update the TypeScript compiler alias
 ```
 
-Your pull request title becomes the squash commit message on `dev`, so write it in the same form. Signed commits are encouraged ([GitHub docs](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)).
+Your pull request title becomes the squash commit message on `dev`, so write it in the same form. Commits must be signed; see [Signing your commits](#signing-your-commits).
 
 ## Reporting security issues
 
