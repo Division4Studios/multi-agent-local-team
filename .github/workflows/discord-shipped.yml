@@ -1,0 +1,106 @@
+name: Discord shipped feed
+
+# Posts merged pull requests (and first-time contributors) and published releases to the community
+# Discord's #shipped channel.
+#
+# Security, because a pull request title is written by whoever opened the pull request:
+# - The webhook URL is a secret in the `discord` environment, which only `dev`, `main` and `v*` tags may use.
+#   Forks and Dependabot never see it.
+# - pull_request_target runs this file from the default branch, never the pull request's copy, and only after
+#   a merge into dev, so the pull request was reviewed. Nothing from the pull request is checked out or run.
+# - The token has no permissions. Event fields reach the script as data (context.payload), never interpolated.
+# - Untrusted text is neutralized: control and invisible characters stripped, credential shapes redacted (the
+#   patterns of src/reviewer/redact.ts), backticks replaced, length capped, and the title shown as inline code,
+#   so it can't format, link or ping. allowed_mentions is empty, so no @everyone, role or user ping is possible,
+#   and link previews are suppressed.
+# - No concurrency group: GitHub replaces a pending run in a group, which would drop a notification.
+# - This file is ASCII only. YAML treats some Unicode characters (U+2028, U+2029) as line breaks, so every
+#   non-ASCII character in the script is written as a JavaScript escape.
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [dev]
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  post:
+    if: github.event_name == 'release' || (github.event.pull_request.merged == true && github.event.pull_request.user.type != 'Bot')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: discord
+    steps:
+      - name: Post to #shipped
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_SHIPPED_WEBHOOK }}
+        with:
+          script: |
+            const url = process.env.DISCORD_WEBHOOK_URL ?? '';
+            if (!/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+$/.test(url)) {
+              core.notice('DISCORD_SHIPPED_WEBHOOK is not set to a Discord webhook URL; nothing posted.');
+              return;
+            }
+            const MASK = '[REDACTED]';
+            // Credential formats that stand alone, as in src/reviewer/redact.ts, plus Discord bot tokens.
+            const TOKENS = [
+              /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/gu,
+              /\bsk-ant-[A-Za-z0-9_-]{20,}/gu,
+              /\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,}/gu,
+              /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/gu,
+              /\bgh[pousr]_[A-Za-z0-9]{30,}\b/gu,
+              /\bgithub_pat_[A-Za-z0-9_]{40,}\b/gu,
+              /\bxox[abposr]-[A-Za-z0-9-]{10,}/gu,
+              /\bAIza[0-9A-Za-z_-]{35}\b/gu,
+              /\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{16,}\b/gu,
+              /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/gu,
+              /\bnpm_[A-Za-z0-9]{36}\b/gu,
+              /\b[MNO][A-Za-z0-9_-]{23,25}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,}/gu,
+            ];
+            // Keyed secrets: keep the key, mask the value.
+            const SECRET_NAME = String.raw`(?:[A-Za-z0-9_]*[_-])?(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|credentials?)[A-Za-z0-9_]*`;
+            const KEYED = [
+              [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/-]{16,}=*/giu, `$1 ${MASK}`],
+              [/\b([a-z][a-z0-9+.-]*:\/\/[^\s:/@]+):[^\s@/]+@/giu, `$1:${MASK}@`],
+              [new RegExp(String.raw`\b(${SECRET_NAME}["']?\s*[:=]\s*)(["'])[^"']{6,}\2`, 'giu'), `$1$2${MASK}$2`],
+              [new RegExp(String.raw`\b(${SECRET_NAME}\s*=\s*)[^\s#"']{6,}`, 'giu'), `$1${MASK}`],
+            ];
+            const redact = (text) => KEYED.reduce(
+              (result, [pattern, replacement]) => result.replace(pattern, replacement),
+              TOKENS.reduce((result, pattern) => result.replace(pattern, MASK), text),
+            );
+            // Strip invisible characters first so a secret can't hide behind them, redact before capping so a secret
+            // is never cut into a fragment the patterns miss, then cap.
+            const clean = (value, max) => redact(String(value ?? '')
+              .normalize('NFKC')
+              .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, ' ')
+              .replace(/`/g, "'")
+              .replace(/\s+/g, ' ')
+              .trim())
+              .slice(0, 4000)
+              .slice(0, max);
+            const login = (value) => (/^[A-Za-z0-9-]{1,39}$/.test(String(value)) ? String(value) : 'someone');
+            const repo = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+            let content;
+            if (context.eventName === 'release') {
+              const release = context.payload.release;
+              const tag = clean(release.tag_name, 60);
+              const name = clean(release.name || release.tag_name, 120);
+              content = `\u{1F4E6} **Released** \`${name}\` \u00b7 ${repo}/releases/tag/${encodeURIComponent(tag)}`;
+            } else {
+              const pr = context.payload.pull_request;
+              const number = Number.parseInt(String(pr.number), 10);
+              const first = pr.author_association === 'FIRST_TIME_CONTRIBUTOR' || pr.author_association === 'FIRST_TIMER';
+              const lead = first ? `\u{1F331} **First contribution!** Welcome, ${login(pr.user.login)}.` : '\u{1F389} **Merged**';
+              content = `${lead} #${number} \`${clean(pr.title, 150)}\` by ${login(pr.user.login)} \u00b7 ${repo}/pull/${number}`;
+            }
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ content, allowed_mentions: { parse: [] }, flags: 4 }),
+            });
+            if (!response.ok) {
+              core.setFailed(`Discord returned HTTP ${response.status}.`);
+            }

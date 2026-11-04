@@ -9,6 +9,6 @@ contact_links:
   - name: 💬 Ask a question
     url: https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/q-a
     about: Setup, configuration and "how do I" questions belong in Discussions.
-  - name: 💡 Discuss an idea
-    url: https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/ideas
-    about: Talk an idea through before opening a feature request.
+  - name: 💬 Chat with the community
+    url: https://discord.gg/DwSpsGjvFY
+    about: Ideas, quick help, development chat and office hours happen on the MALT Discord.
