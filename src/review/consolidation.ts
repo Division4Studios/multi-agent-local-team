@@ -3,7 +3,7 @@
  * compared with each other and with the architecture map. Runs on demand, or after new files stop appearing.
  */
 import * as vscode from 'vscode';
-import type { ConsolidationFinding, ConsolidationRequest, ReviewRequest } from '../shared/protocol';
+import type { Finding, ConsolidationRequest, ReviewRequest } from '../shared/protocol';
 import type { HunkStore } from './hunkStore';
 import { requestFor } from './reviewQueue';
 
@@ -13,13 +13,13 @@ const AUTO_DELAY_MS = 30_000;
 
 export interface ConsolidationState {
   readonly status: 'idle' | 'running' | 'done' | 'error';
-  readonly findings: readonly ConsolidationFinding[];
+  readonly findings: readonly Finding[];
   readonly checkedAt?: Date;
   readonly error?: string;
 }
 
 export interface ConsolidationClient {
-  consolidation: (request: ConsolidationRequest) => Promise<readonly ConsolidationFinding[]>;
+  consolidation: (request: ConsolidationRequest) => Promise<readonly Finding[]>;
 }
 
 export class ConsolidationCheck implements vscode.Disposable {

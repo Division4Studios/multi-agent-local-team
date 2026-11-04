@@ -83,8 +83,14 @@ export interface ConsolidationRequest {
   readonly blocks: readonly ReviewRequest[];
 }
 
-/** New code in the change that overlaps with other new code or with an existing module. */
-export interface ConsolidationFinding {
+/** Rules the scan inferred from the code (not from a document) carry this source prefix, set by MALT. */
+export const INFERRED_SOURCE_PREFIX = 'Inferred from code: ';
+
+/**
+ * Something a person should look at, with the files involved: new code that overlaps with other code
+ * (consolidation), or a gap in the project's standards (scan).
+ */
+export interface Finding {
   readonly title: string;
   readonly files: readonly string[];
   readonly note: string;
@@ -94,7 +100,20 @@ export interface ConsolidationFinding {
 export interface StandardsDocument {
   readonly version: 1;
   readonly generatedAt: string;
+  /** Rules from the project's documents, then rules inferred from the code. */
   readonly rules: readonly Rule[];
+  /** Missing or contradictory standards the scan could not turn into rules; for a person to decide. */
+  readonly gaps: readonly Finding[];
+}
+
+/** Answer to POST /standards/scan: documented and inferred rules, gaps, and the architecture map. */
+export interface StandardsScan {
+  readonly rules: readonly Rule[];
+  readonly gaps: readonly Finding[];
+  readonly sources: readonly string[];
+  readonly modules: readonly ArchitectureModule[];
+  /** Parts of the scan that failed (mapping, gap analysis) while the rest succeeded. */
+  readonly warnings: readonly string[];
 }
 
 export interface HealthResponse {
@@ -102,6 +121,7 @@ export interface HealthResponse {
   readonly protocolVersion: number;
   readonly provider: string;
   readonly rulesLoaded: number;
+  readonly gapsFound: number;
   readonly modulesLoaded: number;
   /** When the architecture map was generated; empty if there is none. */
   readonly architectureScannedAt: string;
@@ -133,7 +153,7 @@ export const parseArchitectureModule = (value: unknown): ArchitectureModule | un
 
 export const parseModules = (value: unknown): ArchitectureModule[] | undefined => parseArray(value, parseArchitectureModule);
 
-export const parseConsolidationFinding = (value: unknown): ConsolidationFinding | undefined => {
+export const parseFinding = (value: unknown): Finding | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -211,18 +231,35 @@ export const parseStandardsDocument = (value: unknown): StandardsDocument | unde
     return undefined;
   }
   const rules = parseRules(value['rules']);
-  return rules === undefined ? undefined : { version: 1, generatedAt: value['generatedAt'], rules };
+  // Files written before gap analysis existed have no gaps.
+  const gaps = value['gaps'] === undefined ? [] : parseArray(value['gaps'], parseFinding);
+  return rules === undefined || gaps === undefined ? undefined : { version: 1, generatedAt: value['generatedAt'], rules, gaps };
+};
+
+export const parseStandardsScan = (value: unknown): StandardsScan | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const rules = parseRules(value['rules']);
+  const gaps = parseArray(value['gaps'], parseFinding);
+  const sources = parseArray(value['sources'], parseString);
+  const modules = parseModules(value['modules']);
+  const warnings = parseArray(value['warnings'], parseString);
+  if (rules === undefined || gaps === undefined || sources === undefined || modules === undefined || warnings === undefined) {
+    return undefined;
+  }
+  return { rules, gaps, sources, modules, warnings };
 };
 
 export const parseHealthResponse = (value: unknown): HealthResponse | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
-  const { ok, protocolVersion, provider, rulesLoaded, modulesLoaded, architectureScannedAt } = value;
+  const { ok, protocolVersion, provider, rulesLoaded, gapsFound, modulesLoaded, architectureScannedAt } = value;
   if (typeof ok !== 'boolean' || !isNonNegativeInteger(protocolVersion) || !isString(provider) || !isString(architectureScannedAt)) {
     return undefined;
   }
-  return isNonNegativeInteger(rulesLoaded) && isNonNegativeInteger(modulesLoaded)
-    ? { ok, protocolVersion, provider, rulesLoaded, modulesLoaded, architectureScannedAt }
+  return isNonNegativeInteger(rulesLoaded) && isNonNegativeInteger(gapsFound) && isNonNegativeInteger(modulesLoaded)
+    ? { ok, protocolVersion, provider, rulesLoaded, gapsFound, modulesLoaded, architectureScannedAt }
     : undefined;
 };

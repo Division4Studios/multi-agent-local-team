@@ -9,7 +9,7 @@
  * verify itself.
  */
 import { randomBytes } from 'node:crypto';
-import type { ArchitectureModule, BlockOverview, ConsolidationFinding, Rule, RuleCheck } from '../shared/protocol';
+import type { ArchitectureModule, BlockOverview, Finding, Rule, RuleCheck } from '../shared/protocol';
 
 const RULE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const MAX_PROJECT_RULES = 60;
@@ -109,8 +109,11 @@ export const sanitizeModules = (modules: readonly ArchitectureModule[], scanned:
   return result;
 };
 
-/** Findings may only name files MALT showed the model; text is sanitized and the count capped. */
-export const enforceConsolidationPolicy = (findings: readonly ConsolidationFinding[], known: ReadonlySet<string>): ConsolidationFinding[] =>
+/**
+ * Findings may only name files MALT showed the model; text is sanitized and the count capped. A finding left with
+ * no known file is dropped unless `allowNoFiles` (a gap such as "no architecture docs" names no file).
+ */
+export const enforceFindingPolicy = (findings: readonly Finding[], known: ReadonlySet<string>, allowNoFiles = false): Finding[] =>
   findings
     .map((finding) => ({
       title: sanitizeText(finding.title, FIELD_LIMITS.title),
@@ -118,5 +121,5 @@ export const enforceConsolidationPolicy = (findings: readonly ConsolidationFindi
       note: sanitizeText(finding.note, NOTE_LIMIT),
       detail: sanitizeDetail(finding.detail),
     }))
-    .filter((finding) => finding.files.length > 0)
+    .filter((finding) => allowNoFiles || finding.files.length > 0)
     .slice(0, MAX_FINDINGS);

@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { posix } from 'node:path';
 import type { HunkStore, TrackedHunk } from '../review/hunkStore';
 import type { ConsolidationCheck, ConsolidationState } from '../review/consolidation';
-import type { ConsolidationFinding } from '../shared/protocol';
+import type { Finding } from '../shared/protocol';
 import { ruleRows } from '../review/reviewProgress';
 import type { RuleRow, RuleRun } from '../review/reviewProgress';
 import { buildReviewMarkdown } from '../editor/reviewMarkdown';
@@ -15,7 +15,7 @@ import { COLOR_IDS, ICONS, RUN_LABELS, statusLabel, visualFor } from '../editor/
 
 type Node =
   | { readonly kind: 'consolidation' }
-  | { readonly kind: 'finding'; readonly finding: ConsolidationFinding; readonly index: number }
+  | { readonly kind: 'finding'; readonly finding: Finding; readonly index: number }
   | { readonly kind: 'file'; readonly hunks: readonly TrackedHunk[] }
   | { readonly kind: 'hunk'; readonly tracked: TrackedHunk }
   | { readonly kind: 'group'; readonly tracked: TrackedHunk; readonly name: string; readonly rows: readonly RuleRow[] }
@@ -211,7 +211,7 @@ const consolidationItem = (state: ConsolidationState): vscode.TreeItem => {
   return item;
 };
 
-const findingItem = (finding: ConsolidationFinding, index: number): vscode.TreeItem => {
+const findingItem = (finding: Finding, index: number): vscode.TreeItem => {
   const item = new vscode.TreeItem(finding.title);
   item.id = JSON.stringify(['finding', index, finding.title]);
   item.description = finding.files.join(', ');

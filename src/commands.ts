@@ -4,7 +4,7 @@ import type { ReviewerManager } from './backend/reviewerManager';
 import type { Credentials } from './backend/credentials';
 import type { HunkStore, TrackedHunk } from './review/hunkStore';
 import type { ReviewQueue } from './review/reviewQueue';
-import { scanStandards } from './standards/scanStandards';
+import { scanStandards, showSavedGaps } from './standards/scanStandards';
 import { showFinding, showRuleCheck } from './views/detailPanel';
 import type { ConsolidationCheck } from './review/consolidation';
 import { isNonNegativeInteger, isRecord, isString } from './shared/guards';
@@ -136,6 +136,12 @@ export const registerCommands = (deps: CommandDeps): vscode.Disposable =>
         return;
       }
       await deps.consolidation.run();
+    }),
+    vscode.commands.registerCommand('malt.showStandardsGaps', async () => {
+      const folder = workspaceFolder();
+      if (folder !== undefined) {
+        await showSavedGaps(folder);
+      }
     }),
     vscode.commands.registerCommand('malt.showFinding', (index: unknown) => {
       showFinding(deps.consolidation.state.findings, index);

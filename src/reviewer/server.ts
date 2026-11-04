@@ -1,7 +1,7 @@
 /**
  * HTTP API of the reviewer service. Every request needs the bearer token the extension generated at start-up.
  * Routes: GET /health, POST /review (block overview), POST /check (one rule), POST /consolidation (whole change),
- * POST /standards/scan, POST /architecture/scan.
+ * POST /standards/scan (documents, code map and gaps).
  */
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
@@ -54,12 +54,13 @@ const sendJson = (response: ServerResponse, status: number, body: unknown): void
 };
 
 const health = async (service: ReviewService): Promise<unknown> => {
-  const [rules, architecture] = await Promise.all([service.rules(), service.architecture()]);
+  const [rules, gapsFound, architecture] = await Promise.all([service.rules(), service.gapCount(), service.architecture()]);
   return {
     ok: true,
     protocolVersion: PROTOCOL_VERSION,
     provider: service.providerName,
     rulesLoaded: rules.length,
+    gapsFound,
     modulesLoaded: architecture.modules.length,
     architectureScannedAt: architecture.generatedAt,
   };
@@ -99,9 +100,6 @@ const route = async (service: ReviewService, request: IncomingMessage): Promise<
     case 'POST /standards/scan':
       log('standards scan started');
       return await service.scanStandards();
-    case 'POST /architecture/scan':
-      log('architecture scan started');
-      return { modules: await service.scanArchitecture() };
     default:
       throw new HttpError(404, 'Not found');
   }
