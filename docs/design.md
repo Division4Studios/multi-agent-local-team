@@ -21,14 +21,14 @@ Review states in the editor use contributed theme colors, so light and high-cont
 
 ## Assets
 
-Every asset is hand-authored as SVG or HTML/CSS and is reviewable as text. No image generator is involved, so there's no garbled text and nothing to re-prompt.
+The mark is MALT's original extension icon, kept exactly: its artwork was generated once with an image-generation tool, and is now recolored pixel by pixel (amber facets, teal stem, transparent background) rather than redrawn. Everything else is hand-authored as SVG or HTML/CSS and is reviewable as text, so text in the artwork is real, never garbled. Don't regenerate the mark; recolor or rescale `design/brand/mark.png`.
 
 | File | Use | Ships in the VSIX |
 |---|---|---|
-| `media/malt.svg` | Activity-bar icon: the mark in `currentColor`, so it follows the theme | Yes |
+| `media/malt.svg` | Activity-bar icon: the mark's silhouette as an embedded 96 px image, which VS Code uses as a mask, so it takes the theme's color | Yes |
 | `media/icon.png` | 256 px Marketplace and VSIX icon, rendered from `design/icon.html` | Yes |
-| `design/brand/mark.svg` | The full-color mark (`mark.png`: 480 px export) | No |
-| `design/brand/lockup-dark.svg`, `lockup-light.svg` | Mark and drawn wordmark for dark or light backgrounds (PNG exports beside them) | No |
+| `design/brand/mark.png` | The master mark: 1024 px, transparent, recolored from the original icon artwork | No |
+| `design/brand/lockup-dark.svg`, `lockup-light.svg` | The mark (embedded at 480 px) and a drawn wordmark, for dark or light backgrounds (PNG exports beside them) | No |
 | `design/hero.html` → `hero.png` | README and wiki header: the editor mock-up with MALT's real labels and hover layout | No |
 | `design/pipeline.html` → `pipeline.png` | How a change is reviewed (README, architecture guide, wiki) | No |
 | `design/trust.html` → `trust.png` | The prompt-injection trust boundary (`SECURITY.md`, wiki) | No |

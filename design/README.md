@@ -4,13 +4,23 @@ Sources and exports for MALT's artwork. The palette, the rules and the asset lis
 
 | Source | Export | Size |
 |---|---|---|
-| `brand/mark.svg` | `brand/mark.png` | 480×480 |
 | `brand/lockup-dark.svg`, `brand/lockup-light.svg` | `brand/lockup-dark.png`, `brand/lockup-light.png` | 780×240 |
 | `hero.html` | `hero.png` | 1600×900 |
 | `pipeline.html` | `pipeline.png` | 1600×820 |
 | `trust.html` | `trust.png` | 1600×820 |
 | `icon.html` | `../media/icon.png` | 256×256, transparent corners |
 | `hero.png` | `social-preview.png` | 1280×640: scale to 1280×720, keep the middle 640 rows |
+
+## The mark
+
+`brand/mark.png` is the original extension icon's artwork, recolored and kept at its exact shape. It was made from the first `media/icon.png` (in git history before the visual-identity change) by mapping each pixel:
+
+- coverage from how far the pixel is from the charcoal background (`(R − B + 11) / 200`), which becomes the alpha, so the anti-aliased edges stay smooth;
+- the gold's facet shading (its green channel, 125–191) onto amber `#D9982F` → `#F2C66A`;
+- the stem (columns 615–641 from row 448 down, separated from the grains by dark gaps) onto teal `#2BB8A6`;
+- then a square crop around the artwork, scaled to 1024 px.
+
+The lockups embed it at 480 px, and `../media/malt.svg` embeds it at 96 px for VS Code to use as a mask. Regenerate those embeds whenever `mark.png` changes.
 
 ## Rendering
 
