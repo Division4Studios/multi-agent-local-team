@@ -157,8 +157,20 @@ const withoutConfirmation = (module: ArchitectureModule): ArchitectureModule => 
   };
 };
 
+/** How many workspace files map validation opens at once, so a large map can't exhaust file descriptors. */
+const FILE_CHECK_CONCURRENCY = 16;
+
+/** Maps in order with at most FILE_CHECK_CONCURRENCY calls in flight. */
+const mapBounded = async <T, R>(items: readonly T[], map: (item: T) => Promise<R>): Promise<R[]> => {
+  const results: R[] = [];
+  for (let start = 0; start < items.length; start += FILE_CHECK_CONCURRENCY) {
+    results.push(...(await Promise.all(items.slice(start, start + FILE_CHECK_CONCURRENCY).map(map))));
+  }
+  return results;
+};
+
 const realFiles = async (realRoot: string, modules: readonly ArchitectureModule[]): Promise<ArchitectureModule[]> => {
-  const kept = await Promise.all(modules.map(async (module) => ((await isWorkspaceFile(realRoot, module.path)) ? module : undefined)));
+  const kept = await mapBounded(modules, async (module) => ((await isWorkspaceFile(realRoot, module.path)) ? module : undefined));
   return kept.filter((module): module is ArchitectureModule => module !== undefined);
 };
 
@@ -177,13 +189,13 @@ const fileFingerprint = async (realRoot: string, path: string): Promise<string |
  * the file still has the content it was confirmed for; otherwise only the agent interpretation is kept.
  */
 const currentModules = async (realRoot: string, modules: readonly ArchitectureModule[]): Promise<ArchitectureModule[]> =>
-  await Promise.all((await realFiles(realRoot, modules)).map(async (module) => {
+  await mapBounded(await realFiles(realRoot, modules), async (module) => {
     if (module.understanding?.confirmed === undefined) {
       return module;
     }
     const fingerprint = await fileFingerprint(realRoot, module.path);
     return fingerprint !== undefined && fingerprint === module.fingerprint ? module : withoutConfirmation(module);
-  }));
+  });
 
 /** The signed branch map, only if its signature verifies against the developer's public key. */
 const verifiedCurrentMap = async (root: string, verifier: string | undefined): Promise<ArchitectureDocument | undefined> => {

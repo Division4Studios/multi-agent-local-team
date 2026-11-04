@@ -174,6 +174,22 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
+    name: 'understanding: a large signed branch map keeps every real file (validation opens files a few at a time)',
+    run: async (): Promise<void> => {
+      const root = await mkdtemp(join(tmpdir(), 'malt-large-map-'));
+      try {
+        await mkdir(join(root, 'src'));
+        const paths = [...Array(300).keys()].map((index) => `src/m${String(index)}.ts`);
+        await Promise.all(paths.map(async (path) => { await writeFile(join(root, path), `export const m = '${path}';\n`); }));
+        const map = { version: 1, generatedAt: '', modules: paths.map((path) => ({ path, purpose: 'p', exports: [] })) };
+        await saveMapFile(root, 'reviewer.json', signed(map), () => true);
+        assert.equal((await loadArchitecture(root, verifier)).modules.length, 300);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  },
+  {
     name: 'understanding: a scan record never claims developer confirmation; the signing key is created once',
     run: async (): Promise<void> => {
       const root = await mkdtemp(join(tmpdir(), 'malt-scan-'));
