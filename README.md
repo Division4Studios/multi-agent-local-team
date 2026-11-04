@@ -79,7 +79,7 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 | | |
 |---|---|
 | 🏠 **Local first** | The reviewer runs on your machine. Claude requests send selected code and context to the configured model service. |
-| 🛡️ **Safe by default** | Zero runtime dependencies. Every build step runs under Node's permission sandbox. |
+| 🛡️ **Safe by default** | Zero runtime dependencies. Native builds use an isolated container; linting retains Node permission restrictions. |
 | 🔍 **Verifiable** | Nothing is "trust me". Every claim about a change should be checkable. |
 | ⚡ **Faster merges, not more PRs** | The goal is reviewer time saved, not AI output multiplied. |
 | 🧑‍⚖️ **Humans stay accountable** | MALT assists the people who own the code; it never replaces their judgment. |
@@ -88,7 +88,7 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 
 > MALT is not published to the VS Code Marketplace yet. To try the development build:
 
-**Prerequisites:** [Node.js 24+](https://nodejs.org/) and [VS Code 1.144+](https://code.visualstudio.com/).
+**Prerequisites:** [Node.js 24+](https://nodejs.org/), [VS Code 1.144+](https://code.visualstudio.com/), and Docker with a running Linux engine. See the [TypeScript 7 toolchain guide](docs/toolchain.md).
 
 ```sh
 git clone https://github.com/Division4Studios/multi-agent-local-team.git
@@ -122,13 +122,14 @@ Then open the folder in VS Code and press <kbd>F5</kbd>. A new **Extension Devel
 
 | Command | What it does |
 |---|---|
-| `npm run compile` | Compile TypeScript to `out/` (sandboxed: may only write to `out/`) |
+| `npm run compile` | Compile with TypeScript 7 in Docker; host writes restricted to `out/` |
 | `npm run watch` | Recompile on change (used by <kbd>F5</kbd>) |
-| `npm run check-types` | Strict type-check of the extension and repo scripts |
+| `npm run check-types` | TypeScript 7 checks the extension and repo scripts in Docker |
 | `npm run lint` | ESLint, strictest type-aware rules, **zero warnings allowed** |
 | `npm run check-deps` | Enforce the dependency allowlist and exact pinning |
 | `npm run audit` | Fail on low and higher advisories, including development tools; verify registry signatures |
-| `npm run test:toolchain` | Verify security exception policy and ESLint/VSCE file selection |
+| `npm run test:toolchain` | Verify dependency policy, compiler aliases and ESLint/VSCE file selection |
+| `npm run test:compiler-sandbox` | Actively verify the native compiler container restrictions |
 | `npm test` | Compile, then run the tests inside a real VS Code instance |
 | `npm run verify` | Everything CI runs: deps → types → lint → tests |
 | `npm run vsix` | Package the extension as a `.vsix` |
@@ -140,7 +141,7 @@ A tool that keeps slop out of other repos has to keep it out of its own first. T
 - **Strictest TypeScript.** `strict` plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `erasableSyntaxOnly` and more — see [`tsconfig.base.json`](tsconfig.base.json).
 - **Strictest lint, no escape hatches.** `typescript-eslint`'s `strictTypeChecked` + `stylisticTypeChecked`, extra correctness and security rules, every rule an **error**, and inline `eslint-disable` comments are **ignored**. Changing a rule means changing [`eslint.config.mjs`](eslint.config.mjs) in a reviewed PR.
 - **No type assertions, no `any`, no `!`, no `@ts-ignore`.** If the types don't prove it, the code doesn't ship.
-- **Sandboxed tooling.** Type-checking, linting and dependency checks run under `node --permission` with **read-only** filesystem access and **no ability to spawn processes**. The compiler may write only to `out/`.
+- **Isolated native builds.** TypeScript 7 runs in Docker without external network access, with read-only inputs and host writes restricted to `out/`. ESLint uses Microsoft's TypeScript 6 compatibility API and retains Node permission restrictions. Those restrictions are safeguards, not a boundary against malicious code. See the [toolchain guide](docs/toolchain.md).
 - **Tiny, frozen toolchain.** A fixed allowlist of dev tools, exact versions, a committed lockfile, install scripts disabled, and CI that fails if anything else appears. See [Supply-chain policy](SECURITY.md#supply-chain-policy).
 - **AI-assisted contributions welcome — with disclosure and ownership.** See [CONTRIBUTING.md](CONTRIBUTING.md#ai-assisted-contributions).
 

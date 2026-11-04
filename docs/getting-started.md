@@ -4,7 +4,7 @@ MALT reviews saved changes in a local Git repository inside VS Code. It does not
 
 ## Install and launch
 
-1. Install Node.js 24 or newer and VS Code 1.144 or newer.
+1. Install Node.js 24 or newer, VS Code 1.144 or newer, and Docker with a running Linux engine. TypeScript 7 compilation requires Docker; see the [toolchain guide](toolchain.md).
 2. Clone this repository, run `npm ci`, and open its folder in VS Code.
 3. Press **F5** and choose **Run Extension**. The watch task compiles the extension and opens an Extension Development Host.
 4. In that new window, open a local Git repository. MALT currently reviews the **first workspace folder** only.

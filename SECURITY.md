@@ -56,7 +56,7 @@ MALT sends changed code to a reviewer service that calls an AI model. It's desig
 - **No temporary files with secrets or prompts.** Each model call runs in a fresh private directory that is deleted afterwards (`mkdtemp`, mode 0700).
 - **Untrusted output stays inert.** Review text is escaped when rendered in hovers; the only command link enabled is MALT's own "Review again". The rule detail page HTML-escapes every value, has scripts disabled, and its content security policy allows only its own nonce-tagged stylesheet.
 - **Credentials** live in VS Code SecretStorage (your OS keychain) and are passed only to the reviewer.
-- Process execution is limited by lint policy to exactly two files: the host backend and the Claude Code provider.
+- Extension process execution is limited by lint policy to the host backend and Claude Code provider. The development-only `scripts/compiler.mts` launcher has a separate exception to invoke Docker without shell interpolation; it is not packaged with the extension.
 
 ## Supply-chain policy
 
@@ -69,12 +69,13 @@ MALT is designed to keep its attack surface as small as possible.
 
 **What runs on developer and CI machines**
 
-- A fixed allowlist of development tools, enforced by `npm run check-deps` in CI: `typescript`, `@types/node`, `@types/vscode`, `eslint`, `@eslint/js`, `typescript-eslint`, `@vscode/test-electron`, `@vscode/vsce`.
+- A fixed allowlist of development tools, enforced by `npm run check-deps` in CI: `@typescript/native` (an exact alias to TypeScript 7), `typescript` (an exact alias to Microsoft's TypeScript 6 compatibility package), `@types/node`, `@types/vscode`, `eslint`, `@eslint/js`, `typescript-eslint`, `@vscode/test-electron`, `@vscode/vsce`. No other alias targets are permitted.
 - Every version is pinned exactly, `package-lock.json` (with integrity hashes) is committed, and CI installs with `npm ci`.
 - Dependency overrides are forbidden except for the exact, parent-version-scoped minimatch security exceptions below. `npm run check-deps` rejects broader overrides or other replacement versions. `resolutions` remain forbidden. Published registry artifacts and integrity hashes are recorded in the lockfile; no dependency source is edited after installation.
 - Package install scripts are disabled (`ignore-scripts=true` in `.npmrc`).
 - Registry signatures and provenance are verified in CI (`npm audit signatures`).
-- Type-checking, linting and the dependency check run under the **Node.js permission model** (`node --permission`) with **read-only** filesystem access and **no child processes, workers or native addons**. The compiler may write only to `out/`. A compromised tool in those steps cannot modify the repository or launch other programs.
+- Native TypeScript 7 compilation, type-checking and watch mode run in a digest-pinned Docker Linux image, with networking disabled, read-only source mounts and root filesystem, a non-root user, all capabilities dropped, `no-new-privileges`, and CPU/memory/PID limits. Only compilation/watch receive a writable `out/` mount. A bounded temporary filesystem is writable inside the container. No host credentials, Docker socket, `.git/`, or `.malt/` are mounted. The launcher fails if Docker is unavailable; it never falls back to unrestricted native compilation. Image installation needs network access; compiler execution does not. See [the toolchain guide](docs/toolchain.md).
+- Linting and the dependency guard retain **Node.js permission restrictions** with read-only filesystem access and no child processes, workers or native addons. These are safeguards against accidental access, **not a security boundary against malicious code**, as explained in [Node's permission documentation](https://nodejs.org/api/permissions.html). Native child processes do not inherit these restrictions, which is why compilation uses a container. Container isolation still relies on a trusted, patched Docker engine and host kernel; the launcher, npm installation, tests, editor extensions, and packaging tools execute with host permissions.
 - GitHub Actions are limited to first-party `actions/*` and `github/*` actions, **pinned to full commit SHAs**, with least-privilege `permissions`.
 - Dependabot proposes updates; every update goes through the same CI gate and human review.
 

@@ -13,11 +13,11 @@ This repo must model the anti-slop bar it will enforce elsewhere. Keep diffs sma
 ```sh
 npm ci                 # install (install scripts are disabled by .npmrc)
 npm run verify         # check-deps → check-types → lint → test (what CI runs, minus audit)
-npm run compile        # tsc → out/
+npm run compile        # TypeScript 7 in Docker → out/
 npm run check-types    # extension (tsconfig.json) + scripts (scripts/tsconfig.json)
 npm run lint           # ESLint, --max-warnings 0
-npm run check-deps     # dependency allowlist / exact-pin / no-overrides guard
-npm run audit          # runtime advisories (any) + whole tree (high+) + registry signatures
+npm run check-deps     # dependency allowlist / exact-pin / reviewed-security-overrides guard
+npm run audit          # whole tree (low+) + registry signatures
 npm test               # compile, then run tests in a downloaded VS Code (.vscode-test/)
 npm run vsix           # package .vsix
 ```
@@ -26,12 +26,12 @@ There is no single-test filter. To run a subset, temporarily narrow the file lis
 
 ## Hard rules (user-mandated)
 
-- **Dependencies are frozen.** The only allowed devDependencies are `typescript`, `@types/node`, `@types/vscode`, `eslint`, `@eslint/js`, `typescript-eslint`, `@vscode/test-electron` and `@vscode/vsce`. **Zero runtime `dependencies`.** No mocha, esbuild, prettier or anything else. `scripts/check-deps.mts` enforces this. Never add a package without the user's explicit approval.
-- **Never use `overrides`/`resolutions`**, not even to fix an audit finding. The accepted minimatch advisory is documented in `SECURITY.md`.
+- **Dependencies are frozen.** The only allowed devDependencies are `@typescript/native` (exact alias to TypeScript 7), `typescript` (exact alias to Microsoft's TypeScript 6 compatibility package), `@types/node`, `@types/vscode`, `eslint`, `@eslint/js`, `typescript-eslint`, `@vscode/test-electron` and `@vscode/vsce`. **Zero runtime `dependencies`.** No mocha, esbuild, prettier or anything else. `scripts/check-deps.mts` enforces this. Never add a package without the user's explicit approval.
+- **No unreviewed overrides or resolutions.** The user approved only the exact parent-scoped minimatch overrides documented in `SECURITY.md`. Preserve that guard and the low-severity audit gate.
 - **Exact version pins only** (`.npmrc` has `save-exact`).
 - **Lint: every rule is an error, and `eslint-disable` comments don't work** (`noInlineConfig`). Fix the code; never weaken `eslint.config.mjs` unless the user asks. The config bans `as` assertions, `!`, `any`, `@ts-*` directives, constructor parameter properties (via `erasableSyntaxOnly`), `console` in `src/`, `child_process`/`vm`/`eval`, TODO comments, and imports of `minimatch`/`glob`. It also enforces explicit return types and complexity/size limits.
 - **The only naming exception** is the type property `HEAD` in `src/git/gitApi.ts`, which mirrors VS Code's Git API.
-- **Process execution is allowed in exactly two files:** `src/backend/hostBackend.ts` and `src/reviewer/providers/claudeCode.ts`. That exception is in `eslint.config.mjs`. The extension never runs git or docker itself; it uses the built-in Git extension API and the Docker Engine API over `node:http`.
+- **Extension process execution is allowed in exactly two files:** `src/backend/hostBackend.ts` and `src/reviewer/providers/claudeCode.ts`. The development-only `scripts/compiler.mts` also has a reviewed exception to launch Docker without shell interpolation. These exceptions are in `eslint.config.mjs`. The extension never runs git or docker itself; it uses the built-in Git extension API and the Docker Engine API over `node:http`.
 
 ## Feature architecture
 
@@ -53,7 +53,7 @@ Data flows: **git change → blocks → review queue → reviewer service → de
 
 ## Architecture and non-obvious setup
 
-- **Sandboxed tooling.** `compile`, `check-types`, `lint` and `check-deps` run under `node --permission --allow-fs-read="*"`: read-only, with no child processes or workers. `compile` additionally gets `--allow-fs-write=./out`, and creates `out/` first because the sandbox can't create it. New tooling scripts should follow the same pattern. `test`, `watch` and `vsix` are not sandboxed because they need to spawn VS Code or npm.
+- **Native compiler isolation.** `compile`, `check-types` and `watch` run TypeScript 7 in a Docker Linux container: no external network, read-only inputs/root, non-root UID, dropped capabilities, resource limits, and an `out/` write mount only when emitting. No host fallback. `lint` and `check-deps` retain Node permission restrictions; these are not a security boundary against malicious code. Tests, packaging, the launcher and editor run with host permissions. Read `docs/toolchain.md` before changing this boundary.
 - **No npm pre/post hooks.** `ignore-scripts=true` disables them too, so scripts chain steps explicitly (for example `test` runs `npm run compile && …`).
 - **Two TS projects.** `tsconfig.base.json` holds the strict compiler flags. `tsconfig.json` builds `src/` → `out/` as CommonJS, with `verbatimModuleSyntax: false` because VS Code loads CJS and `erasableSyntaxOnly` forbids `import x = require()`. `scripts/tsconfig.json` type-checks `scripts/*.mts` with noEmit. Those scripts are run directly by Node 24's type stripping, so they must use erasable syntax only.
 - **Tests.** `src/test/runTest.ts` calls `@vscode/test-electron`, which loads `out/test/suite/index.js` in the extension host. Each `*.test.ts` exports `tests: TestCase[]` (from `src/test/suite/harness.ts`) and uses `node:assert/strict`. `node:test` hangs in the extension host, so don't switch to it. `--disable-extensions` only disables *other* extensions; MALT is loaded through `--extensionDevelopmentPath`.

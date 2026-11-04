@@ -311,15 +311,17 @@
     ]
   },
   "scripts": {
-    "compile": "node -e \"require('node:fs').mkdirSync('out',{recursive:true})\" && node --permission --allow-fs-read=\"*\" --allow-fs-write=./out node_modules/typescript/bin/tsc -p .",
-    "watch": "tsc -p . --watch",
-    "check-types": "node --permission --allow-fs-read=\"*\" node_modules/typescript/bin/tsc -p . --noEmit && node --permission --allow-fs-read=\"*\" node_modules/typescript/bin/tsc -p scripts",
+    "compile": "node scripts/compiler.mts compile",
+    "watch": "node scripts/compiler.mts watch",
+    "check-types": "node scripts/compiler.mts check",
     "lint": "node --permission --allow-fs-read=\"*\" node_modules/eslint/bin/eslint.js . --max-warnings 0",
     "check-deps": "node --permission --allow-fs-read=\"*\" scripts/check-deps.mts",
     "audit": "npm audit --audit-level=low && npm audit signatures",
     "test:toolchain": "node --test scripts/test/*.test.mjs",
-    "verify": "npm run check-deps && npm run check-types && npm run lint && npm run test:toolchain && npm test",
-    "test": "npm run compile && node out/test/runTest.js",
+    "test:compiler-sandbox": "node scripts/compiler.mts sandbox-test",
+    "verify": "npm run check-deps && npm run check-types && npm run lint && npm run test:toolchain && npm run test:compiler-sandbox && npm test",
+    "test": "npm run compile && npm run test:compiled",
+    "test:compiled": "node out/test/runTest.js",
     "vscode:prepublish": "npm run compile",
     "vsix": "npm run compile && vsce package --no-dependencies"
   },
@@ -327,10 +329,11 @@
     "@eslint/js": "10.0.1",
     "@types/node": "26.6.6",
     "@types/vscode": "1.144.0",
+    "@typescript/native": "npm:typescript@7.0.2",
     "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "4.1.0",
     "eslint": "10.14.0",
-    "typescript": "6.0.3",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "8.72.1"
   },
   "overrides": {

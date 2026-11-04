@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Compile with TypeScript 7.0.2 in an isolated Docker Linux container; retain Microsoft's TypeScript 6 compatibility API for strict ESLint rules and test the compiled output across all CI editor platforms.
 - Reject low and higher dependency advisories, including development tools; verify security exception policy and ESLint/VSCE file selection on all CI platforms.
 - Review each applicable rule in its own isolated call. One overview call per block writes the business purpose, a technical description and a skeptical design assessment (should a new abstraction exist, or extend existing code?) and sorts out which rules apply; the new `malt.reviewer.triageModel` setting picks its model.
 - Expand a block in **Changes** to see its rules in collapsible groups, sorted running → failed → passed → not run → not applicable; selecting a checked rule opens a full-page explanation.

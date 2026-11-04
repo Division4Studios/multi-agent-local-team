@@ -13,11 +13,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkMinimatchLockfile, checkSecurityOverrides } from './security-overrides.mts';
+import { isApprovedVersion } from './dependency-versions.mts';
 
 const ALLOWED_DEV_DEPENDENCIES: ReadonlySet<string> = new Set([
   '@eslint/js',
   '@types/node',
   '@types/vscode',
+  '@typescript/native',
   '@vscode/test-electron',
   '@vscode/vsce',
   'eslint',
@@ -33,8 +35,6 @@ const FORBIDDEN_FIELDS = [
   'bundledDependencies',
   'resolutions',
 ] as const;
-
-const EXACT_VERSION = /^\d+\.\d+\.\d+$/u;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -60,7 +60,7 @@ if (isRecord(devDependencies)) {
     if (!ALLOWED_DEV_DEPENDENCIES.has(name)) {
       problems.push(`devDependency "${name}" is not on the approved allowlist`);
     }
-    if (typeof version !== 'string' || !EXACT_VERSION.test(version)) {
+    if (!isApprovedVersion(name, version)) {
       problems.push(`devDependency "${name}" must be pinned to an exact version (got ${JSON.stringify(version)})`);
     }
   }

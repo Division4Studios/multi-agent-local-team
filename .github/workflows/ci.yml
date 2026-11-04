@@ -14,7 +14,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compile:
+    name: TypeScript 7 (isolated Linux build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install and enforce dependency policy
+        run: npm ci && npm run check-deps && npm run audit
+
+      - name: Type-check with native TypeScript 7
+        run: npm run check-types
+
+      - name: Verify compiler isolation
+        run: npm run test:compiler-sandbox
+        env:
+          MALT_COMPILER_PROBE_SECRET: must-not-enter-container
+
+      - name: Compile once for all editor platforms
+        run: npm run compile
+
+      - name: Upload compiled JavaScript
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: typescript7-output
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
+
   verify:
+    needs: compile
     name: Verify (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -47,8 +86,11 @@ jobs:
       - name: Audit and registry signatures
         run: npm run audit
 
-      - name: Type-check
-        run: npm run check-types
+      - name: Download this run's TypeScript 7 output
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: typescript7-output
+          path: out/
 
       - name: Lint (zero warnings)
         run: npm run lint
@@ -58,11 +100,11 @@ jobs:
 
       - name: Extension tests (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm test
+        run: xvfb-run -a npm run test:compiled
 
       - name: Extension tests (Windows, macOS)
         if: runner.os != 'Linux'
-        run: npm test
+        run: npm run test:compiled
 
       - name: Package contents check
         run: npx --no-install vsce ls --no-dependencies

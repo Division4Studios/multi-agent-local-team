@@ -189,6 +189,13 @@ export default asErrors(
       },
     },
     {
+      // Trusted development launcher: starts only Docker; the compiler runs inside the container.
+      files: ['scripts/compiler.mts'],
+      rules: {
+        'no-restricted-imports': ['error', { paths: VM_IMPORTS, patterns: TOOLING_PATTERNS }],
+      },
+    },
+    {
       files: ['**/*.mjs'],
       languageOptions: {
         globals: { console: 'readonly', process: 'readonly' },

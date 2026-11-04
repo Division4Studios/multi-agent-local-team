@@ -23,7 +23,7 @@ By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Development setup
 
-Requirements: **Node.js 24+** (see `.nvmrc`) and **VS Code 1.144+**.
+Requirements: **Node.js 24+** (see `.nvmrc`), **VS Code 1.144+**, and a running **Docker Linux engine** for isolated TypeScript 7 compilation. See the [toolchain guide](docs/toolchain.md).
 
 ```sh
 git clone https://github.com/Division4Studios/multi-agent-local-team.git
@@ -81,7 +81,8 @@ MALT ships with **zero runtime dependencies**, and the development toolchain is 
 
 | Package | Purpose |
 |---|---|
-| `typescript` | Compiler |
+| `@typescript/native` | Exact npm alias for the TypeScript 7 compiler |
+| `typescript` | Exact npm alias for Microsoft's TypeScript 6 compatibility API used by ESLint |
 | `@types/node`, `@types/vscode` | Type definitions (no runtime code) |
 | `eslint`, `@eslint/js`, `typescript-eslint` | Linting |
 | `@vscode/test-electron` | Runs tests in a real VS Code instance |
@@ -107,7 +108,7 @@ We use [Conventional Commits](https://www.conventionalcommits.org/):
 feat: add command to summarize the staged diff
 fix: handle workspaces without a git repository
 docs: clarify dependency policy
-chore: bump typescript to 6.0.4
+chore: update the TypeScript compiler alias
 ```
 
 Signed commits are strongly encouraged ([GitHub docs](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)).
