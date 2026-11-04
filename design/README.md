@@ -13,14 +13,11 @@ Sources and exports for MALT's artwork. The palette, the rules and the asset lis
 
 ## The mark
 
-`brand/mark.png` is the original extension icon's artwork, recolored and kept at its exact shape. It was made from the first `media/icon.png` (in git history before the visual-identity change) by mapping each pixel:
+`../media/malt.svg` (one color, `currentColor`) is the source of the shape. `brand/mark.svg` uses the same paths in brand colors: amber grains (`#F2C66A` on the left, `#D9982F` on the right), amber awns, and a teal stem that starts below the top grain. The lockups copy those paths inline. When the shape changes, change all three together.
 
-- coverage from how far the pixel is from the charcoal background (`(R − B + 11) / 200`), which becomes the alpha, so the anti-aliased edges stay smooth;
-- the gold's facet shading (its green channel, 125–191) onto amber `#D9982F` → `#F2C66A`;
-- the stem (columns 615–641 from row 448 down, separated from the grains by dark gaps) onto teal `#2BB8A6`;
-- then a square crop around the artwork, scaled to 1024 px.
-
-The lockups embed it at 480 px, and `../media/malt.svg` embeds it at 96 px for VS Code to use as a mask. Regenerate those embeds whenever `mark.png` changes.
+| Source | Export | Size |
+|---|---|---|
+| `brand/mark.svg` | `brand/mark.png` | 1024×1024 |
 
 ## Rendering
 

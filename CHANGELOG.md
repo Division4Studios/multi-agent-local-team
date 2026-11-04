@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- New look: the original barley icon, recolored with amber facets and a teal stem, for the extension icon and the activity bar. The README, wiki and docs have a new hero image and diagrams of how a change is reviewed and of the trust boundary, all hand-built from reviewable SVG and HTML sources in `design/`.
+- New look: the barley sprig from the activity bar becomes the full-color mark (amber grains, teal stem) for the extension icon. The README, wiki and docs have a new hero image and diagrams of how a change is reviewed and of the trust boundary, all hand-built from reviewable SVG and HTML sources in `design/`.
 
 ### Fixed
 

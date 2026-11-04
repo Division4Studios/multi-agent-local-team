@@ -2,7 +2,7 @@
 
 <p align="center"><img src="../design/brand/lockup-dark.png" alt="MALT" width="390" /></p>
 
-MALT's identity is an upright ear of malt barley: sharp, pointed almond grains, each split into a light and a shaded amber facet, long tapering awns, and a teal stem. It's warm, crafted and recognizable, and as precise as a developer tool should be. The silhouette follows the original extension icon. The project artwork (README hero, diagrams, social card) shares one look: a charcoal background with a faint 40 px grid, monospace headlines with one teal accent, and diagrams of rounded, color-coded boxes with dashed boundaries, labeled arrows and a legend.
+MALT's identity is an upright ear of malt barley: the sprig from the activity bar, with a pointed top grain, two pairs of sharp leaf-shaped grains and two awns. In color, the grains are amber, light on the left and shaded on the right, on a teal stem. It's warm, crafted and recognizable, and as precise as a developer tool should be. The project artwork (README hero, diagrams, social card) shares one look: a charcoal background with a faint 40 px grid, monospace headlines with one teal accent, and diagrams of rounded, color-coded boxes with dashed boundaries, labeled arrows and a legend.
 
 Keep the interface itself native to VS Code, so the user's theme, file icons, keyboard navigation and accessibility settings keep working. Brand colors belong to artwork, not to the editor UI.
 
@@ -21,14 +21,14 @@ Review states in the editor use contributed theme colors, so light and high-cont
 
 ## Assets
 
-The mark is MALT's original extension icon, kept exactly: its artwork was generated once with an image-generation tool, and is now recolored pixel by pixel (amber facets, teal stem, transparent background) rather than redrawn. Everything else is hand-authored as SVG or HTML/CSS and is reviewable as text, so text in the artwork is real, never garbled. Don't regenerate the mark; recolor or rescale `design/brand/mark.png`.
+Every asset is hand-authored as SVG or HTML/CSS and is reviewable as text. No image generator is involved, so there's no garbled text and nothing to re-prompt. The mark is a vector, so it stays sharp at any size; the PNGs are renders of it.
 
 | File | Use | Ships in the VSIX |
 |---|---|---|
-| `media/malt.svg` | Activity-bar icon: the mark's silhouette as an embedded 96 px image, which VS Code uses as a mask, so it takes the theme's color | Yes |
+| `media/malt.svg` | Activity-bar icon: the mark's paths in `currentColor`, so it follows the theme. The source of the shape. | Yes |
 | `media/icon.png` | 256 px Marketplace and VSIX icon, rendered from `design/icon.html` | Yes |
-| `design/brand/mark.png` | The master mark: 1024 px, transparent, recolored from the original icon artwork | No |
-| `design/brand/lockup-dark.svg`, `lockup-light.svg` | The mark (embedded at 480 px) and a drawn wordmark, for dark or light backgrounds (PNG exports beside them) | No |
+| `design/brand/mark.svg` | The full-color mark: the same paths as `media/malt.svg` in brand colors (`mark.png`: 1024 px render) | No |
+| `design/brand/lockup-dark.svg`, `lockup-light.svg` | The mark's paths and a drawn wordmark, for dark or light backgrounds (PNG exports beside them) | No |
 | `design/hero.html` → `hero.png` | README and wiki header: the editor mock-up with MALT's real labels and hover layout | No |
 | `design/pipeline.html` → `pipeline.png` | How a change is reviewed (README, architecture guide, wiki) | No |
 | `design/trust.html` → `trust.png` | The prompt-injection trust boundary (`SECURITY.md`, wiki) | No |
