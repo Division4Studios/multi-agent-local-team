@@ -80,6 +80,7 @@ const startServer = async (provider: ReviewProvider): Promise<{ server: Server; 
   const root = await mkdtemp(join(tmpdir(), 'malt-test-'));
   await mkdir(join(root, 'src'));
   await writeFile(join(root, 'src', 'a.ts'), 'const a = 1;\nconst b = 2;\n');
+  await writeFile(join(root, 'src', 'b.ts'), 'export const helperThing = 1;\n');
   await writeFile(join(root, 'CLAUDE.md'), '# Rules\nUse camelCase.\n');
   await mkdir(join(root, '.malt'));
   await writeFile(join(root, '.malt', 'standards.json'), JSON.stringify(HOSTILE_STANDARDS));

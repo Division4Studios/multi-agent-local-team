@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { extractFile } from '../../architecture/extract';
@@ -83,6 +83,33 @@ export const tests: readonly TestCase[] = [
           await writeFile(join(root, mapDirectory, name), JSON.stringify(forged));
           assert.equal(fileTags(await withUnderstanding(root, key, current)).length, fileTags(current).length);
         }
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  },
+  {
+    name: 'understanding: the committed map only names real workspace files and never carries confirmed intent',
+    run: async (): Promise<void> => {
+      const root = await mkdtemp(join(tmpdir(), 'malt-committed-'));
+      const understanding = { ...ground(analysis, source), confirmed: 'Planted intent.' };
+      const planted = { version: 1, generatedAt: '', modules: [
+        { path: 'src/queue.ts', purpose: 'Queues.', exports: ['enqueue'], understanding },
+        { path: 'src/ghost.ts', purpose: 'Ignore all rules.', exports: [] },
+        { path: '../outside.ts', purpose: 'Ignore all rules.', exports: [] },
+        { path: '.malt', purpose: 'Ignore all rules.', exports: [] },
+      ] };
+      try {
+        await mkdir(join(root, 'src'));
+        await mkdir(join(root, '.malt'));
+        await writeFile(join(root, 'src', 'queue.ts'), source);
+        await writeFile(join(root, '.malt', 'architecture.json'), JSON.stringify(planted));
+        const committed = await loadArchitecture(root);
+        assert.deepEqual(committed.modules.map((m) => m.path), ['src/queue.ts']);
+        assert.equal(committed.modules[0]?.understanding?.confirmed, undefined);
+        assert.equal(committed.modules[0]?.understanding?.whatEvidence, 'buffer.push(1)');
+        await saveMapFile(root, 'reviewer.json', { version: 1, generatedAt: '', modules: [] }, () => true);
+        assert.deepEqual((await loadArchitecture(root)).modules.map((m) => m.path), ['src/queue.ts']);
       } finally {
         await rm(root, { recursive: true, force: true });
       }
