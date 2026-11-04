@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The live reviewer log redacts recognizable secrets (API keys, tokens, private keys, credentials in URLs and literals) in prompts, streamed text and errors, including secrets split across streamed chunks.
+- Stream readers decode UTF-8 across chunk boundaries (Claude output, the live stream, Docker build logs and host logs); a final line without a newline is no longer lost.
+- The live log disconnects when the reviewer stops and reattaches to a restarted one; reviewer shutdown closes open streams, and a host reviewer that does not exit is force-stopped.
+- The live log page releases evicted calls, so long sessions stay bounded.
+
 - Auto-open no longer pulls you away while you investigate: it waits until you have been idle for `malt.changes.autoOpenPauseSeconds` (default 60) after clicking, typing, scrolling, switching files or opening anything from MALT.
 - The Reviewer view's Queue row counts only work in progress; finished blocks drop off.
 - Selecting Standards or Architecture opens the saved results instead of starting a new scan; rescanning is the view's title-bar action.
@@ -41,6 +46,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 
 ### Added
+
+- **Models & effort** in the Reviewer view: pick the model and reasoning effort for each review type (block overview, rule checks, consolidation, standards scan). New settings `malt.reviewer.{triage,review,consolidation,standards}Effort` and `malt.reviewer.consolidationModel`; changes offer a reviewer restart.
+- Lower-usage defaults: rule checks (most calls) on Haiku, overview and consolidation on Sonnet, all at low effort; the standards scan on Opus at medium effort.
+- The live reviewer log shows each call's model and effort, and its tokens and cost, with a running session total.
 
 - **Live reviewer log**: every model call streams as it happens (purpose, prompt sent, answer as it is written, elapsed time, stall indicator). Nothing is saved; the reviewer keeps a short in-memory backlog. Open it from the **Reviewer** row or the view title.
 - **Standards** page grouped by category, and the **Standards** row expands into categories → rules. **Architecture** page grouped by folder.

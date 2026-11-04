@@ -129,10 +129,21 @@ const streamConversations = (conversations: ConversationLog, request: IncomingMe
   const heartbeat = setInterval(() => {
     send('');
   }, HEARTBEAT_MS);
+  // The heartbeat must never keep a reviewer process alive on its own after shutdown.
+  heartbeat.unref();
   request.on('close', () => {
     clearInterval(heartbeat);
     unsubscribe();
   });
+};
+
+/**
+ * Stops accepting requests and closes every open connection, including live-log streams. `close` alone waits for
+ * those long-lived responses to end, which would keep a stopped reviewer serving its old log indefinitely.
+ */
+export const shutdownReviewerServer = (server: Server): void => {
+  server.close();
+  server.closeAllConnections();
 };
 
 export const createReviewerServer = (service: ReviewService, token: string, conversations = new ConversationLog()): Server =>

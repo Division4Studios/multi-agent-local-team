@@ -3,9 +3,10 @@
  * Configuration comes from environment variables set by the extension.
  */
 import { ClaudeCodeProvider } from './providers/claudeCode';
-import { createReviewerServer } from './server';
+import { createReviewerServer, shutdownReviewerServer } from './server';
 import { ReviewService } from './service';
 import { ConversationLog } from './conversations';
+import { profilesFromEnv } from '../shared/reviewProfiles';
 import { describeError, log } from './log';
 
 const required = (name: string): string => {
@@ -28,9 +29,7 @@ const main = (): void => {
   const service = new ReviewService(
     {
       workspaceRoot: required('MALT_WORKSPACE'),
-      triageModel: optional('MALT_TRIAGE_MODEL', 'sonnet'),
-      reviewModel: optional('MALT_REVIEW_MODEL', 'sonnet'),
-      standardsModel: optional('MALT_STANDARDS_MODEL', 'opus'),
+      profiles: profilesFromEnv(process.env),
     },
     new ClaudeCodeProvider(optional('MALT_CLAUDE_PATH', 'claude')),
     conversations,
@@ -41,7 +40,7 @@ const main = (): void => {
   });
   const shutdown = (): void => {
     log('shutting down');
-    server.close();
+    shutdownReviewerServer(server);
   };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);

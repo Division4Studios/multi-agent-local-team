@@ -80,10 +80,14 @@ const childLabels = (tree: ReviewerTree, node: Parameters<ReviewerTree['getTreeI
 const assertRows = (tree: ReviewerTree): void => {
   const roots = tree.getChildren();
   const items = roots.map((node) => tree.getTreeItem(node));
-  assert.deepEqual(labels(items), ['Reviewer', 'Standards', 'Gaps', 'Architecture', 'Queue'], 'no separate Backend row');
-  assert.deepEqual(items.map((item) => item.command?.command), ['malt.showLiveLog', 'malt.showStandards', undefined, 'malt.showArchitecture', undefined],
+  assert.deepEqual(labels(items), ['Reviewer', 'Models & effort', 'Standards', 'Gaps', 'Architecture', 'Queue'], 'no separate Backend row');
+  assert.deepEqual(items.map((item) => item.command?.command), ['malt.showLiveLog', undefined, 'malt.showStandards', undefined, 'malt.showArchitecture', undefined],
     'Standards and Architecture open pages; nothing here rescans');
-  const [, standardsNode, gapsNode] = roots;
+  const [, modelsNode, standardsNode, gapsNode] = roots;
+  const types = tree.getChildren(modelsNode).map((node) => tree.getTreeItem(node));
+  assert.deepEqual(labels(types), ['Block overview', 'Rule checks', 'Consolidation', 'Standards scan']);
+  assert.deepEqual(types.map((type) => type.description), ['sonnet · low effort', 'haiku · low effort', 'sonnet · low effort', 'opus · medium effort'], 'the defaults');
+  assert.deepEqual(types[1]?.command?.arguments, ['check'], 'selecting a type opens its model and effort pickers');
   const groups = tree.getChildren(standardsNode);
   assert.deepEqual(labels(groups.map((node) => tree.getTreeItem(node))), ['Architecture', 'Style']);
   assert.deepEqual(childLabels(tree, groups[1]), ['Document public fns', 'Use snake_case']);

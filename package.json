@@ -175,6 +175,12 @@
         "title": "Show Where This Applies",
         "category": "MALT",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "malt.configureReviewType",
+        "title": "Change Review Model and Effort",
+        "category": "MALT",
+        "icon": "$(settings-gear)"
       }
     ],
     "menus": {
@@ -274,6 +280,10 @@
         {
           "command": "malt.showFindingLocation",
           "when": "false"
+        },
+        {
+          "command": "malt.configureReviewType",
+          "when": "false"
         }
       ]
     },
@@ -303,17 +313,106 @@
         "malt.reviewer.triageModel": {
           "type": "string",
           "default": "sonnet",
-          "markdownDescription": "Claude model for each block's overview: it writes the purpose, technical and design descriptions and sorts out which rules apply. `haiku` costs less but writes weaker design arguments. Restart the reviewer after changing."
+          "markdownDescription": "Claude model for **block overviews** (one call per changed block). An alias (`haiku`, `sonnet`, `opus`) or a full model id. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
+        },
+        "malt.reviewer.triageEffort": {
+          "type": "string",
+          "enum": [
+            "default",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "enumDescriptions": [
+            "Claude Code's own default (no --effort flag)",
+            "Quickest, least usage",
+            "Balanced",
+            "Deeper reasoning, more usage",
+            "Much deeper reasoning",
+            "Most thorough, most usage"
+          ],
+          "default": "low",
+          "markdownDescription": "Reasoning effort for **block overviews**. Lower uses less. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
         },
         "malt.reviewer.reviewModel": {
           "type": "string",
+          "default": "haiku",
+          "markdownDescription": "Claude model for **rule checks** (one call per applicable rule per block; most of the usage). An alias (`haiku`, `sonnet`, `opus`) or a full model id. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
+        },
+        "malt.reviewer.reviewEffort": {
+          "type": "string",
+          "enum": [
+            "default",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "enumDescriptions": [
+            "Claude Code's own default (no --effort flag)",
+            "Quickest, least usage",
+            "Balanced",
+            "Deeper reasoning, more usage",
+            "Much deeper reasoning",
+            "Most thorough, most usage"
+          ],
+          "default": "low",
+          "markdownDescription": "Reasoning effort for **rule checks**. Lower uses less. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
+        },
+        "malt.reviewer.consolidationModel": {
+          "type": "string",
           "default": "sonnet",
-          "markdownDescription": "Claude model for checking a block against each applicable rule, one call per rule (alias like `sonnet`, `haiku`, `opus`, or a full model id). Restart the reviewer after changing."
+          "markdownDescription": "Claude model for **the consolidation check** (one call across the whole change). An alias (`haiku`, `sonnet`, `opus`) or a full model id. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
+        },
+        "malt.reviewer.consolidationEffort": {
+          "type": "string",
+          "enum": [
+            "default",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "enumDescriptions": [
+            "Claude Code's own default (no --effort flag)",
+            "Quickest, least usage",
+            "Balanced",
+            "Deeper reasoning, more usage",
+            "Much deeper reasoning",
+            "Most thorough, most usage"
+          ],
+          "default": "low",
+          "markdownDescription": "Reasoning effort for **the consolidation check**. Lower uses less. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
         },
         "malt.reviewer.standardsModel": {
           "type": "string",
           "default": "opus",
-          "markdownDescription": "Claude model for **Scan Project Standards**. Restart the reviewer after changing."
+          "markdownDescription": "Claude model for **Scan Project Standards** (three calls per scan). An alias (`haiku`, `sonnet`, `opus`) or a full model id. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
+        },
+        "malt.reviewer.standardsEffort": {
+          "type": "string",
+          "enum": [
+            "default",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "enumDescriptions": [
+            "Claude Code's own default (no --effort flag)",
+            "Quickest, least usage",
+            "Balanced",
+            "Deeper reasoning, more usage",
+            "Much deeper reasoning",
+            "Most thorough, most usage"
+          ],
+          "default": "medium",
+          "markdownDescription": "Reasoning effort for **Scan Project Standards**. Lower uses less. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
         },
         "malt.reviewer.maxConcurrentReviews": {
           "type": "integer",

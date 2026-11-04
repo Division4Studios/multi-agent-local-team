@@ -14,6 +14,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isRecord, isString } from '../../shared/guards';
 import type { ReviewProvider, StructuredCall } from './provider';
+import type { CallUsage } from '../../shared/conversation';
+import { createLineSplitter } from '../../shared/lineSplitter';
+import type { LineSplitter } from '../../shared/lineSplitter';
 
 const MAX_OUTPUT_BYTES = 20_000_000;
 const MAX_STDERR_BYTES = 100_000;
@@ -53,19 +56,16 @@ export const streamedText = (event: unknown): string | undefined => {
   return isString(text) ? text : undefined;
 };
 
-/** Splits stdout into NDJSON lines (handling chunk boundaries) and hands each parsed event on. */
-const lineReader = (onEvent: (event: unknown) => void): ((chunk: Buffer) => void) => {
-  let pending = '';
-  return (chunk: Buffer): void => {
-    const lines = (pending + chunk.toString('utf8')).split('\n');
-    pending = lines.pop() ?? '';
-    for (const line of lines) {
-      if (line.trim() !== '') {
-        onEvent(parseLine(line));
-      }
+/**
+ * Splits stdout into NDJSON events. Bytes are decoded with a streaming UTF-8 decoder, so a character split across
+ * chunks survives intact, and `end` processes a final line that has no trailing newline.
+ */
+export const eventReader = (onEvent: (event: unknown) => void): LineSplitter =>
+  createLineSplitter((line) => {
+    if (line.trim() !== '') {
+      onEvent(parseLine(line));
     }
-  };
-};
+  });
 
 const runProcess = async (command: string, args: readonly string[], options: ProcessOptions): Promise<ProcessResult> =>
   await new Promise((resolvePromise, reject) => {
@@ -75,7 +75,7 @@ const runProcess = async (command: string, args: readonly string[], options: Pro
     let stderrBytes = 0;
     let result: unknown;
     const timer = setTimeout(() => child.kill(), options.timeoutMs);
-    const read = lineReader((event) => {
+    const reader = eventReader((event) => {
       if (isRecord(event) && event['type'] === 'result') {
         result = event;
       }
@@ -87,7 +87,7 @@ const runProcess = async (command: string, args: readonly string[], options: Pro
         child.kill();
         return;
       }
-      read(chunk);
+      reader.push(chunk);
     });
     child.stderr.on('data', (chunk: Buffer) => {
       stderrBytes += chunk.length;
@@ -101,12 +101,49 @@ const runProcess = async (command: string, args: readonly string[], options: Pro
     });
     child.on('close', (code) => {
       clearTimeout(timer);
+      reader.end();
       resolvePromise({ code, result, stderr: Buffer.concat(stderr).toString('utf8') });
     });
     child.stdin.end(options.input);
   });
 
 const firstString = (...values: readonly unknown[]): string => values.find(isString) ?? 'unknown error';
+
+const count = (value: unknown): number => (typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0);
+
+/**
+ * Tokens and cost from the final `result` event. Cache writes count as input; cache reads are reported separately
+ * (they are much cheaper). Undefined if the CLI did not report usage.
+ */
+export const usageFrom = (result: unknown): CallUsage | undefined => {
+  if (!isRecord(result) || !isRecord(result['usage'])) {
+    return undefined;
+  }
+  const usage = result['usage'];
+  const cost = result['total_cost_usd'];
+  return {
+    inputTokens: count(usage['input_tokens']) + count(usage['cache_creation_input_tokens']),
+    outputTokens: count(usage['output_tokens']),
+    cachedTokens: count(usage['cache_read_input_tokens']),
+    costUsd: typeof cost === 'number' && Number.isFinite(cost) && cost >= 0 ? cost : 0,
+  };
+};
+
+/** Command-line arguments for one isolated call. `--effort` is passed unless the profile leaves the default. */
+export const claudeArgs = (call: StructuredCall): string[] => [
+  '-p',
+  '--model', call.model,
+  ...(call.effort === 'default' ? [] : ['--effort', call.effort]),
+  '--system-prompt', call.systemPrompt,
+  '--tools', '',
+  '--strict-mcp-config',
+  '--setting-sources', '',
+  '--no-session-persistence',
+  '--output-format', 'stream-json',
+  '--verbose',
+  '--include-partial-messages',
+  '--json-schema', JSON.stringify(call.schema),
+];
 
 const extractStructuredOutput = ({ code, result, stderr }: ProcessResult): unknown => {
   if (!isRecord(result)) {
@@ -131,19 +168,7 @@ export class ClaudeCodeProvider implements ReviewProvider {
     // A private (0700), unpredictably named, empty working directory per call: nothing from the reviewed repo is
     // in scope, and no other local user can pre-create or read it. MALT writes no files into it.
     const workDir = await mkdtemp(join(tmpdir(), 'malt-reviewer-'));
-    const args = [
-      '-p',
-      '--model', call.model,
-      '--system-prompt', call.systemPrompt,
-      '--tools', '',
-      '--strict-mcp-config',
-      '--setting-sources', '',
-      '--no-session-persistence',
-      '--output-format', 'stream-json',
-      '--verbose',
-      '--include-partial-messages',
-      '--json-schema', JSON.stringify(call.schema),
-    ];
+    const args = claudeArgs(call);
     const onEvent = (event: unknown): void => {
       const text = streamedText(event);
       if (text !== undefined) {
@@ -152,6 +177,10 @@ export class ClaudeCodeProvider implements ReviewProvider {
     };
     try {
       const result = await runProcess(this.claudePath, args, { input: call.userPrompt, timeoutMs: call.timeoutMs, cwd: workDir, onEvent });
+      const usage = usageFrom(result.result);
+      if (usage !== undefined) {
+        call.onUsage?.(usage);
+      }
       return extractStructuredOutput(result);
     } finally {
       await rm(workDir, { recursive: true, force: true });

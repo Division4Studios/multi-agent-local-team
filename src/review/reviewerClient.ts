@@ -3,6 +3,8 @@ import { request as httpRequest } from 'node:http';
 import { isRecord, isString, parseArray } from '../shared/guards';
 import { parseConversationEvent } from '../shared/conversation';
 import type { ConversationEvent } from '../shared/conversation';
+import { createLineSplitter } from '../shared/lineSplitter';
+import type { LineSplitter } from '../shared/lineSplitter';
 import { parseFinding, parseHealthResponse, parseOverviewResponse, parseRuleCheck, parseStandardsScan } from '../shared/protocol';
 import type {
   CheckRequest,
@@ -145,8 +147,14 @@ export class ReviewerClient {
           close();
           return;
         }
-        res.on('data', ndjsonReader(onEvent, () => req.destroy()));
-        res.on('end', close);
+        const reader = conversationReader(onEvent, () => req.destroy());
+        res.on('data', (chunk: Buffer) => {
+          reader.push(chunk);
+        });
+        res.on('end', () => {
+          reader.end();
+          close();
+        });
         res.on('error', close);
       },
     );
@@ -159,29 +167,28 @@ export class ReviewerClient {
   }
 }
 
-const MAX_PENDING_CHARS = 2_000_000;
+const MAX_LINE_CHARS = 2_000_000;
 
-/** Splits a byte stream into validated conversation events; `abort` if a single line grows unreasonably long. */
-const ndjsonReader = (onEvent: (event: ConversationEvent) => void, abort: () => void): ((chunk: Buffer) => void) => {
-  let pending = '';
-  return (chunk: Buffer): void => {
-    const lines = (pending + chunk.toString('utf8')).split('\n');
-    pending = lines.pop() ?? '';
-    if (pending.length > MAX_PENDING_CHARS) {
-      abort();
-      return;
-    }
-    for (const line of lines.filter((text) => text.trim() !== '')) {
+/**
+ * Turns the event stream into validated conversation events. Decoding is streaming UTF-8 (characters split across
+ * chunks survive); invalid lines are ignored; a single line past MAX_LINE_CHARS aborts the stream.
+ */
+export const conversationReader = (onEvent: (event: ConversationEvent) => void, abort: () => void): LineSplitter =>
+  createLineSplitter(
+    (line) => {
+      if (line.trim() === '') {
+        return;
+      }
       let parsed: unknown;
       try {
         parsed = JSON.parse(line);
       } catch {
-        continue;
+        return;
       }
       const event = parseConversationEvent(parsed);
       if (event !== undefined) {
         onEvent(event);
       }
-    }
-  };
-};
+    },
+    { maxLineChars: MAX_LINE_CHARS, onOverflow: abort },
+  );

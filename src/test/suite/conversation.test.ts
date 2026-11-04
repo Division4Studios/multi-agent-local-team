@@ -6,7 +6,7 @@ import { ConversationLog } from '../../reviewer/conversations';
 import { streamedText } from '../../reviewer/providers/claudeCode';
 import type { TestCase } from './harness';
 
-const START = { kind: 'start', callId: 'a1b2c3d4e5f60718', at: 1, label: 'Overview · src/a.rs:21', model: 'sonnet', prompt: 'p' };
+const START = { kind: 'start', callId: 'a1b2c3d4e5f60718', at: 1, label: 'Overview · src/a.rs:21', model: 'sonnet', effort: 'low', prompt: 'p' };
 
 const record = (log: ConversationLog): ConversationEvent[] => {
   const events: ConversationEvent[] = [];
@@ -33,16 +33,20 @@ export const tests: readonly TestCase[] = [
     run: (): void => {
       const log = new ConversationLog();
       const events = record(log);
-      const call = log.begin('Check no-secrets · src/a.rs:21', 'haiku', 'the prompt');
-      call.text('{"status":');
+      const call = log.begin('Check no-secrets · src/a.rs:21', { model: 'haiku', effort: 'low' }, 'the prompt');
+      call.text('{"status": ');
       call.text('');
-      call.text('"pass"}');
+      call.text('"pass", "note": "o');
+      call.text('k"}');
       call.end();
       call.end(new Error('ignored: already ended'));
       call.text('ignored: already ended');
-      assert.deepEqual(events.map((event) => event.kind), ['start', 'text', 'text', 'end']);
-      const [start, , , end] = events;
-      assert.ok(start?.kind === 'start' && start.label.startsWith('Check no-secrets') && start.model === 'haiku');
+      assert.deepEqual(events.map((event) => event.kind), ['start', 'text', 'text', 'text', 'end'], 'released word by word, the rest on end');
+      const streamed = events.filter((event): event is ConversationText => event.kind === 'text').map((event) => event.text).join('');
+      assert.equal(streamed, '{"status": "pass", "note": "ok"}', 'nothing lost or duplicated');
+      const start = events[0];
+      const end = events.at(-1);
+      assert.ok(start?.kind === 'start' && start.label.startsWith('Check no-secrets') && start.model === 'haiku' && start.effort === 'low');
       assert.ok(end?.kind === 'end' && end.ok && end.error === '');
       assert.ok(events.every((event) => event.callId === start.callId));
       assert.deepEqual(parseConversationEvent(JSON.parse(JSON.stringify(start))), start, 'events survive the wire format');
@@ -53,8 +57,8 @@ export const tests: readonly TestCase[] = [
     run: (): void => {
       const log = new ConversationLog();
       const events = record(log);
-      const failed = log.begin('Gap analysis', 'opus', 'x'.repeat(50_000));
-      failed.text('y'.repeat(250_000));
+      const failed = log.begin('Gap analysis', { model: 'opus', effort: 'medium' }, 'x '.repeat(25_000));
+      failed.text('y\n'.repeat(125_000));
       failed.text('more');
       failed.end(new Error('claude returned an error: overloaded'));
       const start = events[0];
@@ -65,7 +69,7 @@ export const tests: readonly TestCase[] = [
       assert.equal(streamed, 200_000, 'per-call text is capped');
       assert.deepEqual(events.at(-1), { kind: 'end', callId: start.callId, at: events.at(-1)?.at, ok: false, error: 'claude returned an error: overloaded' });
       for (let index = 0; index < 5_000; index += 1) {
-        log.begin('x', 'm', 'p').end();
+        log.begin('x', { model: 'm', effort: 'low' }, 'p').end();
       }
       assert.ok(log.recent().length <= 4_000, 'backlog is bounded');
     },

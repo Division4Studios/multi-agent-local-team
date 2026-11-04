@@ -115,6 +115,7 @@ Then open the folder in VS Code and press <kbd>F5</kbd>. A new **Extension Devel
 | `malt.reviewer.reviewModel` | `sonnet` | Model for each per-rule check |
 | `malt.reviewer.standardsModel` | `opus` | Model for **Scan Project Standards** |
 | `malt.reviewer.maxConcurrentReviews` | `2` | Parallel reviewer calls |
+| Models & effort | Haiku/low for rule checks, Sonnet/low for overviews | Change per review type from **Models & effort** in the Reviewer view |
 | `malt.changes.autoOpen` | `true` | Bring changed files into view (without stealing focus) |
 | `malt.changes.autoOpenPauseSeconds` | `60` | Hold auto-open while you are working, so it never pulls you away from what you are investigating |
 | `malt.changes.autoReview` | `true` | Review new blocks automatically |

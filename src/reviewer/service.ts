@@ -15,6 +15,8 @@ import type {
 } from '../shared/protocol';
 import type { ReviewProvider, StructuredCall } from './providers/provider';
 import { ConversationLog } from './conversations';
+import type { ReviewProfiles } from '../shared/reviewProfiles';
+import type { CallUsage } from '../shared/conversation';
 import { architectureSlice, newDeclarations } from './architecture';
 import {
   ARCHITECTURE_SCHEMA,
@@ -58,11 +60,8 @@ const isArchitectureRule = (rule: Rule): boolean => rule.category.toLowerCase() 
 
 export interface ServiceConfig {
   readonly workspaceRoot: string;
-  /** Writes each block's overview and sorts out which rules apply to it. */
-  readonly triageModel: string;
-  /** Checks one block against one rule. */
-  readonly reviewModel: string;
-  readonly standardsModel: string;
+  /** Model and effort per kind of call: overview, rule check, consolidation, standards scan. */
+  readonly profiles: ReviewProfiles;
 }
 
 export class ReviewService {
@@ -76,15 +75,22 @@ export class ReviewService {
     this.conversations = conversations;
   }
 
-  /** Every model call goes through here, so the live log sees it start, stream and end. */
+  /** Every model call goes through here, so the live log sees it start, stream and end, with its usage. */
   private async ask(label: string, call: StructuredCall): Promise<unknown> {
-    const logged = this.conversations.begin(label, call.model, call.userPrompt);
+    const logged = this.conversations.begin(label, call, call.userPrompt);
+    let usage: CallUsage | undefined;
     try {
-      const output = await this.provider.callStructured({ ...call, onText: logged.text });
-      logged.end();
+      const output = await this.provider.callStructured({
+        ...call,
+        onText: logged.text,
+        onUsage: (reported) => {
+          usage = reported;
+        },
+      });
+      logged.end(undefined, usage);
       return output;
     } catch (error: unknown) {
-      logged.end(error);
+      logged.end(error, usage);
       throw error;
     }
   }
@@ -124,7 +130,7 @@ export class ReviewService {
       systemPrompt: OVERVIEW_SYSTEM_PROMPT,
       userPrompt: buildOverviewUserPrompt(request, window, { projectRules, architecture, nonce: createNonce() }),
       schema: OVERVIEW_SCHEMA,
-      model: this.config.triageModel,
+      ...this.config.profiles.overview,
       timeoutMs: REVIEW_TIMEOUT_MS,
     });
     const overview = parseBlockOverview(output);
@@ -150,7 +156,7 @@ export class ReviewService {
       systemPrompt: CHECK_SYSTEM_PROMPT,
       userPrompt: buildCheckUserPrompt(request, window, rule, { projectRules, architecture, nonce: createNonce() }),
       schema: CHECK_SCHEMA,
-      model: this.config.reviewModel,
+      ...this.config.profiles.check,
       timeoutMs: REVIEW_TIMEOUT_MS,
     });
     const check = isRecord(output) ? parseRuleCheck({ ...output, ruleId: rule.id, title: rule.title }) : undefined;
@@ -196,7 +202,7 @@ export class ReviewService {
       systemPrompt: STANDARDS_SYSTEM_PROMPT,
       userPrompt: buildStandardsUserPrompt(sources, createNonce()),
       schema: RULES_SCHEMA,
-      model: this.config.standardsModel,
+      ...this.config.profiles.standards,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
     const rules = isRecord(output) ? parseRules(output['rules']) : undefined;
@@ -215,7 +221,7 @@ export class ReviewService {
       systemPrompt: ARCHITECTURE_SYSTEM_PROMPT,
       userPrompt: buildArchitectureUserPrompt(sources, createNonce()),
       schema: ARCHITECTURE_SCHEMA,
-      model: this.config.standardsModel,
+      ...this.config.profiles.standards,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
     const modules = isRecord(output) ? parseModules(output['modules']) : undefined;
@@ -235,7 +241,7 @@ export class ReviewService {
       systemPrompt: GAPS_SYSTEM_PROMPT,
       userPrompt: buildGapsUserPrompt(documented, documents, modules, createNonce()),
       schema: GAPS_SCHEMA,
-      model: this.config.standardsModel,
+      ...this.config.profiles.standards,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
     const rules = isRecord(output) ? parseRules(output['rules']) : undefined;
@@ -261,7 +267,7 @@ export class ReviewService {
       systemPrompt: CONSOLIDATION_SYSTEM_PROMPT,
       userPrompt: buildConsolidationUserPrompt(declarations, architecture, createNonce()),
       schema: CONSOLIDATION_SCHEMA,
-      model: this.config.reviewModel,
+      ...this.config.profiles.consolidation,
       timeoutMs: REVIEW_TIMEOUT_MS,
     });
     const findings = isRecord(output) ? parseArray(output['findings'], parseFinding) : undefined;

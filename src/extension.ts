@@ -20,6 +20,7 @@ import { ReviewerTreeProvider } from './views/reviewerView';
 import { StandardsModel } from './standards/standardsModel';
 import { FindingHighlight } from './editor/findingHighlight';
 import { AttentionGuard } from './editor/attention';
+import { watchReviewSettings } from './views/reviewSettings';
 import { createStatusBar } from './views/statusBar';
 import { registerCommands, revealHunk, startReviewer } from './commands';
 import type { CommandDeps } from './commands';
@@ -107,7 +108,18 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
   const standards = new StandardsModel(vscode.workspace.workspaceFolders?.[0]);
   const highlight = new FindingHighlight();
   const attention = new AttentionGuard(() => readSettings().autoOpenPauseSeconds * 1000);
-  const deps: CommandDeps = { store, manager, queue, consolidation, credentials, output, standards, highlight, attention };
+  const deps: CommandDeps = {
+    store,
+    manager,
+    queue,
+    consolidation,
+    credentials,
+    output,
+    standards,
+    highlight,
+    attention,
+    extensionUri: context.extensionUri,
+  };
 
   context.subscriptions.push(
     output,
@@ -123,6 +135,9 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
     vscode.window.registerTreeDataProvider('malt.changes', new ChangesTreeProvider(store, consolidation)),
     createStatusBar(manager, store),
     registerCommands(deps),
+    watchReviewSettings(() => manager.status.state === 'running', async () => {
+      await startReviewer(deps);
+    }),
     manager.onDidChangeStatus((status) => {
       if (status.state === 'running' && readSettings().autoReview) {
         void reviewBacklog(deps);

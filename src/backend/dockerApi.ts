@@ -3,7 +3,9 @@
  * No Docker CLI and no child processes: MALT never shells out to manage containers.
  */
 import { request as httpRequest } from 'node:http';
+import { StringDecoder } from 'node:string_decoder';
 import { isRecord, isString } from '../shared/guards';
+import { createLineSplitter } from '../shared/lineSplitter';
 
 export interface DockerResponse {
   readonly status: number;
@@ -30,14 +32,24 @@ export const defaultDockerSocket = (): string => {
   return process.platform === 'win32' ? '\\\\.\\pipe\\docker_engine' : '/var/run/docker.sock';
 };
 
-/** Splits Docker's multiplexed log stream (8-byte frame headers) into text. */
+/**
+ * Splits Docker's multiplexed log stream (8-byte frame headers) into text. Each stream (stdout, stderr) has its own
+ * streaming UTF-8 decoder, so a character split across frames is decoded intact.
+ */
 export const demuxDockerLogs = (data: Buffer): string => {
+  const decoders = new Map<number, StringDecoder>();
   const parts: string[] = [];
   let offset = 0;
   while (offset + 8 <= data.length) {
+    const stream = data.readUInt8(offset);
     const size = data.readUInt32BE(offset + 4);
-    parts.push(data.subarray(offset + 8, offset + 8 + size).toString('utf8'));
+    const decoder = decoders.get(stream) ?? new StringDecoder('utf8');
+    decoders.set(stream, decoder);
+    parts.push(decoder.write(data.subarray(offset + 8, offset + 8 + size)));
     offset += 8 + size;
+  }
+  for (const decoder of decoders.values()) {
+    parts.push(decoder.end());
   }
   return parts.join('');
 };
@@ -118,7 +130,14 @@ export class DockerClient {
   /** Builds an image from a tar context, streaming build output lines to `onLog`. */
   public async build(tag: string, context: Buffer, onLog: (line: string) => void): Promise<void> {
     let buildError: string | undefined;
-    let pending = '';
+    const lines = createLineSplitter((line) => {
+      const event = parseJson(Buffer.from(line));
+      if (isRecord(event) && isString(event['stream'])) {
+        onLog(event['stream'].trimEnd());
+      } else if (isRecord(event) && isString(event['error'])) {
+        buildError = event['error'];
+      }
+    });
     const response = await this.send({
       method: 'POST',
       path: `/build?t=${encodeURIComponent(tag)}&rm=1&forcerm=1`,
@@ -126,18 +145,10 @@ export class DockerClient {
       contentType: 'application/x-tar',
       timeoutMs: 900_000,
       onChunk: (chunk) => {
-        const lines = (pending + chunk.toString('utf8')).split('\n');
-        pending = lines.pop() ?? '';
-        for (const line of lines) {
-          const event = parseJson(Buffer.from(line));
-          if (isRecord(event) && isString(event['stream'])) {
-            onLog(event['stream'].trimEnd());
-          } else if (isRecord(event) && isString(event['error'])) {
-            buildError = event['error'];
-          }
-        }
+        lines.push(chunk);
       },
     });
+    lines.end();
     if (response.status !== 200 || buildError !== undefined) {
       throw new Error(buildError ?? dockerErrorMessage(response));
     }

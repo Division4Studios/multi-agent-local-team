@@ -5,14 +5,24 @@
  */
 import { isNonNegativeInteger, isRecord, isString } from './guards';
 
-/** A model call started: what it is for, which model, and the (untrusted) user prompt it was given. */
+/** A model call started: what it is for, which model and effort, and the (untrusted) user prompt it was given. */
 export interface ConversationStart {
   readonly kind: 'start';
   readonly callId: string;
   readonly at: number;
   readonly label: string;
   readonly model: string;
+  readonly effort: string;
   readonly prompt: string;
+}
+
+/** Tokens and cost for one call, as the provider reported them (cost is notional on a subscription). */
+export interface CallUsage {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  /** Input tokens served from the prompt cache (cheaper); included in neither count above. */
+  readonly cachedTokens: number;
+  readonly costUsd: number;
 }
 
 /** A piece of the model's answer as it streams in. */
@@ -23,13 +33,14 @@ export interface ConversationText {
   readonly text: string;
 }
 
-/** The call finished, successfully or not. */
+/** The call finished, successfully or not, with its usage when the provider reported it. */
 export interface ConversationEnd {
   readonly kind: 'end';
   readonly callId: string;
   readonly at: number;
   readonly ok: boolean;
   readonly error: string;
+  readonly usage?: CallUsage;
 }
 
 export type ConversationEvent = ConversationStart | ConversationText | ConversationEnd;
@@ -37,13 +48,35 @@ export type ConversationEvent = ConversationStart | ConversationText | Conversat
 const CALL_ID = /^[a-f0-9]{8,32}$/u;
 
 const parseStart = (value: Readonly<Record<string, unknown>>, callId: string, at: number): ConversationStart | undefined => {
-  const { label, model, prompt } = value;
-  return isString(label) && isString(model) && isString(prompt) ? { kind: 'start', callId, at, label, model, prompt } : undefined;
+  const { label, model, effort, prompt } = value;
+  return isString(label) && isString(model) && isString(effort) && isString(prompt)
+    ? { kind: 'start', callId, at, label, model, effort, prompt }
+    : undefined;
 };
 
+const isAmount = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+export const parseCallUsage = (value: unknown): CallUsage | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const { inputTokens, outputTokens, cachedTokens, costUsd } = value;
+  return isNonNegativeInteger(inputTokens) && isNonNegativeInteger(outputTokens) && isNonNegativeInteger(cachedTokens) && isAmount(costUsd)
+    ? { inputTokens, outputTokens, cachedTokens, costUsd }
+    : undefined;
+};
+
+/** An end event whose usage is present but malformed is rejected, not silently stripped. */
 const parseEnd = (value: Readonly<Record<string, unknown>>, callId: string, at: number): ConversationEnd | undefined => {
   const { ok, error } = value;
-  return typeof ok === 'boolean' && isString(error) ? { kind: 'end', callId, at, ok, error } : undefined;
+  if (typeof ok !== 'boolean' || !isString(error)) {
+    return undefined;
+  }
+  if (value['usage'] === undefined) {
+    return { kind: 'end', callId, at, ok, error };
+  }
+  const usage = parseCallUsage(value['usage']);
+  return usage === undefined ? undefined : { kind: 'end', callId, at, ok, error, usage };
 };
 
 export const parseConversationEvent = (value: unknown): ConversationEvent | undefined => {

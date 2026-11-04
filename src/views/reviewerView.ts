@@ -1,6 +1,7 @@
 /**
  * "Reviewer" view in the MALT sidebar:
  * - Reviewer: one row for health and where it runs; opens the live reviewer log.
+ * - Models & effort: the model and effort for each kind of review call; select one to change it.
  * - Standards: opens the standards page; expands into categories → rules.
  * - Gaps: expands into the gaps; each one opens the file at the declaration it names, outlined, with hover details.
  * - Architecture: opens the architecture map page.
@@ -13,9 +14,14 @@ import type { HunkStore } from '../review/hunkStore';
 import type { Finding, FindingAnchor, Rule } from '../shared/protocol';
 import { INFERRED_SOURCE_PREFIX } from '../shared/protocol';
 import type { RuleGroup, StandardsModel } from '../standards/standardsModel';
+import { readSettings } from '../config';
+import { REVIEW_TYPES, REVIEW_TYPE_INFO, describeProfile } from '../shared/reviewProfiles';
+import type { ReviewType } from '../shared/reviewProfiles';
+import { affectsReviewProfiles } from './reviewSettings';
 
 type Node =
-  | { readonly kind: 'reviewer' | 'standards' | 'gaps' | 'architecture' | 'queue' }
+  | { readonly kind: 'reviewer' | 'models' | 'standards' | 'gaps' | 'architecture' | 'queue' }
+  | { readonly kind: 'reviewType'; readonly type: ReviewType }
   | { readonly kind: 'group'; readonly group: RuleGroup }
   | { readonly kind: 'rule'; readonly rule: Rule }
   | { readonly kind: 'gap'; readonly gap: Finding; readonly index: number }
@@ -83,13 +89,25 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
     const refresh = (): void => {
       this.changeEmitter.fire(undefined);
     };
-    this.subscriptions = [manager.onDidChangeStatus(refresh), store.onDidChange(refresh), standards.onDidChange(refresh)];
+    this.subscriptions = [
+      manager.onDidChangeStatus(refresh),
+      store.onDidChange(refresh),
+      standards.onDidChange(refresh),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (affectsReviewProfiles(event)) {
+          refresh();
+        }
+      }),
+    ];
   }
 
   /** Only Standards (→ groups → rules) and Gaps (→ gaps → declarations) have children. */
   public getChildren(node?: Node): Node[] {
     if (node === undefined) {
-      return [{ kind: 'reviewer' }, { kind: 'standards' }, { kind: 'gaps' }, { kind: 'architecture' }, { kind: 'queue' }];
+      return [{ kind: 'reviewer' }, { kind: 'models' }, { kind: 'standards' }, { kind: 'gaps' }, { kind: 'architecture' }, { kind: 'queue' }];
+    }
+    if (node.kind === 'models') {
+      return REVIEW_TYPES.map((type) => ({ kind: 'reviewType', type }));
     }
     if (node.kind === 'standards') {
       return this.standards.ruleGroups.map((group) => ({ kind: 'group', group }));
@@ -107,21 +125,35 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
   }
 
   public getTreeItem(node: Node): vscode.TreeItem {
-    switch (node.kind) {
+    if ('type' in node) {
+      return reviewTypeItem(node.type);
+    }
+    if ('group' in node) {
+      return groupItem(node.group);
+    }
+    if ('rule' in node) {
+      return ruleItem(node.rule);
+    }
+    if ('gap' in node) {
+      return gapItem(node.gap, node.index);
+    }
+    if ('anchor' in node) {
+      return anchorItem(node.anchor, node.gapIndex, node.anchorIndex);
+    }
+    return this.rowItem(node.kind);
+  }
+
+  /** The top-level rows. */
+  private rowItem(kind: 'reviewer' | 'models' | 'standards' | 'gaps' | 'architecture' | 'queue'): vscode.TreeItem {
+    switch (kind) {
       case 'reviewer':
         return this.reviewerItem();
+      case 'models':
+        return modelsItem();
       case 'standards':
         return this.standardsItem();
-      case 'group':
-        return groupItem(node.group);
-      case 'rule':
-        return ruleItem(node.rule);
       case 'gaps':
         return this.gapsItem();
-      case 'gap':
-        return gapItem(node.gap, node.index);
-      case 'anchor':
-        return anchorItem(node.anchor, node.gapIndex, node.anchorIndex);
       case 'architecture':
         return this.architectureItem();
       case 'queue':
@@ -196,6 +228,26 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
     return parts.length === 0 ? 'idle' : parts.join(' · ');
   }
 }
+
+const modelsItem = (): vscode.TreeItem => {
+  const { check } = readSettings().profiles;
+  const result = item('Models & effort', { description: `rule checks: ${describeProfile(check)}`, icon: new vscode.ThemeIcon('settings-gear'), collapsed: true });
+  result.id = 'review-models';
+  result.tooltip = 'Which model and how much reasoning effort each kind of review call uses. Expand and select one to change it.';
+  return result;
+};
+
+const reviewTypeItem = (type: ReviewType): vscode.TreeItem => {
+  const info = REVIEW_TYPE_INFO[type];
+  const result = item(info.label, {
+    description: describeProfile(readSettings().profiles[type]),
+    icon: new vscode.ThemeIcon('symbol-method'),
+    command: { command: 'malt.configureReviewType', title: 'Change model and effort', arguments: [type] },
+  });
+  result.id = JSON.stringify(['review-type', type]);
+  result.tooltip = `${info.detail} Select to change the model and effort; applies when the reviewer restarts.`;
+  return result;
+};
 
 const groupItem = (group: RuleGroup): vscode.TreeItem => {
   const result = item(group.name, { description: plural(group.rules.length, 'rule'), icon: new vscode.ThemeIcon('symbol-namespace'), collapsed: true });
