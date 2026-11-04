@@ -101,7 +101,7 @@ class Discussion {
       await checkedSource(this.context);
       const { file, tracker, snapshot } = this.context;
       const note: Understanding = { ...this.answer, confirmed: text };
-      await saveNote(tracker.folder.uri.fsPath, { branch: snapshot.branch, file }, note, () => !this.closed);
+      await saveNote(tracker.folder.uri.fsPath, { key: tracker.noteKey, branch: snapshot.branch, file }, note, () => !this.closed);
       tracker.refresh();
       this.post({ type: 'notice', text: 'Clarification saved to the branch map and reviewer context.' });
     }

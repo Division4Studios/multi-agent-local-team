@@ -9,6 +9,8 @@ import { saveMapFile, saveSnapshot } from './storage';
 /** One serial writer per folder. A checkout invalidates even an in-flight scan of the old branch. */
 export class MapTracker implements vscode.Disposable {
   public readonly folder: vscode.WorkspaceFolder;
+  /** Signs and verifies developer notes; see knowledge.ts. */
+  public readonly noteKey: Buffer;
   public repository: GitRepository | undefined;
   public snapshot: Snapshot | undefined;
   public message = 'Indexing the workspace…';
@@ -26,8 +28,9 @@ export class MapTracker implements vscode.Disposable {
   private branchKey = '';
   private repositoryListener: vscode.Disposable | undefined;
 
-  public constructor(folder: vscode.WorkspaceFolder, git: GitApi | undefined) {
+  public constructor(folder: vscode.WorkspaceFolder, git: GitApi | undefined, noteKey: Buffer) {
     this.folder = folder;
+    this.noteKey = noteKey;
     const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, SOURCE_GLOB));
     const ignores = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, '**/.gitignore'));
     const ignoreChanged = (uri: vscode.Uri): void => {
@@ -121,7 +124,7 @@ export class MapTracker implements vscode.Disposable {
     }
     const next = this.full ? changes : new Map([...this.facts, ...changes]);
     const total = this.full ? allowed.length : this.total;
-    const snapshot = await withUnderstanding(this.folder.uri.fsPath, snapshotOf(next, head, total));
+    const snapshot = await withUnderstanding(this.folder.uri.fsPath, this.noteKey, snapshotOf(next, head, total));
     await saveSnapshot(this.folder.uri.fsPath, 'branch', snapshot, current);
     await saveMapFile(this.folder.uri.fsPath, 'reviewer.json', reviewerMap(snapshot), current);
     if (current()) {

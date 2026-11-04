@@ -53,7 +53,7 @@ The service validates request/response shapes and confines workspace reads. Clau
 
 Each trusted local workspace folder has its own graph tracker. The working graph follows the active checkout and saved files. Historical graphs read trees and blobs at pinned Git commits through the built-in Git extension. The explorer compares stable node and edge identities and retrieves historical source when a declaration was removed. See the [architecture explorer walkthrough](architecture-explorer.md) for supported relationships and limits.
 
-The standards scan supplies file-level interpretations. The reviewer checks evidence excerpts before the explorer marks a claim as source-backed. An open question starts a conversation through the authenticated reviewer service. Applying a clarification stores the developer’s wording under `.malt/maps/v1/` with its branch, file path and content fingerprint. The tracker publishes applicable explanations to `reviewer.json` for later architecture-aware reviews.
+The standards scan supplies file-level interpretations. The reviewer checks evidence excerpts before the explorer marks a claim as source-backed. An open question starts a conversation through the authenticated reviewer service. Applying a clarification stores the developer’s wording under `.malt/maps/v1/` with its branch, file path and content fingerprint, signed with a per-user key from VS Code SecretStorage so a repository cannot plant one. The tracker publishes applicable explanations to `reviewer.json` for later architecture-aware reviews.
 
 ## Making changes
 

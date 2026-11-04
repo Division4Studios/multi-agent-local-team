@@ -145,9 +145,9 @@ class MapPanel {
     await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'MALT: Mapping branch revisions', cancellable: true }, async (progress, token) => {
       progress.report({ message: baseHead.branch });
       const live = (): boolean => current() && !token.isCancellationRequested;
-      const from = await revision(this.tracker.folder, repo, baseHead, live);
+      const from = await revision(this.tracker, repo, baseHead, live);
       if (live()) {
-        const to = target.head === undefined ? undefined : await revision(this.tracker.folder, repo, target.head, live);
+        const to = target.head === undefined ? undefined : await revision(this.tracker, repo, target.head, live);
         if (live()) {
           this.comparison = to === undefined ? { base: from } : { base: from, target: to };
           this.render();
@@ -189,7 +189,8 @@ class MapPanel {
   }
 }
 
-export const registerArchitecture = (extension: vscode.Uri, git: GitApi | undefined, onFocus: () => void, reviewer: ReviewerAccess): vscode.Disposable => {
+export const registerArchitecture = (extension: vscode.Uri, map: { readonly git: GitApi | undefined; readonly noteKey: Buffer }, onFocus: () => void, reviewer: ReviewerAccess): vscode.Disposable => {
+  const { git, noteKey } = map;
   const trackers = new Map<string, MapTracker>();
   const panels = new Map<string, MapPanel>();
   const sync = (): void => {
@@ -204,7 +205,7 @@ export const registerArchitecture = (extension: vscode.Uri, git: GitApi | undefi
     }
     for (const folder of folders) {
       if (!trackers.has(folder.uri.toString())) {
-        trackers.set(folder.uri.toString(), new MapTracker(folder, git));
+        trackers.set(folder.uri.toString(), new MapTracker(folder, git, noteKey));
       }
     }
   };

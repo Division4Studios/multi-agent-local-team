@@ -1,5 +1,6 @@
 /** Exercises VS Code's actual Git tree/diff API, including a file absent from the active checkout. */
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
@@ -44,12 +45,13 @@ export const tests: readonly TestCase[] = [{
     const git = (await extension.activate()).getAPI(1);
     const root = await mkdtemp(join(host.uri.fsPath, 'branch-map-'));
     const folder = { uri: vscode.Uri.file(root), index: 0, name: 'branch-map' };
+    const key = randomBytes(32);
     let tracker: MapTracker | undefined;
     try {
       const repo = await fixture(root, git);
       const base = headOf(repo);
       assert.notEqual(base.commit, '');
-      tracker = new MapTracker(folder, git);
+      tracker = new MapTracker(folder, git, key);
       const active = tracker;
       await waitFor(() => active.snapshot?.commit === base.commit, 'initial branch map', 25_000);
       await repo.createBranch('feature/widgets', true);
@@ -64,8 +66,8 @@ export const tests: readonly TestCase[] = [{
       await repo.status();
       await writeFile(join(root, 'base.ts'), 'export class LocallyEdited {}');
       await waitFor(() => active.snapshot?.branch === base.branch && active.snapshot.nodes.some((n) => n.label === 'LocallyEdited'), 'working tree after checkout', 25_000);
-      const before = await revision(folder, repo, base, () => true);
-      const after = await revision(folder, repo, feature, () => true);
+      const before = await revision({ folder, noteKey: key }, repo, base, () => true);
+      const after = await revision({ folder, noteKey: key }, repo, feature, () => true);
       const diff = compareGraphs(after, before);
       assert.ok(diff.edges.some((e) => e.kind === 'inherits' && e.status === 'added'));
       assert.ok(diff.nodes.some((n) => n.label === 'Child' && n.status === 'added'));

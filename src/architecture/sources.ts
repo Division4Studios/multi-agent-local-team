@@ -83,10 +83,11 @@ export const snapshotOf = (facts: ReadonlyMap<string, FileFacts | undefined>, he
 };
 
 /** Diffing the empty tree enumerates the pinned commit through the built-in Git API, also in shallow clones. */
-export const revision = async (folder: vscode.WorkspaceFolder, repo: GitRepository, head: MapHead, live: () => boolean): Promise<Snapshot> => {
+export const revision = async (map: { readonly folder: vscode.WorkspaceFolder; readonly noteKey: Buffer }, repo: GitRepository, head: MapHead, live: () => boolean): Promise<Snapshot> => {
+  const { folder, noteKey } = map;
   const cached = await loadRevision(folder.uri.fsPath, head.commit);
   if (cached !== undefined) {
-    return await withUnderstanding(folder.uri.fsPath, { ...cached, branch: head.branch });
+    return await withUnderstanding(folder.uri.fsPath, noteKey, { ...cached, branch: head.branch });
   }
   if (repo.diffBetweenWithStats2 === undefined || repo.show === undefined || repo.getObjectDetails === undefined) {
     throw new Error('This Git provider cannot read branch trees.');
@@ -99,5 +100,5 @@ export const revision = async (folder: vscode.WorkspaceFolder, repo: GitReposito
   if (live()) {
     await saveSnapshot(folder.uri.fsPath, 'commit', snapshot, live);
   }
-  return await withUnderstanding(folder.uri.fsPath, snapshot);
+  return await withUnderstanding(folder.uri.fsPath, noteKey, snapshot);
 };
