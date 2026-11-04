@@ -2,6 +2,10 @@
 
 MALT has two runtimes: the VS Code extension and a local HTTP reviewer service. They share validated protocol types, not VS Code objects.
 
+<p align="center"><img src="../design/pipeline.png" alt="How MALT reviews a change, from an edit to verdicts in the editor and the Changes view." width="960" /></p>
+
+The module-level flow:
+
 ```mermaid
 flowchart LR
   Git[VS Code Git API] --> Filter[Ignore and generated-file exclusions]

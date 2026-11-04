@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- New look: the barley sprig from the activity bar becomes the full-color mark (amber grains, teal stem) for the extension icon. The README, wiki and docs have a new hero image and diagrams of how a change is reviewed and of the trust boundary, all hand-built from reviewable SVG and HTML sources in `design/`.
+
 ### Fixed
 
 - A failed reviewer request redacts secrets in the error it returns and logs (a Claude CLI error could quote a key), and a thrown value that isn't an `Error` is reported only as "Internal reviewer error", never echoed. Fixes CodeQL `js/stack-trace-exposure`.

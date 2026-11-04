@@ -1,6 +1,6 @@
 <div align="center">
 
-![MALT — Review changes as you code](media/banner.png)
+<img src="design/hero.png" alt="MALT: review every block as it lands. A VS Code editor with changed blocks outlined, a hover card explaining a block and the rule it failed, and the Changes view." width="960" />
 
 # MALT
 
@@ -74,6 +74,12 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 | 🔀 **Review a pull request** | Pick an open PR on GitHub; MALT checks it out safely, outlines every changed block and reviews it like your own changes. Results stay in VS Code; **Finish** takes you back to your branch. |
 | 🐳 **Always-hot, isolated reviewer** | The reviewer runs in a hardened Docker container (read-only workspace, no privileges, localhost-only), or as a local daemon when Docker isn't available. |
 | 🗂️ **Sidebar & status bar** | A MALT sidebar shows reviewer health and every changed block, and the status bar keeps a running pass/concern/fail count. |
+
+## 🔁 How it works
+
+<p align="center"><img src="design/pipeline.png" alt="How MALT reviews a change: an edit becomes git blocks; each block gets an overview call and one isolated call per applicable rule in the reviewer sandbox; verdicts appear in the editor and the Changes view; consolidation compares new declarations across the change." width="960" /></p>
+
+Code under review can try to talk to the reviewer, so repository text only ever reaches the model as fenced data, and every answer is checked before you see it. See [the trust boundary](SECURITY.md#the-trust-boundary).
 
 ## 🧭 Principles
 

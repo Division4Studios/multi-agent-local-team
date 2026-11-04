@@ -5,6 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
+        <img src="https://raw.githubusercontent.com/wiki/Division4Studios/multi-agent-local-team/images/mark.png" alt="MALT" width="40">
+
         Baseline rules apply to **every** workspace, on top of the rules MALT distills from each project's own docs and configs. A rule that only fits your project belongs in your project's docs, where the standards scan will pick it up.
 
         Each applicable rule is one isolated model call per changed block, so a new baseline rule adds cost to every review.

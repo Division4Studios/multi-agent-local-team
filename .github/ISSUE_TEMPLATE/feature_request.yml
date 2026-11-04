@@ -5,6 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
+        <img src="https://raw.githubusercontent.com/wiki/Division4Studios/multi-agent-local-team/images/mark.png" alt="MALT" width="40">
+
         MALT stays small on purpose. A good request describes a real problem in reviewing AI-assisted changes. Open questions and early ideas are welcome in [Discussions → Ideas](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/ideas) first.
   - type: textarea
     id: problem

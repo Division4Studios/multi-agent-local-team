@@ -3,6 +3,8 @@ body:
   - type: markdown
     attributes:
       value: |
+        <img src="https://raw.githubusercontent.com/wiki/Division4Studios/multi-agent-local-team/images/mark.png" alt="MALT" width="40">
+
         Ask anything about installing, configuring or using MALT. Bugs go in [issues](https://github.com/Division4Studios/multi-agent-local-team/issues/new/choose), and security problems go to [private reporting](https://github.com/Division4Studios/multi-agent-local-team/security/advisories/new).
   - type: textarea
     id: question

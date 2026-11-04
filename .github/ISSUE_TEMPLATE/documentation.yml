@@ -2,6 +2,10 @@ name: 📖 Documentation
 description: Something in the README, docs, settings descriptions or messages is wrong, missing or unclear
 labels: [documentation, triage]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        <img src="https://raw.githubusercontent.com/wiki/Division4Studios/multi-agent-local-team/images/mark.png" alt="MALT" width="40">
   - type: input
     id: where
     attributes:

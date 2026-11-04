@@ -1,0 +1,154 @@
+<!doctype html>
+<!--
+  Source for design/hero.png (1600×900), the README header. Render with design/render.mjs.
+  The editor mock-up uses MALT's real labels and hover layout (src/editor/visuals.ts, reviewMarkdown.ts).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #0E1217; --panel: #151A21; --panel-2: #1B2129; --line: #262E39; --text: #E6EAF0; --muted: #8B95A5;
+    --amber: #E6B85C; --amber-2: #C98F2E; --teal: #2BB8A6; --cream: #F7EFDA; --red: #F0646E; --green: #3FC98A;
+    --mono: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace; --sans: 'Segoe UI', Inter, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1600px; height: 900px; overflow: hidden; }
+  body {
+    font-family: var(--sans); color: var(--text); position: relative;
+    background:
+      radial-gradient(900px 600px at 78% 40%, rgba(43, 184, 166, .13), transparent 70%),
+      radial-gradient(700px 500px at 10% 100%, rgba(230, 184, 92, .10), transparent 70%),
+      linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 40px 40px,
+      linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px) 0 0 / 40px 40px,
+      var(--bg);
+  }
+  .copy { position: absolute; left: 88px; top: 150px; width: 520px; }
+  .copy img { height: 64px; display: block; margin-bottom: 64px; }
+  h1 { font-family: var(--mono); font-weight: 700; font-size: 50px; line-height: 1.18; margin: 0 0 28px; letter-spacing: -.5px; }
+  h1 em { font-style: normal; color: var(--teal); }
+  .lede { font-family: var(--mono); color: var(--muted); font-size: 19px; line-height: 1.65; margin: 0 0 40px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 12px; }
+  .chip { font-family: var(--mono); font-size: 15px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 999px; background: rgba(21,26,33,.8); color: var(--text); }
+  .chip b { color: var(--amber); font-weight: 600; }
+
+  .window {
+    position: absolute; left: 660px; top: 92px; width: 880px; height: 716px; border-radius: 14px; overflow: hidden;
+    background: var(--panel); border: 1px solid #2B3440;
+    box-shadow: 0 40px 120px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.02) inset;
+  }
+  .titlebar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: #10141A; border-bottom: 1px solid var(--line); }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .title { flex: 1; text-align: center; font-size: 13px; color: var(--muted); margin-right: 60px; }
+  .body { display: flex; height: calc(100% - 40px); }
+  .activity { width: 52px; background: #10141A; border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding-top: 14px; gap: 18px; }
+  .act { width: 24px; height: 24px; background: #4B5563; -webkit-mask: var(--icon) center / 24px no-repeat; }
+  .act.on { background: var(--cream); }
+  .sidebar { width: 236px; background: var(--panel-2); border-right: 1px solid var(--line); padding: 12px 0; font-size: 13px; }
+  .side-h { padding: 0 16px 10px; font-size: 11px; letter-spacing: 1.2px; color: var(--muted); font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 5px 16px; white-space: nowrap; color: #C9D1DC; }
+  .row.sel { background: rgba(43,184,166,.14); box-shadow: inset 2px 0 var(--teal); }
+  .i1 { padding-left: 30px; } .i2 { padding-left: 46px; }
+  .ok { color: var(--green); } .bad { color: var(--red); } .dim { color: var(--muted); }
+  .badge { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+  .editor { flex: 1; position: relative; font-variant-ligatures: none; font-family: var(--mono); font-size: 14px; line-height: 24px; padding-top: 10px; }
+  .tab { height: 34px; margin-top: -10px; margin-bottom: 8px; display: flex; align-items: center; padding: 0 16px; font-family: var(--sans); font-size: 13px; color: var(--text); border-bottom: 1px solid var(--line); background: #10141A; }
+  .tab span { padding: 8px 14px; background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 6px 6px 0 0; margin-bottom: -1px; }
+  .ln { display: flex; white-space: pre; }
+  .num { width: 46px; text-align: right; padding-right: 16px; color: #4B5563; }
+  .k { color: #C792EA; } .f { color: #82AAFF; } .s { color: #C3E88D; } .t { color: #FFCB6B; } .c { color: #5C6773; }
+  .block { position: absolute; left: 42px; right: 18px; border: 1.5px solid; border-radius: 6px; }
+  .block.pass { border-color: rgba(63,201,138,.75); background: rgba(63,201,138,.05); }
+  .block.fail { border-color: rgba(240,100,110,.85); background: rgba(240,100,110,.06); }
+  .label { position: absolute; right: 12px; top: 2px; font-family: var(--sans); font-size: 12px; }
+
+  .hover {
+    position: absolute; left: 34px; top: 330px; width: 530px; background: #1E242D; border: 1px solid #36404D; border-radius: 8px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.5); font-family: var(--sans); font-size: 13.5px; line-height: 1.5; padding: 14px 16px; color: #D5DBE3;
+  }
+  .hover p { margin: 0 0 8px; }
+  .hover hr { border: 0; border-top: 1px solid #36404D; margin: 10px 0; }
+  .hover a { color: #6CB6FF; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="copy">
+    <img src="brand/lockup-dark.svg" alt="MALT">
+    <h1>Review every block<br><em>as it lands.</em></h1>
+    <p class="lede">Each change your AI writes is outlined, explained and checked against your project's own standards, by a sandboxed local reviewer, inside VS Code.</p>
+    <div class="chips">
+      <span class="chip"><b>1</b> block at a time</span>
+      <span class="chip">rule-by-rule checks</span>
+      <span class="chip"><b>0</b> runtime deps</span>
+      <span class="chip">runs locally</span>
+    </div>
+  </div>
+
+  <div class="window">
+    <div class="titlebar">
+      <span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span>
+      <span class="title">invoice.ts — billing-service</span>
+    </div>
+    <div class="body">
+      <div class="activity">
+        <div class="act" style="--icon:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><path d=%22M4 3h11l5 5v13H4z%22/></svg>')"></div>
+        <div class="act" style="--icon:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><circle cx=%2210%22 cy=%2210%22 r=%226%22 fill=%22none%22 stroke=%22black%22 stroke-width=%223%22/><path d=%22M14 14l6 6%22 stroke=%22black%22 stroke-width=%223%22/></svg>')"></div>
+        <div class="act on" style="--icon:url('../media/malt.svg')"></div>
+      </div>
+      <div class="sidebar">
+        <div class="side-h">MALT: CHANGES</div>
+        <div class="row"><span class="bad">●</span> src/billing/invoice.ts <span class="badge">2</span></div>
+        <div class="row i1"><span class="ok">✓</span> Lines 8–13 <span class="badge">Passed</span></div>
+        <div class="row i1 sel"><span class="bad">✕</span> Lines 15–24 <span class="badge">1 failed</span></div>
+        <div class="row i2"><span class="dim">▾</span> Architecture</div>
+        <div class="row i2"><span class="bad">✕</span> Extends existing code</div>
+        <div class="row i2"><span class="ok">✓</span> Abstraction earns its…</div>
+        <div class="row i2"><span class="dim">▸</span> Security <span class="badge">2 ✓</span></div>
+        <div class="row i2"><span class="dim">▸</span> Quality <span class="badge">2 ✓</span></div>
+        <div class="row"><span class="ok">●</span> src/billing/tax.ts <span class="badge">1</span></div>
+        <div class="row i1"><span class="ok">✓</span> Line 31 <span class="badge">Passed</span></div>
+        <div class="row" style="margin-top:14px"><span class="dim">▾</span> CONSOLIDATION</div>
+        <div class="row i1"><span class="bad">!</span> Two date formatters</div>
+      </div>
+      <div class="editor">
+        <div class="tab"><span>invoice.ts</span></div>
+        <div class="ln"><span class="num">6</span><span><span class="k">import</span> { <span class="t">Invoice</span> } <span class="k">from</span> <span class="s">'./types'</span>;</span></div>
+        <div class="ln"><span class="num">7</span><span></span></div>
+        <div class="ln"><span class="num">8</span><span><span class="k">export const</span> <span class="f">totalOf</span> = (invoice: <span class="t">Invoice</span>): <span class="t">number</span> =&gt;</span></div>
+        <div class="ln"><span class="num">9</span><span>  invoice.lines.<span class="f">reduce</span>((sum, line) =&gt;</span></div>
+        <div class="ln"><span class="num">10</span><span>    sum + line.quantity * line.unitPrice, <span class="t">0</span>);</span></div>
+        <div class="ln"><span class="num">11</span><span></span></div>
+        <div class="ln"><span class="num">12</span><span><span class="k">export const</span> <span class="f">isOverdue</span> = (invoice: <span class="t">Invoice</span>, now: <span class="t">Date</span>) =&gt;</span></div>
+        <div class="ln"><span class="num">13</span><span>  invoice.dueAt.<span class="f">getTime</span>() &lt; now.<span class="f">getTime</span>();</span></div>
+        <div class="ln"><span class="num">14</span><span></span></div>
+        <div class="ln"><span class="num">15</span><span><span class="c">// Format a due date for the invoice header.</span></span></div>
+        <div class="ln"><span class="num">16</span><span><span class="k">export const</span> <span class="f">formatDueDate</span> = (date: <span class="t">Date</span>): <span class="t">string</span> =&gt; {</span></div>
+        <div class="ln"><span class="num">17</span><span>  <span class="k">const</span> day = <span class="t">String</span>(date.<span class="f">getDate</span>()).<span class="f">padStart</span>(<span class="t">2</span>, <span class="s">'0'</span>);</span></div>
+        <div class="ln"><span class="num">18</span><span>  <span class="k">const</span> month = <span class="t">String</span>(date.<span class="f">getMonth</span>() + <span class="t">1</span>).<span class="f">padStart</span>(<span class="t">2</span>, <span class="s">'0'</span>);</span></div>
+        <div class="ln"><span class="num">19</span><span>  <span class="k">return</span> <span class="s">`${day}/${month}/${date.getFullYear()}`</span>;</span></div>
+        <div class="ln"><span class="num">20</span><span>};</span></div>
+        <div class="ln"><span class="num">21</span><span></span></div>
+        <div class="ln"><span class="num">22</span><span><span class="k">export const</span> <span class="f">headerOf</span> = (invoice: <span class="t">Invoice</span>) =&gt;</span></div>
+        <div class="ln"><span class="num">23</span><span>  <span class="s">`Invoice ${invoice.id} · due ${</span><span class="f">formatDueDate</span>(invoice.dueAt)<span class="s">}`</span>;</span></div>
+        <div class="ln"><span class="num">24</span><span></span></div>
+
+        <div class="block pass" style="top:86px;height:146px"><span class="label ok">MALT · Passed</span></div>
+        <div class="block fail" style="top:254px;height:220px"><span class="label bad">MALT · Changes requested</span></div>
+
+        <div class="hover">
+          <p><b>MALT</b> · <span class="bad">✕</span> Changes requested</p>
+          <p>Adds a due-date formatter and uses it in the invoice header.</p>
+          <p><b>Purpose</b> Customers see when an invoice is due.</p>
+          <p><b>Design</b> <code>src/lib/dates.ts</code> already exports <code>formatDate</code>; extend it instead of adding a second formatter.</p>
+          <hr>
+          <p><b>Rules</b> · 1 failed · 5 passed</p>
+          <p><span class="bad">✕</span> <b>Fail</b> · Extends existing code before adding new: reuse <code>formatDate</code>.</p>
+          <hr>
+          <p style="margin:0"><a>Review again</a> · lines 15–24 · +9 −0</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
