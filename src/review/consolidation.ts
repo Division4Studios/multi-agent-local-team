@@ -51,7 +51,10 @@ export class ConsolidationCheck implements vscode.Disposable {
     await this.inFlight;
   }
 
-  /** Stops for good: no new or scheduled check runs; resolves once a check already in flight has finished. */
+  /**
+   * Stops for good: no new or scheduled check runs; resolves once a check already in flight has finished, and drops
+   * its findings (they may describe files that are no longer the ones it read), keeping the last ones from before.
+   */
   public async stop(): Promise<void> {
     this.stopped = true;
     clearTimeout(this.timer);
@@ -68,7 +71,7 @@ export class ConsolidationCheck implements vscode.Disposable {
     this.set({ status: 'running', findings: this.current.findings });
     try {
       const findings = await client.consolidation({ blocks: this.blocks() });
-      this.set({ status: 'done', findings, checkedAt: new Date() });
+      this.set(this.stopped ? { status: 'idle', findings: this.current.findings } : { status: 'done', findings, checkedAt: new Date() });
     } catch (error: unknown) {
       this.set({ status: 'error', findings: [], error: error instanceof Error ? error.message : String(error) });
     }

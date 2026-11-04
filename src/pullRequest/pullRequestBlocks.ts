@@ -50,6 +50,24 @@ const skipReason = (file: PullRequestFile): string | undefined => {
   return file.patch === undefined ? 'binary, or too large for GitHub to show a diff' : undefined;
 };
 
+/**
+ * The file to outline for a PR path: a regular file inside the workspace, reached without following any link.
+ * GitHub's patch for a symlink is the link's target path, not file content, so it is never reviewed (as with local
+ * changes): resolving it would outline, and send the reviewer, an unrelated file. `workspaceFile` resolves links
+ * anywhere on the path, so a link (to a file, or a folder on the way) shows as a real location other than the path.
+ */
+const reviewableFile = async (folder: vscode.WorkspaceFolder, relativePath: string): Promise<vscode.Uri | undefined> => {
+  const real = await workspaceFile(folder, relativePath);
+  if (real?.toString() !== vscode.Uri.joinPath(folder.uri, ...relativePath.split('/')).toString()) {
+    return undefined;
+  }
+  try {
+    return (await vscode.workspace.fs.stat(real)).type === vscode.FileType.File ? real : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const blocksFromFiles = async (
   folder: vscode.WorkspaceFolder,
   repositoryRoot: vscode.Uri,
@@ -62,9 +80,9 @@ export const blocksFromFiles = async (
     // GitHub names files relative to the repository root; the reviewer works relative to the workspace folder.
     const inRepository = vscode.Uri.joinPath(repositoryRoot, ...file.filename.split('/'));
     const relativePath = relative(folder.uri.fsPath, inRepository.fsPath).split('\\').join('/');
-    const uri = reason === undefined ? await workspaceFile(folder, relativePath) : undefined;
+    const uri = reason === undefined ? await reviewableFile(folder, relativePath) : undefined;
     if (reason !== undefined || uri === undefined || file.patch === undefined) {
-      skipped.push({ file: file.filename, reason: reason ?? 'not a file inside this workspace' });
+      skipped.push({ file: file.filename, reason: reason ?? 'a symlink, or not a file inside this workspace' });
       continue;
     }
     for (const hunk of parseUnifiedDiff(file.patch)) {

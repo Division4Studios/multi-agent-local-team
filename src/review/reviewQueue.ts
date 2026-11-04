@@ -90,8 +90,9 @@ export class ReviewQueue {
   }
 
   /**
-   * Stops for good: drops waiting work, never starts or schedules anything again (an overview that finishes later
-   * queues no rule checks), and resolves once the calls already in flight have finished.
+   * Stops for good: drops waiting work, never starts or schedules anything again, and resolves once the calls already
+   * in flight have finished. Their results are dropped too (an overview that finishes later records nothing and queues
+   * no rule checks): a review stops because its files may no longer be the ones the calls read.
    */
   public async stop(): Promise<void> {
     this.stopped = true;
@@ -155,6 +156,9 @@ export class ReviewQueue {
   private async runOverview(client: HunkReviewer, tracked: TrackedHunk): Promise<void> {
     this.options.store.setState(tracked.id, { status: 'reviewing' });
     const response = await client.review(requestFor(tracked));
+    if (this.stopped) {
+      return;
+    }
     const review = { ...response, checks: [] };
     this.options.store.setState(tracked.id, { status: 'reviewing', review });
     this.push(missingRules(review).map((rule) => ({ tracked, rule })), true);
@@ -165,7 +169,7 @@ export class ReviewQueue {
     this.update(tracked.id, (state) => ({ ...state, running: [...running(state), rule.id] }));
     try {
       const check = await client.check({ ...requestFor(tracked), ruleId: rule.id });
-      this.update(tracked.id, (state) => (state.review === undefined ? state : {
+      this.update(tracked.id, (state) => (this.stopped || state.review === undefined ? state : {
         ...state,
         review: { ...state.review, checks: [...state.review.checks.filter((other) => other.ruleId !== rule.id), check] },
       }));

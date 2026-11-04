@@ -49,6 +49,7 @@ export class PullRequestReview implements vscode.Disposable {
   public readonly consolidation: ConsolidationCheck;
   public readonly tree: ChangesTreeProvider;
   private readonly disposables: vscode.Disposable[];
+  private staleReason: string | undefined;
 
   public constructor(options: PullRequestReviewOptions) {
     this.pull = options.pull;
@@ -85,6 +86,24 @@ export class PullRequestReview implements vscode.Disposable {
   /** Blocks whose review finished (passed or failed). */
   public get reviewedCount(): number {
     return this.store.allHunks().filter((tracked) => this.store.state(tracked.id).status === 'reviewed').length;
+  }
+
+  /** Why the review stopped because the workspace no longer holds the PR's files; undefined while it does. */
+  public get stale(): string | undefined {
+    return this.staleReason;
+  }
+
+  /**
+   * The workspace no longer holds the PR's files: stops for good, so no call reads, and no result describes, files
+   * that are not the PR's. Results finished before stay. Returns whether this call changed anything.
+   */
+  public invalidate(reason: string): boolean {
+    if (this.staleReason !== undefined) {
+      return false;
+    }
+    this.staleReason = reason;
+    void this.stop();
+    return true;
   }
 
   /** Queues every block that has no finished review, then checks consolidation across the whole PR. */

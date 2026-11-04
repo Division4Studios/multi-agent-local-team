@@ -15,7 +15,7 @@ import type { GitHubRepo, PullRequestSummary } from '../github/githubApi';
 import type { ReviewerManager } from '../backend/reviewerManager';
 import type { ReviewerClient } from '../review/reviewerClient';
 import type { ChangesNode } from '../views/changesView';
-import { checkOutPullRequest, findGitHubRemote, returnFromPullRequest, returnOnFailure } from './pullRequestCheckout';
+import { checkOutPullRequest, checkoutChange, findGitHubRemote, returnFromPullRequest, returnOnFailure } from './pullRequestCheckout';
 import type { GitHubRemote } from './pullRequestCheckout';
 import { blocksFromFiles, filesAtHead } from './pullRequestBlocks';
 import { PullRequestReview } from './pullRequestReview';
@@ -91,6 +91,10 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
   private readonly deps: PullRequestDeps;
   private readonly view: vscode.TreeView<ChangesNode>;
   private review: PullRequestReview | undefined;
+  /** The repository the open review's PR is checked out in. */
+  private repository: GitRepository | undefined;
+  /** Set, before anything is awaited, while a review is being opened, so a second start cannot race the first. */
+  private starting = false;
   private reviewSubscriptions: vscode.Disposable[] = [];
 
   public constructor(deps: PullRequestDeps) {
@@ -112,47 +116,21 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
   }
 
   public async start(): Promise<void> {
+    if (this.starting) {
+      void vscode.window.showWarningMessage('MALT is already opening a pull request.');
+      return;
+    }
     if (this.review !== undefined) {
       void vscode.window.showWarningMessage(`Finish reviewing #${String(this.review.pull.number)} before starting another.`);
       return;
     }
-    const target = await reviewTarget();
-    if (target === undefined) {
-      void vscode.window.showWarningMessage('MALT needs a git repository with a github.com remote to review a pull request.');
-      return;
-    }
-    const { folder, repository, remote } = target;
+    this.starting = true;
     try {
-      const client = await gitHubClient(remote.repo);
-      if (client === undefined) {
-        return;
-      }
-      const picked = await pickPullRequest(client);
-      if (picked === undefined || !(await this.confirmCheckout(picked, repository))) {
-        return;
-      }
-      await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `MALT: Checking out #${String(picked.number)}…` },
-        async () => {
-          // Read again: the author may have pushed while the picker or confirmation was open.
-          const pull = await client.pullRequest(picked.number);
-          const previous = await checkOutPullRequest(repository, remote.remote, pull);
-          const { blocks, skipped } = await returnOnFailure(repository, previous, async () =>
-            await blocksFromFiles(folder, repository.rootUri, await filesAtHead(client, pull.number, pull.headSha)));
-          this.open(new PullRequestReview({
-            pull,
-            previous,
-            blocks,
-            skipped,
-            client: (): ReviewerClient | undefined => this.deps.manager.client,
-            concurrency: (): number => readSettings().maxConcurrentReviews,
-          }));
-        },
-      );
-      await this.offerReview();
-    } catch (error: unknown) {
-      void vscode.window.showErrorMessage(`MALT could not review the pull request: ${describeError(error)}`);
+      await this.load();
+    } finally {
+      this.starting = false;
     }
+    await this.offerReview();
   }
 
   public async finish(): Promise<void> {
@@ -197,6 +175,13 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
     if (this.deps.manager.client === undefined) {
       await this.deps.startReviewer();
     }
+    // Verify the checkout with a fresh git status right before spending calls: the review may have gone stale.
+    await this.repository?.status?.();
+    this.checkCheckout();
+    if (review.stale !== undefined) {
+      void vscode.window.showWarningMessage(`MALT stopped reviewing #${String(review.pull.number)}: ${review.stale}. Finish, then start again.`);
+      return;
+    }
     if (this.deps.manager.client !== undefined) {
       review.reviewAll();
     }
@@ -235,6 +220,46 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
     this.changeEmitter.dispose();
   }
 
+  /** Picks, checks out and opens a pull request. Only `start` calls this, one at a time. */
+  private async load(): Promise<void> {
+    const target = await reviewTarget();
+    if (target === undefined) {
+      void vscode.window.showWarningMessage('MALT needs a git repository with a github.com remote to review a pull request.');
+      return;
+    }
+    const { folder, repository, remote } = target;
+    try {
+      const client = await gitHubClient(remote.repo);
+      if (client === undefined) {
+        return;
+      }
+      const picked = await pickPullRequest(client);
+      if (picked === undefined || !(await this.confirmCheckout(picked, repository))) {
+        return;
+      }
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `MALT: Checking out #${String(picked.number)}…` },
+        async () => {
+          // Read again: the author may have pushed while the picker or confirmation was open.
+          const pull = await client.pullRequest(picked.number);
+          const previous = await checkOutPullRequest(repository, remote.remote, pull);
+          const { blocks, skipped } = await returnOnFailure(repository, previous, async () =>
+            await blocksFromFiles(folder, repository.rootUri, await filesAtHead(client, pull.number, pull.headSha)));
+          this.open(repository, new PullRequestReview({
+            pull,
+            previous,
+            blocks,
+            skipped,
+            client: (): ReviewerClient | undefined => this.deps.manager.client,
+            concurrency: (): number => readSettings().maxConcurrentReviews,
+          }));
+        },
+      );
+    } catch (error: unknown) {
+      void vscode.window.showErrorMessage(`MALT could not review the pull request: ${describeError(error)}`);
+    }
+  }
+
   private async confirmCheckout(pull: PullRequestSummary, repository: GitRepository): Promise<boolean> {
     const current = repository.state.HEAD?.name ?? repository.state.HEAD?.commit?.slice(0, 7) ?? 'your current branch';
     const choice = await vscode.window.showWarningMessage(
@@ -262,16 +287,31 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
     }
   }
 
-  private open(review: PullRequestReview): void {
+  private open(repository: GitRepository, review: PullRequestReview): void {
     this.close();
     this.review = review;
-    const refresh = (): void => {
-      this.updateMessage();
-      this.changeEmitter.fire(undefined);
-    };
-    this.reviewSubscriptions = [review.tree.onDidChangeTreeData(refresh)];
+    this.repository = repository;
+    this.reviewSubscriptions = [
+      review.tree.onDidChangeTreeData(() => { this.refresh(); }),
+      repository.state.onDidChange(() => { this.checkCheckout(); }),
+    ];
     void vscode.commands.executeCommand('setContext', 'malt.pullRequestActive', true);
-    refresh();
+    this.checkCheckout();
+    this.refresh();
+  }
+
+  /** Switching branches or editing the checkout stops the review: its calls must only ever read the PR's files. */
+  private checkCheckout(): void {
+    const { review, repository } = this;
+    const change = review === undefined || repository === undefined ? undefined : checkoutChange(repository, review.pull.headSha);
+    if (change !== undefined && review?.invalidate(change) === true) {
+      this.refresh();
+    }
+  }
+
+  private refresh(): void {
+    this.updateMessage();
+    this.changeEmitter.fire(undefined);
   }
 
   private close(): void {
@@ -279,6 +319,7 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
     this.reviewSubscriptions = [];
     this.review?.dispose();
     this.review = undefined;
+    this.repository = undefined;
     void vscode.commands.executeCommand('setContext', 'malt.pullRequestActive', false);
     this.view.message = '';
     this.changeEmitter.fire(undefined);
@@ -286,8 +327,11 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
 
   private updateMessage(): void {
     const review = this.review;
-    this.view.message = review === undefined
-      ? ''
-      : `#${String(review.pull.number)} ${review.pull.title} · by ${review.pull.author} · ${String(review.reviewedCount)} of ${String(review.blockCount)} block(s) reviewed`;
+    if (review === undefined) {
+      this.view.message = '';
+      return;
+    }
+    const progress = `#${String(review.pull.number)} ${review.pull.title} · by ${review.pull.author} · ${String(review.reviewedCount)} of ${String(review.blockCount)} block(s) reviewed`;
+    this.view.message = review.stale === undefined ? progress : `${progress} · Stopped: ${review.stale}. Finish, then start again to review more.`;
   }
 }

@@ -34,6 +34,17 @@ export interface PreviousHead {
 export const hasTrackedChanges = (repository: GitRepository): boolean =>
   repository.state.workingTreeChanges.length > 0 || repository.state.indexChanges.length > 0;
 
+/**
+ * Why the workspace no longer holds exactly the PR's files, or undefined while it does. The reviewer reads context
+ * from the workspace, so a review must not run against a different commit or edited files.
+ */
+export const checkoutChange = (repository: GitRepository, headSha: string): string | undefined => {
+  if (repository.state.HEAD?.commit !== headSha) {
+    return 'the workspace is no longer on the pull request\'s commit';
+  }
+  return hasTrackedChanges(repository) ? 'files of the pull request checkout were changed' : undefined;
+};
+
 const REFRESH_TIMEOUT_MS = 10_000;
 
 /** Waits until the repository reports HEAD at `commit` (the Git extension updates its state asynchronously). */
