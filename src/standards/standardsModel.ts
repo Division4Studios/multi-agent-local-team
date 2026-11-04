@@ -5,7 +5,8 @@
  * parsers, and gap anchors are re-checked with the same policy the reviewer applies.
  */
 import * as vscode from 'vscode';
-import { ARCHITECTURE_FILE, STANDARDS_FILE, parseArchitectureDocument, parseStandardsDocument } from '../shared/protocol';
+import { loadArchitecture } from '../reviewer/workspace';
+import { STANDARDS_FILE, parseStandardsDocument } from '../shared/protocol';
 import type { ArchitectureDocument, Finding, Rule, StandardsDocument } from '../shared/protocol';
 import { enforceAnchors } from '../reviewer/trust';
 import { INVESTIGATIONS_FILE, gapId, parseInvestigationsDocument } from '../shared/investigation';
@@ -51,7 +52,7 @@ export class StandardsModel implements vscode.Disposable {
   public constructor(folder: vscode.WorkspaceFolder | undefined) {
     this.folder = folder;
     if (folder !== undefined) {
-      const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, '.malt/*.json'));
+      const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, '.malt/{*.json,maps/v1/reviewer.json}'));
       const reload = (): void => {
         void this.reload();
       };
@@ -91,7 +92,7 @@ export class StandardsModel implements vscode.Disposable {
     }
     const [standards, architecture, investigations] = await Promise.all([
       readJson(vscode.Uri.joinPath(this.folder.uri, STANDARDS_FILE)),
-      readJson(vscode.Uri.joinPath(this.folder.uri, ARCHITECTURE_FILE)),
+      loadArchitecture(this.folder.uri.fsPath),
       readJson(vscode.Uri.joinPath(this.folder.uri, INVESTIGATIONS_FILE)),
     ]);
     const saved = parseInvestigationsDocument(investigations)?.investigations ?? [];
@@ -101,7 +102,7 @@ export class StandardsModel implements vscode.Disposable {
       ...document,
       gaps: document.gaps.map((gap) => ({ ...gap, anchors: enforceAnchors(gap.anchors, new Set(gap.files)) })),
     };
-    this.architectureDocument = parseArchitectureDocument(architecture);
+    this.architectureDocument = architecture.modules.length > 0 ? architecture : undefined;
     this.changeEmitter.fire();
   }
 

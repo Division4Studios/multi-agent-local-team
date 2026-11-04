@@ -27,6 +27,7 @@ flowchart LR
 
 | Directory | Responsibility |
 | --- | --- |
+| `src/architecture` | Source extraction, graph traversal and diffs, branch snapshots, explorer navigation and developer clarifications |
 | `src/git`, `src/diff` | Narrow built-in Git API contract and unified-diff parsing |
 | `src/review` | Change tracking, content-keyed review state, bounded queue and HTTP client |
 | `src/editor`, `src/views` | Theme-aware outlines, escaped hover Markdown and native tree/status-bar views |
@@ -47,6 +48,14 @@ Review IDs identify content and deliberately ignore line numbers. Identical bloc
 Standards discovery is independent of Git change filtering. It can read ignored project instructions, but skips generated `.malt/` directories. The save operation creates an internal `.gitignore` only when absent. The reviewer reads the resulting rules file explicitly and sanitizes rules before combining them with immutable baseline checks. The scan also writes `.malt/architecture.json`; the reviewer re-sanitizes it on load and sends each call only a related slice (`src/reviewer/architecture.ts`).
 
 The service validates request/response shapes and confines workspace reads. Claude calls are tool-less, use an isolated working directory, and disable project/user settings and MCP configuration loading. Model results and repository text are untrusted; hover text is escaped and only the MALT retry command is enabled. See [SECURITY.md](../SECURITY.md) for the security and dependency policy.
+
+## How the explorer and reviewer share knowledge
+
+Each trusted local workspace folder has its own graph tracker. The working graph follows the active checkout and saved files. Historical graphs read trees and blobs at pinned Git commits through the built-in Git extension. The explorer compares stable node and edge identities and retrieves historical source when a declaration was removed. See the [architecture explorer walkthrough](architecture-explorer.md) for supported relationships and limits.
+
+The standards scan supplies file-level interpretations. The reviewer checks evidence excerpts before the explorer marks a claim as source-backed. An open question starts a conversation through the authenticated reviewer service. Applying a clarification stores the developer’s wording under `.malt/maps/v1/` with its branch, file path and content fingerprint, signed with a per-user key from VS Code SecretStorage so a repository cannot plant one. The tracker publishes applicable explanations to `reviewer.json` for later architecture-aware reviews.
+
+The sidebar and editor share a folder-specific navigation state. Evidence diagrams are included in branch and commit snapshots. The bundled MALT publisher renders the same versioned model using the extension’s SVG layouts and runs delivery checks in an explicit VS Code process task. The local stdio MCP server verifies an Ed25519 signature bound to the workspace before returning guidance. Its public verifier can be shared with clients without sharing the note-signing secret. [Views and agent protocol](architecture-views.md)
 
 ## Making changes
 

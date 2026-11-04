@@ -6,6 +6,10 @@
  * what neither settles is recorded as gaps for the team.
  */
 import * as vscode from 'vscode';
+import type { GitRepository } from '../git/gitApi';
+import { getGitApi } from '../git/gitApi';
+import { headOf, relativePath } from '../architecture/sources';
+import { saveScan } from '../architecture/knowledge';
 import { ARCHITECTURE_FILE, INFERRED_SOURCE_PREFIX, STANDARDS_FILE, parseStandardsDocument } from '../shared/protocol';
 import type { ArchitectureDocument, StandardsDocument, StandardsScan } from '../shared/protocol';
 import { showGaps } from '../views/detailPanel';
@@ -49,7 +53,22 @@ const summary = (scan: StandardsScan): string => {
  * Scans documents and code (one reviewer call that runs both, then a gap analysis) and saves the results. Empty
  * results keep the previous files, so a failed or empty scan never wipes good output.
  */
+const scanRepository = async (folder: vscode.WorkspaceFolder): Promise<GitRepository | undefined> => {
+  const git = await getGitApi();
+  return git?.repositories.filter((r) => !/^(?:\.\.|[A-Za-z]:)/u.test(relativePath(r.rootUri, folder.uri)))
+    .sort((a, b) => b.rootUri.fsPath.length - a.rootUri.fsPath.length)[0];
+};
+
+const ensureCurrent = (current: () => boolean): void => {
+  if (!current()) {
+    throw new Error('The checked-out revision changed during the scan. Run it again on the current branch.');
+  }
+};
+
 export const scanStandards = async (client: ReviewerClient, folder: vscode.WorkspaceFolder): Promise<void> => {
+  const repo = await scanRepository(folder);
+  const head = headOf(repo);
+  const current = (): boolean => JSON.stringify(headOf(repo)) === JSON.stringify(head);
   const scan = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
@@ -57,12 +76,14 @@ export const scanStandards = async (client: ReviewerClient, folder: vscode.Works
     },
     async () => await client.scanStandards(),
   );
+  ensureCurrent(current);
   for (const warning of scan.warnings) {
     void vscode.window.showWarningMessage(`MALT: ${warning}`);
   }
   const now = new Date().toISOString();
   if (scan.modules.length > 0) {
     const map: ArchitectureDocument = { version: 1, generatedAt: now, modules: scan.modules };
+    await saveScan(folder.uri.fsPath, head.branch, scan.modules, current);
     await writeGenerated(folder, ARCHITECTURE_FILE, map);
   }
   if (scan.rules.length === 0 && scan.gaps.length === 0) {

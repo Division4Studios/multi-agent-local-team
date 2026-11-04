@@ -2,6 +2,8 @@
 import { request as httpRequest } from 'node:http';
 import { isRecord, isString, parseArray } from '../shared/guards';
 import { parseConversationEvent } from '../shared/conversation';
+import { parseInterpretation } from '../shared/understanding';
+import type { DiscussionRequest, Interpretation } from '../shared/understanding';
 import { parseGapInvestigation } from '../shared/investigation';
 import type { GapInvestigation } from '../shared/investigation';
 import type { ConversationEvent } from '../shared/conversation';
@@ -112,6 +114,14 @@ export class ReviewerClient {
       throw new Error('Reviewer returned an invalid check');
     }
     return check;
+  }
+
+  public async discuss(request: DiscussionRequest): Promise<Interpretation> {
+    const answer = parseInterpretation(await call(this.endpoint, { method: 'POST', path: '/architecture/discuss', body: request, timeoutMs: REVIEW_TIMEOUT_MS }));
+    if (answer === undefined) {
+      throw new Error('Invalid architecture discussion response');
+    }
+    return answer;
   }
 
   public async scanStandards(): Promise<StandardsScan> {

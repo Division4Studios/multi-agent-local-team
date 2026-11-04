@@ -14,6 +14,7 @@ import { ConversationLog } from './conversations';
 import { log } from './log';
 import { redactSecrets } from './redact';
 import { isRecord } from '../shared/guards';
+import { parseDiscussion } from '../shared/understanding';
 import { isGapId } from '../shared/investigation';
 
 const MAX_BODY_BYTES = 1_000_000;
@@ -125,6 +126,8 @@ const route = async (service: ReviewService, request: IncomingMessage): Promise<
       log(`consolidation over ${String(consolidationRequest.blocks.length)} block(s)`);
       return { findings: await service.consolidation(consolidationRequest) };
     }
+    case 'POST /architecture/discuss':
+      return await service.discuss(await readRequest(request, parseDiscussion, 'architecture discussion'));
     case 'POST /standards/scan':
       log('standards scan started');
       return await service.scanStandards();

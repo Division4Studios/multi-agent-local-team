@@ -1,11 +1,12 @@
 # Design sources
 
-Sources and exports for MALT's artwork. The palette, the rules and the asset list are in [docs/design.md](../docs/design.md). This folder is not packaged into the extension; only `media/malt.svg` and `media/icon.png` ship.
+Sources and exports for MALT's artwork. The palette, the rules and the asset list are in [docs/design.md](../docs/design.md). The VSIX includes artwork from `media/` and guide images from `docs/images/`. Editable artwork stays in this folder.
 
 | Source | Export | Size |
 |---|---|---|
 | `brand/lockup-dark.svg`, `brand/lockup-light.svg` | `brand/lockup-dark.png`, `brand/lockup-light.png` | 780×240 |
 | `hero.html` | `hero.png` | 1600×900 |
+| `architecture-explorer.svg` | `../docs/images/architecture-explorer.png` | 1240×610, illustrated call trace from the explorer guide |
 | `pipeline.html` | `pipeline.png` | 1600×820 |
 | `trust.html` | `trust.png` | 1600×820 |
 | `icon.html` | `../media/icon.png` | 256×256, transparent corners |

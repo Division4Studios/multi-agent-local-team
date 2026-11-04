@@ -68,7 +68,7 @@ export const architecturePage = (document: ArchitectureDocument | undefined): Li
         heading: folder === '.' ? '(project root)' : `${folder}/`,
         items: [...modules]
           .sort((a, b) => a.path.localeCompare(b.path))
-          .map((module) => ({ title: posix.basename(module.path), body: [module.purpose], tags: module.exports.map((name) => `exports ${name}`) })),
+          .map((module) => ({ title: posix.basename(module.path), body: module.understanding === undefined ? [module.purpose] : [module.understanding.what, module.understanding.why, module.understanding.confirmed ?? module.understanding.question], tags: module.exports.map((name) => `exports ${name}`) })),
       })),
   };
 };

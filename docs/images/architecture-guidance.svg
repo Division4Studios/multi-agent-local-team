@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 248" role="img" aria-labelledby="t desc">
+<title id="t">One clarification, shared by the chart, sidebar and local agents</title>
+<desc id="desc">The developer applies a clarification. The branch map exposes its signed guidance to two connected local agent sessions. A peer handoff carries the revision it was based on.</desc>
+<style>text{font-family:Segoe UI,sans-serif;fill:#e8edf2}.label{font-size:18px;font-weight:600}.note{font-size:14px;fill:#bfccd7}.wire{stroke:#56bbad;fill:none;stroke-width:3}.card{fill:#20303a;stroke:#5a737c;stroke-width:1.5}</style>
+<rect width="920" height="248" rx="8" fill="#111b22"/>
+<text x="24" y="32" class="label">From an open question to shared project guidance</text>
+<path class="wire" d="M241 125h59m-9-6 9 6-9 6m239-6h58v-36h65m-9-6 9 6-9 6m-65 30v40h65m-9-6 9 6-9 6"/>
+<rect class="card" x="24" y="77" width="217" height="94" rx="7"/><text class="label" x="40" y="108">Chart and sidebar</text><text class="note" x="40" y="133">Select a panel, discuss it,</text><text class="note" x="40" y="153">then apply a clarification.</text>
+<rect class="card" x="300" y="77" width="230" height="94" rx="7"/><text class="label" x="317" y="108">Branch guidance</text><text class="note" x="317" y="133">Signed contents, file version</text><text class="note" x="317" y="153">and guidance revision.</text>
+<rect class="card" x="653" y="56" width="237" height="62" rx="7"/><text class="label" x="670" y="82">Local agent A</text><text class="note" x="670" y="103">Reads the updated rationale.</text>
+<rect class="card" x="653" y="135" width="237" height="62" rx="7"/><text class="label" x="670" y="161">Local agent B</text><text class="note" x="670" y="182">Shares a scoped handoff.</text>
+<text class="note" x="24" y="221">The MCP resource notifies subscribed sessions. A stale handoff is rejected until the agent reads the current revision.</text>
+</svg>

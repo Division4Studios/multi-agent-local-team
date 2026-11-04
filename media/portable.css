@@ -1,0 +1,162 @@
+:root,
+svg {
+  --vscode-editor-background: #fff;
+  --vscode-foreground: #15283a;
+  --vscode-descriptionForeground: #445e70;
+  --vscode-panel-border: #acbcc5;
+  --vscode-focusBorder: #0069a9;
+  --vscode-font-family: system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root,
+  svg {
+    --vscode-editor-background: #15212d;
+    --vscode-foreground: #edf4f8;
+    --vscode-descriptionForeground: #b5c6d4;
+    --vscode-panel-border: #617384;
+    --vscode-focusBorder: #7dd3fc;
+    color-scheme: dark;
+  }
+}
+[data-theme='dark'],
+[data-theme='dark'] svg {
+  --vscode-editor-background: #15212d;
+  --vscode-foreground: #edf4f8;
+  --vscode-descriptionForeground: #b5c6d4;
+  --vscode-panel-border: #617384;
+  --vscode-focusBorder: #7dd3fc;
+  color-scheme: dark;
+}
+[data-theme='light'],
+[data-theme='light'] svg {
+  --vscode-editor-background: #fff;
+  --vscode-foreground: #15283a;
+  --vscode-descriptionForeground: #445e70;
+  --vscode-panel-border: #acbcc5;
+  --vscode-focusBorder: #0069a9;
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  max-width: 1360px;
+  margin: auto;
+  padding: clamp(12px, 3vw, 44px);
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  font:
+    16px/1.5 system-ui,
+    sans-serif;
+}
+header {
+  border-bottom: 2px solid var(--vscode-focusBorder);
+  padding-bottom: 14px;
+}
+header small {
+  letter-spacing: 0.15em;
+  font-weight: 700;
+}
+h1 {
+  margin: 6px 0;
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  overflow-wrap: anywhere;
+}
+nav,
+.toolbar,
+#legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0.7rem 0;
+}
+button,
+select,
+input,
+textarea {
+  max-width: 100%;
+  min-height: 34px;
+  font: inherit;
+  padding: 0.2em 0.55em;
+  color: inherit;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+}
+button {
+  cursor: pointer;
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+}
+#modelDrawing {
+  overflow: auto;
+  max-height: 65vh;
+  max-width: 100%;
+}
+svg {
+  display: block;
+  background: var(--vscode-editor-background);
+}
+[data-wire].active {
+  stroke: var(--vscode-focusBorder);
+  stroke-width: 4;
+}
+.model-card[data-change='added'] rect,
+[data-wire][data-change='added'] {
+  stroke: #258453;
+  stroke-width: 3;
+}
+.model-card[data-change='removed'] rect,
+[data-wire][data-change='removed'] {
+  stroke: #c74a46;
+  stroke-dasharray: 5 3;
+}
+.model-card[data-change='changed'] rect,
+[data-wire][data-change='rerouted'] {
+  stroke: #bf8224;
+  stroke-width: 3;
+}
+#legend span {
+  border-left: 5px solid var(--role);
+  padding: 2px 8px;
+}
+#detail,
+article,
+details {
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+#detail p,
+article p,
+blockquote {
+  white-space: pre-wrap;
+}
+blockquote {
+  border-left: 3px solid var(--vscode-focusBorder);
+  padding-left: 12px;
+  margin-left: 0;
+}
+a {
+  color: var(--vscode-focusBorder);
+}
+#status {
+  min-height: 1.5em;
+}
+#routes {
+  max-height: 16em;
+  overflow: auto;
+}
+#routes button[aria-current='true'] {
+  font-weight: bold;
+}
+textarea {
+  width: 100%;
+}

@@ -4,6 +4,12 @@
 | --- | --- |
 | No outlined blocks | Save the file. Confirm VS Code Source Control sees it and the built-in Git extension is enabled. Check the first workspace folder is the intended repository. Ignored files, `.malt/`, deleted files, binary new files, and new files over 512,000 bytes are skipped. |
 | Instructions in an ignored folder are missing | Ignored agent instructions are allowed; confirm a supported format and allowed folder in [standards discovery](standards.md). Linked files and scan limits can exclude sources. |
+| A declaration or relationship is missing | Check the selected workspace folder, remove filters, and inspect the skipped file count. Ignored paths, index limits, generated code, aliases and dynamic calls affect coverage. [Supported relationships and limits](architecture-explorer.md) |
+| A branch is missing from the comparison picker | The picker lists local branches. Fetch the remote branch and create a local tracking branch with VS Code Source Control before comparing it. |
+| An explanation is missing or still says **Working hypothesis** | The structural map updates automatically. Run **Scan Project Standards** for model interpretations, or open a file’s discussion. A source-backed claim needs a matched excerpt. An accepted clarification applies only to the branch and file version where it was recorded. |
+| No spans, lifecycle or SQL tables | Select an applicable evidence file or supply an authored model. The waterfall needs measured spans, and the timeline requires timestamps with an explicit offset. [Supported inputs](architecture-views.md) |
+| An agent cannot read a clarification | Confirm the workspace is trusted and indexed. Recopy its MCP configuration if the verifier changed. Read the new revision before posting a handoff. |
+| Publication reports a failed gate | Read the finalization receipt and task terminal. Check the reported layout diagnostics, Node executable and Chrome availability. An artifact can have been delivered before a later check failed. |
 | Reviewer won't start | Open **MALT: Show Reviewer Logs**. For host mode, verify the configured Claude CLI is installed and authenticated. For Docker, check the engine and stored credentials. |
 | Docker was expected, but sidebar says Host daemon | `auto` can fall back to host. Select `malt.reviewer.backend: docker` to require Docker. |
 | Files keep appearing in the editor | Turn off `malt.changes.autoOpen`. You can still select blocks in the sidebar. |
@@ -18,4 +24,4 @@ Include OS, VS Code and MALT versions, selected backend, exact reproduction step
 
 ## Current boundaries
 
-MALT reviews saved working-tree changes against HEAD; it is not a hosted pull-request integration. It currently uses the first workspace folder, does not review deleted files, and does not render verdicts for unsaved buffer edits. Claude is the current provider. Human review and normal tests remain necessary.
+MALT reviews saved working-tree changes against HEAD; it is not a hosted pull-request integration. Block review and standards scanning use the first workspace folder. The architecture explorer supports each trusted local workspace folder. Deleted files and unsaved buffer edits do not receive block verdicts. Claude is the current provider. Human review and normal tests remain necessary.

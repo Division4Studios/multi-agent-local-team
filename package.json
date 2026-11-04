@@ -1,7 +1,7 @@
 {
   "name": "malt",
   "displayName": "MALT",
-  "description": "Review changes as you code. Inline block reviews, project standards, and a local Claude reviewer for VS Code.",
+  "description": "Review changed code against project standards, explore interactive architecture maps, and compare Git branches with a local Claude reviewer.",
   "version": "0.0.1",
   "publisher": "division4studios",
   "license": "MIT",
@@ -17,6 +17,12 @@
     "vscode": "^1.144.0",
     "node": ">=24"
   },
+  "keywords": [
+    "code review",
+    "architecture",
+    "code navigation",
+    "git"
+  ],
   "categories": [
     "Linters",
     "Other"
@@ -29,6 +35,7 @@
     "vscode.git"
   ],
   "contributes": {
+    "mcpServerDefinitionProviders": [{ "id": "malt.localAgents", "label": "MALT workspace guidance" }],
     "viewsContainers": {
       "activitybar": [
         {
@@ -43,6 +50,10 @@
         {
           "id": "malt.reviewer",
           "name": "Reviewer"
+        },
+        {
+          "id": "malt.architectureViews",
+          "name": "Architecture Explorer"
         },
         {
           "id": "malt.changes",
@@ -163,6 +174,22 @@
         "icon": "$(type-hierarchy)"
       },
       {
+        "command": "malt.finalizeDiagram",
+        "title": "Finalize Diagram or One-page Answer",
+        "category": "MALT"
+      },
+      {
+        "command": "malt.agentConnection",
+        "title": "Copy Local Agent MCP Configuration",
+        "icon": "$(plug)",
+        "category": "MALT"
+      },
+      {
+        "command": "malt.showArchitectureSummaries",
+        "title": "Show Architecture File Summaries",
+        "category": "MALT"
+      },
+      {
         "command": "malt.showRule",
         "title": "Show Rule",
         "category": "MALT"
@@ -242,6 +269,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "malt.agentConnection",
+          "when": "view == malt.architectureViews",
+          "group": "navigation@1"
+        },
         {
           "command": "malt.startReviewer",
           "when": "view == malt.reviewer && malt.reviewerState != running && malt.reviewerState != starting",
@@ -401,6 +433,18 @@
     "configuration": {
       "title": "MALT",
       "properties": {
+        "malt.architecture.shareAgentHandoffs": {
+          "type": "boolean", "default": false, "scope": "machine",
+          "description": "Allow connected local MCP clients to publish attributed, revision-scoped peer handoffs. Reading and subscribing work independently."
+        },
+        "malt.architecture.chromePath": {
+          "type": "string", "default": "", "scope": "machine",
+          "description": "Optional absolute Chrome or Chromium executable for MALT browser checks. MALT detects common installations by default."
+        },
+        "malt.architecture.nodePath": {
+          "type": "string", "default": "", "scope": "machine",
+          "description": "Absolute path to Node.js used to run the MALT publication task."
+        },
         "malt.reviewer.backend": {
           "type": "string",
           "enum": [
