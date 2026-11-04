@@ -146,15 +146,17 @@ A tool that keeps slop out of other repos has to keep it out of its own first. T
 - **No type assertions, no `any`, no `!`, no `@ts-ignore`.** If the types don't prove it, the code doesn't ship.
 - **Isolated native builds.** TypeScript 7 runs in Docker without external network access, with read-only inputs and host writes restricted to `out/`. ESLint uses Microsoft's TypeScript 6 compatibility API and retains Node permission restrictions. Those restrictions are safeguards, not a boundary against malicious code. See the [toolchain guide](docs/toolchain.md).
 - **Tiny, frozen toolchain.** A fixed allowlist of dev tools, exact versions, a committed lockfile, install scripts disabled, and CI that fails if anything else appears. See [Supply-chain policy](SECURITY.md#supply-chain-policy).
+- **Protected, signed history.** Every change reaches `dev` through a reviewed pull request whose commits are all signed, with every check green and no new CodeQL alerts; `main` only takes releases from `dev`. Nobody can bypass that, maintainers included. See [repository settings](docs/repository-settings.md).
 - **AI-assisted contributions welcome — with disclosure and ownership.** See [CONTRIBUTING.md](CONTRIBUTING.md#ai-assisted-contributions).
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) before opening a pull request, and follow our [**Code of Conduct**](CODE_OF_CONDUCT.md).
+Contributions are welcome! Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) before opening a pull request, and follow our [**Code of Conduct**](CODE_OF_CONDUCT.md). Work happens on **`dev`**: branch from it and open pull requests against it. `main` only receives releases from `dev`.
 
 - 🐛 Found a bug? [Open a bug report](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=bug_report.yml)
-- ✨ Have an idea? [Request a feature](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml)
-- ❓ Need help? See [SUPPORT.md](SUPPORT.md)
+- 🎯 MALT got a verdict wrong? [Report a wrong review result](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=review_quality.yml)
+- ✨ Have an idea? [Discuss it](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/ideas) or [request a feature](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml)
+- ❓ Need help? [Ask in Discussions](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/q-a) or see [SUPPORT.md](SUPPORT.md)
 
 ## 🔒 Security
 

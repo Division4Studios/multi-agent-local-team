@@ -1,0 +1,28 @@
+name: 📖 Documentation
+description: Something in the README, docs, settings descriptions or messages is wrong, missing or unclear
+labels: [documentation, triage]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: A link to the page or section, or the setting, command or message name.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested wording
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true

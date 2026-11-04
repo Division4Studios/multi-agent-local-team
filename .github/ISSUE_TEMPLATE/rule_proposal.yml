@@ -1,0 +1,60 @@
+name: 📏 Baseline rule proposal
+description: Propose a rule MALT should check in every project, or a change to a baseline rule
+labels: [enhancement, 'area: standards', triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Baseline rules apply to **every** workspace, on top of the rules MALT distills from each project's own docs and configs. A rule that only fits your project belongs in your project's docs, where the standards scan will pick it up.
+
+        Each applicable rule is one isolated model call per changed block, so a new baseline rule adds cost to every review.
+  - type: input
+    id: title
+    attributes:
+      label: Rule title
+      description: Short, stated as what good code does, like the baseline rules.
+      placeholder: Errors are handled, not swallowed
+    validations:
+      required: true
+  - type: textarea
+    id: rule
+    attributes:
+      label: Rule text
+      description: Exactly what the reviewer should check, written so a reviewer with only this text and the changed block can decide pass or fail.
+    validations:
+      required: true
+  - type: textarea
+    id: failing
+    attributes:
+      label: Code that should fail
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: passing
+    attributes:
+      label: Similar code that should pass
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why-baseline
+    attributes:
+      label: Why every project needs it
+      description: What goes wrong in AI-assisted changes without it? Why can't linters or the project's own rules catch it?
+    validations:
+      required: true
+  - type: textarea
+    id: false-positives
+    attributes:
+      label: False positive risk
+      description: Where could a reasonable reviewer apply it wrongly?
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and the current baseline rules and this is not a duplicate
+          required: true

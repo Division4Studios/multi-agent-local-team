@@ -1,0 +1,19 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Talk an idea through here. Once there's agreement on the problem and the approach, it becomes a [feature request](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml).
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What makes reviewing AI-assisted changes slower or riskier for you today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: How MALT could help, and whether it would add model calls.
+    validations:
+      required: true

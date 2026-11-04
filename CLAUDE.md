@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-MALT ("Multi-Agent Local Team") is a VS Code extension, MIT-licensed, intended to be open-sourced (the GitHub repo is private for now). Its purpose is to help teams get AI-assisted PRs merged faster and more safely, by reviewing every changed block surgically as it appears instead of reviewing a huge PR at the end. Don't invent features beyond what the user has described.
+MALT ("Multi-Agent Local Team") is a VS Code extension, MIT-licensed and open source (public repo `Division4Studios/multi-agent-local-team`). Its purpose is to help teams get AI-assisted PRs merged faster and more safely, by reviewing every changed block surgically as it appears instead of reviewing a huge PR at the end. Don't invent features beyond what the user has described.
 
 This repo must model the anti-slop bar it will enforce elsewhere. Keep diffs small, don't add speculative abstractions, and don't leave unused code.
 
@@ -73,7 +73,8 @@ Data flows: **git change → blocks → review queue → reviewer service → de
 - **Tests.** `src/test/runTest.ts` calls `@vscode/test-electron`, which loads `out/test/suite/index.js` in the extension host. Each `*.test.ts` exports `tests: TestCase[]` (from `src/test/suite/harness.ts`) and uses `node:assert/strict`. `node:test` hangs in the extension host, so don't switch to it. `--disable-extensions` only disables *other* extensions; MALT is loaded through `--extensionDevelopmentPath`.
 - **Packaging.** `.vscodeignore` is an allowlist (`**` then re-includes). It re-includes each `out/<folder>/**/*.js` explicitly, because vsce lets a `!` re-include beat a later exclude, so `out/test` can't be carved out of a broad `!out/**`. It also ships `media/` and `docker/Dockerfile`, which the Docker backend needs at runtime. **A new top-level folder under `src/` must be added there**, or it won't ship. `vsce` runs with `--no-dependencies`.
 - **Docker image pins.** `docker/Dockerfile` pins `node:24-slim` by digest and `@anthropic-ai/claude-code` to an exact version. Bump both deliberately. They live inside the image, not in `package.json`, so `check-deps` doesn't cover them.
-- **CI** (`.github/workflows/`) uses only `actions/*` and `github/*` actions, pinned to full commit SHAs. Keep that pattern when updating. CodeQL and dependency review need GitHub Advanced Security while the repo is private. When the repo goes public, enable private vulnerability reporting: `gh api -X PUT repos/Division4Studios/multi-agent-local-team/private-vulnerability-reporting`.
+- **CI** (`.github/workflows/`) uses only `actions/*` and `github/*` actions, pinned to full commit SHAs. Keep that pattern when updating (the repository's Actions policy also enforces it). `branch-policy.yml` uses `pull_request_target` so a PR can't edit its own check; it must never check out or run PR code.
+- **Branches.** `dev` is the default branch and the only PR target; `main` accepts PRs from `dev` only (the *Source branch is dev* check). Branch from `dev`, never push to `dev` or `main`, and open PRs against `dev`. Every commit in a PR must be signed (the gates can't be bypassed); this clone signs with an SSH key via local git config, so never pass `--no-gpg-sign` or `-c commit.gpgsign=false`. Rulesets, required checks and every other repository setting are recorded in `docs/repository-settings.md`; when you change a check's job name or add a required workflow, update the rulesets and that doc together.
 
 ## Environment
 

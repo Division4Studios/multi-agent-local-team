@@ -1,0 +1,78 @@
+name: 🎯 Wrong review result
+description: MALT flagged code that is fine, missed a real problem, or applied the wrong rule
+labels: [review quality, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Review quality is MALT's whole job, so these reports matter. The most useful report has a **small, self-contained snippet** that reproduces the verdict on **Review Again**.
+
+        If the code made the reviewer ignore or rewrite its own rules, that's a security issue: please use [private vulnerability reporting](https://github.com/Division4Studios/multi-agent-local-team/security/advisories/new) instead.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What went wrong?
+      options:
+        - False positive (a rule failed on code that follows it)
+        - False negative (a real problem passed)
+        - A rule was applied that doesn't fit this code
+        - A rule that fits this code was not applied
+        - A consolidation finding is wrong or missing
+        - The standards scan produced a wrong, vague or duplicate rule
+        - A gap investigation reached the wrong verdict
+    validations:
+      required: true
+  - type: input
+    id: rule
+    attributes:
+      label: Rule
+      description: The rule id and title shown in the hover card or Changes view, if any.
+      placeholder: 'no-dead-code · No dead or placeholder code'
+  - type: textarea
+    id: code
+    attributes:
+      label: The code
+      description: The smallest snippet that reproduces it. Only code you are allowed to share publicly.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: verdict
+    attributes:
+      label: What MALT said
+      description: The verdict and the reviewer's explanation, copied from the hover card or detail page.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What it should have said, and why
+      description: Point to the rule text or project document the verdict contradicts.
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Model and effort
+      description: The model and effort for this review type, from MALT's review settings.
+      placeholder: 'check: haiku, low'
+  - type: dropdown
+    id: repeatable
+    attributes:
+      label: Does Review Again give the same result?
+      options:
+        - Yes, every time
+        - Sometimes
+        - No, only once
+        - Didn't try
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: The snippet contains no secrets and nothing I'm not allowed to share
+          required: true
