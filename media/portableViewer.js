@@ -36,6 +36,18 @@
   const t = (k) => String(custom[locale]?.[k] ?? languages[locale]?.[k] ?? languages.en[k] ?? k);
   function translate() {
     document.documentElement.lang = locale;
+    const themeLabels = {
+      en: ['System', 'Light', 'Dark'],
+      es: ['Sistema', 'Claro', 'Oscuro'],
+      ko: ['시스템', '밝게', '어둡게'],
+      'zh-CN': ['系统', '浅色', '深色'],
+      'zh-TW': ['系統', '淺色', '深色'],
+    };
+    [...el('theme').options].forEach((o, i) => {
+      const value = o.value;
+      o.textContent = themeLabels[locale]?.[i] ?? themeLabels.en[i];
+      o.value = value;
+    });
     for (const n of document.querySelectorAll('[data-label]')) n.textContent = t(n.dataset.label);
     el('find').placeholder = t('find');
   }
@@ -43,16 +55,17 @@
     if (!source) return;
     const repo = source.repository ?? model.meta?.repository,
       label = source.path + (source.line ? ' · ' + source.line : '');
-    if (repo) {
-      const url =
-        repo.url +
-        (repo.url.startsWith('https://gitlab.com/') ? '/-/blob/' : '/blob/') +
+    const match = /^https:\/\/(github|gitlab)\.com\/([\w.-]+(?:\/[\w.-]+)+)$/u.exec(repo?.url ?? '');
+    if (match && /^[a-f0-9]{40}$/u.test(repo.revision) && !match[2].split('/').some((v) => v === '.' || v === '..')) {
+      const suffix =
+        match[2] +
+        (match[1] === 'gitlab' ? '/-/blob/' : '/blob/') +
         repo.revision +
         '/' +
         source.path.split('/').map(encodeURIComponent).join('/') +
         (source.line ? '#L' + source.line : '');
       const link = make('a', label);
-      link.href = url;
+      link.href = match[1] === 'gitlab' ? 'https://gitlab.com/' + suffix : 'https://github.com/' + suffix;
       link.rel = 'noopener noreferrer';
       parent.append(link);
     } else {
@@ -69,6 +82,22 @@
     if (p.change) box.append(make('strong', p.change));
     if (p.detail || p.body) box.append(make('p', p.detail || p.body));
     if (p.fields?.length) box.append(make('pre', p.fields.join('\n')));
+    const interpretation = p.interpretation;
+    if (interpretation) {
+      for (const [key, evidence] of [
+        ['what', 'whatEvidence'],
+        ['why', 'whyEvidence'],
+      ]) {
+        if (!interpretation[key]) continue;
+        box.append(
+          make('h3', key + ' · ' + (interpretation[evidence] ? 'Matched excerpt' : 'Working hypothesis')),
+          make('p', interpretation[key]),
+        );
+        if (interpretation[evidence]) box.append(make('blockquote', interpretation[evidence]));
+      }
+      if (interpretation.confirmed) box.append(make('h3', 'Developer clarification'), make('p', interpretation.confirmed));
+      if (interpretation.question) box.append(make('h3', 'Open question'), make('p', interpretation.question));
+    }
     card(box, p.source);
     if (p.ref)
       diagrams.forEach((other, i) => {
@@ -130,7 +159,7 @@
       d.items.map((p) => [p.id, p.label]),
     );
     id = selected ?? d.items.find((p) => !p.parent)?.id ?? d.items[0].id;
-    scope = id;
+    scope = selected;
     el('part').value = id;
     el('find').value = '';
     journeys = [];

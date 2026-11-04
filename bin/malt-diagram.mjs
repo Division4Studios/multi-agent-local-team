@@ -7,9 +7,9 @@ import { render, hash } from './publication/html.mjs';
 import { compareModels } from './publication/delta.mjs';
 import { browserCheck } from './publication/browser.mjs';
 
-const fileOf = (p) => {
+const fileOf = (p, allowEmpty = false) => {
   const bytes = readFileSync(p);
-  return { bytes, model: validateModel(JSON.parse(bytes.toString('utf8'))), sha256: hash(bytes) };
+  return { bytes, model: validateModel(JSON.parse(bytes.toString('utf8')), allowEmpty), sha256: hash(bytes) };
 };
 const canonical = (p) => join(realpathSync(dirname(resolve(p))), basename(p));
 function safeTarget(path) {
@@ -62,9 +62,9 @@ function options(args) {
   return { positional, chrome, browser };
 }
 function prepare(cmd, files) {
-  const first = fileOf(files[0]);
+  const first = fileOf(files[0], cmd === 'compare');
   if (cmd === 'compare') {
-    const second = fileOf(files[1]);
+    const second = fileOf(files[1], true);
     const compared = compareModels(first.model, second.model);
     const sources = [first.sha256, second.sha256];
     return { model: validateModel(compared.model), digest: hash(json(sources)), sources, delta: compared.delta };

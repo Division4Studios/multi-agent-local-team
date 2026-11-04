@@ -5,6 +5,9 @@ export const agentConnections = (extension: vscode.Uri, key: Buffer): vscode.Dis
     vscode.Uri.joinPath(extension, 'out', 'architecture', 'agentBridge.js').fsPath,
     f.uri.fsPath,
     feedVerifier(key),
+    ...(vscode.workspace.getConfiguration('malt.architecture').inspect<boolean>('shareAgentHandoffs')?.globalValue === true
+      ? ['--share-handoffs']
+      : []),
   ];
   const folders = (): readonly vscode.WorkspaceFolder[] =>
     vscode.workspace.isTrusted ? (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === 'file') : [];
@@ -28,6 +31,11 @@ export const agentConnections = (extension: vscode.Uri, key: Buffer): vscode.Dis
   return vscode.Disposable.from(
     copy,
     provider,
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('malt.architecture.shareAgentHandoffs')) {
+        changed.fire();
+      }
+    }),
     changed,
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       changed.fire();

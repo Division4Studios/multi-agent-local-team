@@ -1,12 +1,12 @@
 /* Browser encoders consume the vector at the requested pixel size. */
 (() => {
   const doc = document;
-  const snapshot = (theme) => {
+  const snapshot = (theme, scale = 1) => {
     const svg = doc.getElementById('modelSvg').cloneNode(true);
     svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     const [, , w, h] = svg.getAttribute('viewBox').split(' ').map(Number);
-    svg.setAttribute('width', w);
-    svg.setAttribute('height', h);
+    svg.setAttribute('width', w * scale);
+    svg.setAttribute('height', h * scale);
     svg.dataset.motion = 'still';
     if (theme) svg.dataset.theme = theme;
     const css = doc.createElementNS('http://www.w3.org/2000/svg', 'style');
@@ -24,7 +24,7 @@
   }
   async function raster(scale, canvas) {
     const theme = doc.documentElement.dataset.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    const { body, w, h } = snapshot(theme);
+    const { body, w, h } = snapshot(theme, scale);
     if (w * scale > 32767 || h * scale > 32767 || w * h * scale * scale > 64000000)
       throw new Error('Canvas size exceeds 64 megapixels. Choose a smaller scope or scale.');
     if (canvas.width !== w * scale || canvas.height !== h * scale) {
@@ -75,19 +75,16 @@
     }
     return finished;
   }
-  window.maltExport = async (format, scale, diagram, route, inspect) => {
-    const name = diagram.title.replace(/[^\p{L}\p{N}_-]+/gu, '-').slice(0, 80) || 'malt';
-    if (format === 'svg') {
-      download(blob(snapshot().body, 'image/svg+xml'), name + '.svg');
-      return;
-    }
+  window.maltEncode = async (format, scale, route, inspect) => {
+    if (format === 'svg') return blob(snapshot().body, 'image/svg+xml');
     const canvas = doc.createElement('canvas');
     await raster(scale, canvas);
-    if (format === 'webm') {
-      download(await video(canvas, scale, route, inspect), name + '.webm');
-      return;
-    }
-    const image = await encode(canvas, 'image/' + (format === 'clipboard' ? 'png' : format));
+    if (format === 'webm') return video(canvas, scale, route, inspect);
+    return encode(canvas, 'image/' + (format === 'clipboard' ? 'png' : format));
+  };
+  window.maltExport = async (format, scale, diagram, route, inspect) => {
+    const name = diagram.title.replace(/[^\p{L}\p{N}_-]+/gu, '-').slice(0, 80) || 'malt';
+    const image = await window.maltEncode(format, scale, route, inspect);
     if (format === 'clipboard') {
       await window.navigator.clipboard.write([new window.ClipboardItem({ 'image/png': image })]);
       return;

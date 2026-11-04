@@ -433,6 +433,10 @@
     "configuration": {
       "title": "MALT",
       "properties": {
+        "malt.architecture.shareAgentHandoffs": {
+          "type": "boolean", "default": false, "scope": "machine",
+          "description": "Allow connected local MCP clients to publish attributed, revision-scoped peer handoffs. Reading and subscribing work independently."
+        },
         "malt.architecture.chromePath": {
           "type": "string", "default": "", "scope": "machine",
           "description": "Optional absolute Chrome or Chromium executable for MALT browser checks. MALT detects common installations by default."

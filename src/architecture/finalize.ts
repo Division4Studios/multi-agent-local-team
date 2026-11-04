@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { basename, isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 import { isView } from './diagram';
 import { catalog } from './catalog';
 import { exportScope } from './exportScope';
@@ -67,15 +67,16 @@ const repositoryAt = (a: Atlas, s: Snapshot): ReturnType<typeof pinnedRepository
     [...repo.state.indexChanges, ...repo.state.workingTreeChanges, ...(repo.state.untrackedChanges ?? [])].length === 0;
   return s === a.target || s === a.base || clean ? pinnedRepository(remote, s.commit) : undefined;
 };
-const modelFile = async (a: Atlas, raw: Diagram, s: Snapshot, output: string): Promise<string> => {
+const modelFile = async (a: Atlas, raw: Diagram, s: Snapshot): Promise<string> => {
   const d = exportScope(s, raw, a.place.item);
   const repository = repositoryAt(a, s);
   const paths = new Map(s.nodes.filter((n) => n.path !== '').map((n) => [n.id, n.path]));
   const ir = publication(d, {
-    output: basename(output),
+    branch: s.branch,
+    commit: s.commit,
     locale: locale(),
     paths,
-    quotes: new Map(s.nodes.map((n) => [n.id, n.understanding?.whatEvidence ?? ''])),
+    interpretations: new Map(s.nodes.flatMap((n) => (n.understanding === undefined ? [] : [[n.id, n.understanding] as const]))),
     ...(repository === undefined ? {} : { repository }),
   });
   const name = `export-${digest(JSON.stringify(ir))}.json`;
@@ -97,7 +98,7 @@ export const finalizeView = async (a: Atlas): Promise<void> => {
   if (output === undefined) {
     return;
   }
-  const input = await modelFile(a, d, s, output.fsPath);
+  const input = await modelFile(a, d, s);
   if (a.base !== undefined && d.kind === 'architecture') {
     const choice = await vscode.window.showQuickPick(['Finalize displayed side', 'Export branch delta and receipt'], {
       title: 'Architecture publication',
@@ -119,8 +120,8 @@ const exportDelta = async (a: Atlas, d: Diagram, output: string): Promise<void> 
     return;
   }
   const matching = (s: Snapshot): Diagram => catalog(s).find((m) => diagramKey(m) === diagramKey(d)) ?? { ...d, items: [], links: [] };
-  const before = await modelFile(a, matching(base), base, output);
-  const after = await modelFile(a, matching(target), target, output);
+  const before = await modelFile(a, matching(base), base);
+  const after = await modelFile(a, matching(target), target);
   await run(a.tracker.folder, ['compare', before, after, output]);
 };
 export const finalizeFile = async (): Promise<void> => {

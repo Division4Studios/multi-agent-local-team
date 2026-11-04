@@ -61,10 +61,10 @@ function hierarchy(diagram, ids) {
   if (diagram.kind === 'tree')
     requireValue(diagram.items.filter((p) => p.parent === undefined).length === 1, 'Tree needs exactly one root');
 }
-function validateDiagram(d) {
+function validateDiagram(d, allowEmpty) {
   requireValue(object(d) && kinds.has(d.kind) && string(d.id) && string(d.title), 'Unknown view or missing diagram ID/title');
   requireValue(
-    Array.isArray(d.items) && d.items.length > 0 && Array.isArray(d.links),
+    Array.isArray(d.items) && (d.items.length > 0 || (allowEmpty && d.kind === 'architecture')) && Array.isArray(d.links),
     'A diagram needs items and a relationship list',
   );
   const ids = new Map();
@@ -75,6 +75,11 @@ function validateDiagram(d) {
       if (p[key] !== undefined) requireValue(typeof p[key] === 'string', 'Invalid ' + key);
     if (p.fields !== undefined) requireValue(Array.isArray(p.fields) && p.fields.every(string), 'Blank or invalid column/member');
     sourceCard(p.source);
+    if (p.interpretation !== undefined) {
+      requireValue(object(p.interpretation), 'Invalid interpretation');
+      for (const key of ['what', 'why', 'whatEvidence', 'whyEvidence', 'confirmed', 'question'])
+        requireValue(p.interpretation[key] === undefined || typeof p.interpretation[key] === 'string', 'Invalid interpretation text');
+    }
     if (['timeline', 'waterfall'].includes(d.kind)) {
       p.start = clock(p.start);
       requireValue(Number.isFinite(p.start), 'Missing or invalid start: ' + p.id);
@@ -100,7 +105,7 @@ function validateDiagram(d) {
     if (d.kind === 'er') requireValue(ends.has(link.fromEnd) && ends.has(link.toEnd), 'Missing ER endpoint cardinality');
   }
 }
-export function validateModel(input) {
+export function validateModel(input, allowEmpty = false) {
   const model = globalThis.structuredClone(input);
   requireValue(object(model) && model.version === 1, 'Expected a MALT version 1 model');
   requireValue((model.answer === undefined) !== (model.diagrams === undefined), 'Choose diagrams or one answer');
@@ -120,7 +125,7 @@ export function validateModel(input) {
     requireValue(Array.isArray(model.diagrams) && model.diagrams.length > 0, 'No diagrams supplied');
     const ids = new Set();
     for (const d of model.diagrams) {
-      validateDiagram(d);
+      validateDiagram(d, allowEmpty);
       const k = JSON.stringify([d.kind, d.id, d.path ?? '']);
       requireValue(!ids.has(k), 'Duplicate diagram identity');
       ids.add(k);

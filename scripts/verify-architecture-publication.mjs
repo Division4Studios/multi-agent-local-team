@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { command } from '../bin/malt-diagram.mjs';
+import { browserCheck } from '../bin/publication/browser.mjs';
 import { hash } from '../bin/publication/html.mjs';
 import { publication } from '../out/architecture/publication.js';
 import { views } from '../out/architecture/diagram.js';
@@ -98,10 +99,15 @@ async function verify() {
   assert.equal(read('diff.delta.json').relationships[0].type, 'rerouted');
   assert.equal(read('diff.delta.json').nodes[0].change, 'added');
   if (browser) {
-    const report = await command(['finalize', all, target]);
+    const report = await command(['finalize', all, target], (path, chrome) => browserCheck(path, chrome, true)).catch((error) => {
+      console.error(read('all.finalize.json'));
+      throw error;
+    });
     console.log('Chrome', JSON.stringify(report.viewports));
     assert.equal(report.status, 'pass');
     assert.equal(report.htmlSha256, hash(readFileSync(target)));
+    const brief = await command(['finalize', input, output, '--browser-check']);
+    assert.equal(brief.gates['browser-check'], 'pass');
   }
   console.log(
     'All ten MALT diagram models, SHA-256, staged delivery, one-panel patch, tampering, branch reroute and post-delivery failure passed.',

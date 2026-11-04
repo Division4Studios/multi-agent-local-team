@@ -89,7 +89,7 @@ function connection(child) {
       input.write(JSON.stringify({ id: key, method, params, sessionId }) + '\0');
     });
 }
-export async function browserCheck(file, choice) {
+export async function browserCheck(file, choice, exerciseExports = false) {
   const chrome = executable(choice),
     profile = mkdtempSync(join(tmpdir(), 'malt-chrome-'));
   let child;
@@ -129,6 +129,32 @@ export async function browserCheck(file, choice) {
       }
       if (!value) throw new Error('Viewer did not return a browser receipt at ' + width + '×' + height);
       const result = JSON.parse(Buffer.from(value, 'base64').toString());
+      if (exerciseExports && width === sizes[0][0]) {
+        const output = await tab('Runtime.evaluate', {
+          awaitPromise: true,
+          returnByValue: true,
+          expression: `(async () => {
+          const png = await window.maltEncode('png',4,[],()=>{});
+          const bitmap = await createImageBitmap(png);
+          const box = document.getElementById('modelSvg').viewBox.baseVal;
+          const dimensions = bitmap.width === box.width*4 && bitmap.height === box.height*4;
+          bitmap.close();
+          const types = [];
+          for (const format of ['svg','jpeg','webp','webm']) {
+            const blob = await window.maltEncode(format,1,[],()=>{});
+            if(!blob.size) throw new Error('Empty '+format);
+            types.push(blob.type);
+          }
+          const entry = new ClipboardItem({'image/png':png});
+          return {dimensions,types,clipboard:entry.types.includes('image/png')};
+        })()`,
+        });
+        result.encoders = output.result?.value ?? output.exceptionDetails?.exception?.description;
+        result.pass &&=
+          result.encoders?.dimensions &&
+          result.encoders?.clipboard &&
+          result.encoders.types.join(',') === 'image/svg+xml,image/jpeg,image/webp,video/webm';
+      }
       reports.push(result);
       await tab('Page.navigate', { url: 'about:blank' });
     }

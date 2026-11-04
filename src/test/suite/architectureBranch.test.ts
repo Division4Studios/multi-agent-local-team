@@ -53,7 +53,7 @@ export const tests: readonly TestCase[] = [{
       assert.notEqual(base.commit, '');
       tracker = new MapTracker(folder, git, key);
       const active = tracker;
-      await waitFor(() => active.snapshot?.commit === base.commit, 'initial branch map', 25_000);
+      await waitFor(() => active.snapshot?.commit === base.commit && active.snapshot.nodes.some((n) => n.label === 'Base'), 'initial branch map', 25_000);
       await repo.createBranch('feature/widgets', true);
       const child = join(root, 'child.ts');
       await writeFile(child, "import { Base } from './base';\nexport class Child extends Base {}");

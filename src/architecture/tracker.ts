@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import type { GitApi, GitRepository } from '../git/gitApi';
 import type { FileFacts } from './extract';
 import type { Snapshot } from './graph';
-import { allowedPaths, bounded, eligible, headOf, readFacts, relativePath, snapshotOf, SOURCE_GLOB, WORKFLOW_GLOB, workingFiles, workingReader } from './sources';
+import { allowedPaths, bounded, eligible, headOf, readFacts, relativePath, snapshotOf, SOURCE_GLOB, MODEL_GLOB, WORKFLOW_GLOB, workingFiles, workingReader } from './sources';
 import { reviewerMap, withUnderstanding } from './knowledge';
 import { publishGuidance } from './guidance';
 import { saveMapFile, saveSnapshot } from './storage';
@@ -32,9 +32,11 @@ export class MapTracker implements vscode.Disposable {
   public constructor(folder: vscode.WorkspaceFolder, git: GitApi | undefined, noteKey: Buffer) {
     this.folder = folder;
     this.noteKey = noteKey;
-    const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, SOURCE_GLOB));
-    const workflow = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, WORKFLOW_GLOB));
-    this.subscriptions.push(workflow, workflow.onDidCreate((u) => { this.fileChanged(u,true); }), workflow.onDidDelete((u) => { this.fileChanged(u,true); }), workflow.onDidChange((u) => { this.fileChanged(u,false); }));
+    for (const pattern of [SOURCE_GLOB, MODEL_GLOB, WORKFLOW_GLOB]) {
+      const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, pattern));
+      this.subscriptions.push(watcher, watcher.onDidChange((u) => { this.fileChanged(u, false); }),
+        watcher.onDidCreate((u) => { this.fileChanged(u, true); }), watcher.onDidDelete((u) => { this.fileChanged(u, true); }));
+    }
     const ignores = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, '**/.gitignore'));
     const ignoreChanged = (uri: vscode.Uri): void => {
       if (!relativePath(folder.uri, uri).split('/').includes('.malt')) {
@@ -43,9 +45,8 @@ export class MapTracker implements vscode.Disposable {
     };
     const notes = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, '.malt/maps/v1/{note-,scan-}*.json'));
     const reload = (): void => { this.schedule(); };
-    this.subscriptions.push(notes, notes.onDidChange(reload), notes.onDidCreate(reload), notes.onDidDelete(reload), watcher, ignores, ignores.onDidChange(ignoreChanged), ignores.onDidCreate(ignoreChanged), ignores.onDidDelete(ignoreChanged),
-      watcher.onDidChange((uri) => { this.fileChanged(uri, false); }), watcher.onDidCreate((uri) => { this.fileChanged(uri, true); }),
-      watcher.onDidDelete((uri) => { this.fileChanged(uri, true); }));
+    this.subscriptions.push(notes, notes.onDidChange(reload), notes.onDidCreate(reload), notes.onDidDelete(reload),
+      ignores, ignores.onDidChange(ignoreChanged), ignores.onDidCreate(ignoreChanged), ignores.onDidDelete(ignoreChanged));
     if (git !== undefined) {
       for (const repo of git.repositories) {
         this.attach(repo);

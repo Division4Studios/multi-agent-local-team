@@ -76,6 +76,14 @@ function enters([x, y, x2, y2], r) {
     ? within(y, r.y, r.y + r.h) && Math.max(Math.min(x, x2), r.x) < Math.min(Math.max(x, x2), r.x + r.w)
     : within(x, r.x, r.x + r.w) && Math.max(Math.min(y, y2), r.y) < Math.min(Math.max(y, y2), r.y + r.h);
 }
+function corridor(a, b) {
+  const [x, y, x2, y2] = a,
+    [u, v, u2, v2] = b;
+  const overlap = (a, b, c, d) => Math.min(Math.max(a, b), Math.max(c, d)) - Math.max(Math.min(a, b), Math.min(c, d)) > 5;
+  if (x === x2 && u === u2) return Math.abs(x - u) < 4 && overlap(y, y2, v, v2);
+  if (y === y2 && v === v2) return Math.abs(y - v) < 4 && overlap(x, x2, u, u2);
+  return false;
+}
 function geometry(svg, d) {
   const cards = svg.children
     .filter((c) => c.attrs['data-item'] !== undefined)
@@ -97,7 +105,11 @@ function geometry(svg, d) {
     for (const part of a.parts) {
       requireValue(!cards.some((c) => enters(part, c)), 'Route enters a card: ' + a.link.from + ' → ' + a.link.to);
       requireValue(!labels.some((l) => enters(part, l)), 'Route enters a relationship label: ' + a.link.label);
-      requireValue(!wires.slice(i + 1).some((b) => b.parts.some((p) => crossing(part, p))), 'Relationship crossing: ' + a.link.label);
+      for (const b of wires.slice(i + 1)) {
+        requireValue(!b.parts.some((p) => crossing(part, p)), 'Relationship crossing: ' + a.link.label);
+        const shared = [a.link.from, a.link.to].some((id) => id === b.link.from || id === b.link.to);
+        requireValue(shared || !b.parts.some((p) => corridor(part, p)), 'Overlapping independent route corridors: ' + a.link.label);
+      }
     }
   }
   for (const [i, l] of labels.entries()) {

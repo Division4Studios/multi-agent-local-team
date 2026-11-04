@@ -76,7 +76,7 @@ MALT advertises a local MCP server per trusted folder to VS Code. In an external
 
 - **Read.** `malt_read_guidance` returns the branch, commit, revision, file fingerprints, the reviewer’s interpretations, developer confirmations and current peer handoffs.
 - **Subscribe.** `malt://workspace/guidance` emits a resource-update notification when the signed guidance or a current handoff changes. Clients without resource subscriptions can call the read tool again before acting.
-- **Coordinate.** `malt_share_handoff` takes `agent`, `message` and the exact `revision` returned by the read. A new branch or revised guidance requires another read. Peer messages remain attributed to agents. Only a developer action in MALT can confirm intent.
+- **Coordinate.** To allow a connected client to write handoffs, enable the machine setting `malt.architecture.shareAgentHandoffs` and reconnect with the updated configuration. For an explicitly configured external client, append `--share-handoffs` after the public key. Read and subscribe are available by default. `malt_share_handoff` takes `agent`, `message` and the exact `revision` returned by the read. A new branch or revised guidance requires another read. Peer messages remain attributed to agents. Only a developer action in MALT can confirm intent.
 
 The signed feed and current handoffs live in `.malt/maps/v1/`. The bridge verifies the feed against the public key from VS Code and the workspace path before returning it. Its transport is local stdio. Sessions must be connected or explicitly read the shared files to receive updates.
 

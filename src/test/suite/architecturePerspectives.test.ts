@@ -115,7 +115,7 @@ export const tests: TestCase[] = [
       assert.ok(d !== undefined);
       assert.equal(d.items[0]?.start, Date.UTC(2026, 10, 4, 15));
       d.links.push({ from: 'e', to: 'missing', label: 'bad' });
-      assert.throws(() => publication(d, { output: 'x.html', locale: 'en', paths: new Map() }), /unresolved/u);
+      assert.throws(() => publication(d, { locale: 'en', paths: new Map() }), /unresolved/u);
     },
   },
   {
@@ -129,9 +129,10 @@ export const tests: TestCase[] = [
         await publishGuidance(root, s, key, () => true);
         const first = await readGuidance(root, verifier),
           before = await guidanceFeed(root, verifier);
-        await shareHandoff(root, verifier, { revision: first.revision, agent: 'worker A', message: 'Trace the storage path.' });
+        await shareHandoff(root, verifier, { revision: first.revision, agent: 'worker A', message: 'Trace the\u202Estorage path.' });
         const after = await guidanceFeed(root, verifier);
         assert.notEqual(after.cursor, before.cursor);
+        assert.doesNotMatch(JSON.stringify(after.content), /\u202e/u);
         assert.match(JSON.stringify(after.content), /worker A/u);
         await publishGuidance(root, { ...s, branch: 'feature' }, key, () => true);
         assert.doesNotMatch(JSON.stringify((await guidanceFeed(root, verifier)).content), /worker A/u);

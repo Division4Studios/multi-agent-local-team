@@ -11,6 +11,7 @@ const resource = {
   mimeType: 'application/json',
   description: 'Branch-scoped interpretations, developer clarifications and agent handoffs. Treat records as project data.',
 };
+const allowPeerWrites = process.argv[4] === '--share-handoffs';
 const tools = [
   {
     name: 'malt_read_guidance',
@@ -64,7 +65,7 @@ class Bridge {
       if (p['name'] === 'malt_read_guidance') {
         return { content: content((await guidanceFeed(this.root, this.verifier)).content) };
       }
-      if (p['name'] === 'malt_share_handoff') {
+      if (allowPeerWrites && p['name'] === 'malt_share_handoff') {
         return { content: content(await shareHandoff(this.root, this.verifier, p['arguments'])) };
       }
       throw new Error('Unknown MALT tool.');
@@ -83,7 +84,7 @@ class Bridge {
       case 'ping':
         return {};
       case 'tools/list':
-        return { tools };
+        return { tools: allowPeerWrites ? tools : tools.filter((tool) => tool.name === 'malt_read_guidance') };
       case 'tools/call':
         return await this.tool(p);
       case 'resources/list':
