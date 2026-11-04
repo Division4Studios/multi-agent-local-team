@@ -49,11 +49,12 @@ MALT sends changed code to a reviewer service that calls an AI model. It's desig
   - The system prompts are static and contain no repository text.
   - Repository content goes in the user message as data, inside blocks marked with a random per-request code, so content can't fake the end of its block.
   - Project rules are sanitized (control and invisible characters removed, whitespace collapsed, lengths and count capped, ids validated, baseline rules can't be shadowed) and sent as JSON.
-  - A baseline check, `no-reviewer-manipulation`, fails any code, comment or rule that tries to steer an AI reviewer.
-- **MALT doesn't take the model's word for it.** After each review, MALT drops checks for unknown rules, uses its own rule titles, records any rule the model skipped as **failed**, and never reports "pass" alongside a failing check.
+  - The architecture map (`.malt/architecture.json`) is generated from repository files, so it is untrusted too. It only keeps paths the scan actually read, is sanitized like project rules, and is sent as JSON data. Consolidation findings and standards gaps may only name files MALT showed the model. Rules the scan infers from code are sanitized like documented rules, can't shadow baseline or documented rules, and MALT (not the model) marks their source as inferred.
+  - A baseline check, `no-reviewer-manipulation`, fails any code, comment or rule that tries to steer an AI reviewer. It runs on every block, whatever the overview call decided applies, so injected text can't talk the reviewer out of it.
+- **MALT doesn't take the model's word for it.** The overview call can only name rules MALT knows. Each rule is checked in its own call; the reviewer looks the rule up itself, takes the id and title from its own list, and sanitizes the model's text. A block passes only when every applicable rule has a passing check; one failing check makes it fail.
   - Residual risk: a model can still be persuaded to mark a rule as passed. MALT's verdicts help the people reviewing a change; they don't replace them.
 - **No temporary files with secrets or prompts.** Each model call runs in a fresh private directory that is deleted afterwards (`mkdtemp`, mode 0700).
-- **Untrusted output stays inert.** Review text is escaped when rendered in hovers; the only command link enabled is MALT's own "Review again".
+- **Untrusted output stays inert.** Review text is escaped when rendered in hovers; the only command link enabled is MALT's own "Review again". The rule detail page HTML-escapes every value, has scripts disabled, and its content security policy allows only its own nonce-tagged stylesheet.
 - **Credentials** live in VS Code SecretStorage (your OS keychain) and are passed only to the reviewer.
 - Process execution is limited by lint policy to exactly two files: the host backend and the Claude Code provider.
 

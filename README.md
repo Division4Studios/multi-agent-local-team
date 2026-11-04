@@ -64,9 +64,13 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 | | |
 |---|---|
 | 🔲 **Outlines every change as it lands** | When you or a coding agent edits a file, MALT brings it into view and draws a box around each changed block. No hunting through a giant diff. |
-| 🔬 **Surgical, per-block review** | Each block gets its own focused review against your project's standards, while it's still small, instead of one drifting review of a huge PR at the end. |
-| 💬 **Hover to understand** | Hover an outlined block to see **what** it does, **why** it's likely there, whether it's **needed**, and labeled pass/fail checks. |
+| 🔬 **Surgical, per-rule review** | Each block gets a short overview call that sorts out which rules apply, then one focused, isolated call per applicable rule, so no rule gets lost among forty others. |
+| 💬 **Hover to understand** | Hover an outlined block for its **business purpose** in plain language, a **technical** description, a skeptical **design** take (should this new abstraction exist, or extend existing code?), then the rule results. |
+| 🗂️ **Rules by group** | In **Changes**, expand a block to see its rules in collapsible groups, sorted running → failed → passed → not run → not applicable. Select a checked rule for a full-page explanation. |
 | 📏 **Standards from your own repo** | **Scan Project Standards** reads your `.claude`/`.codex`/`.agents` skills, docs and lint configs and distills short, checkable rules into `.malt/standards.json`. |
+| 🔍 **Finds the gaps in your standards** | The scan then compares your docs with your code. Conventions the code clearly follows but no doc states become rules marked *Inferred from code*; what neither settles (no architecture doc, two competing patterns) is listed as gaps for the team to decide. |
+| 🧭 **Knows what already exists** | The same scan maps your source files (purpose and exports) into `.malt/architecture.json`. Each block review gets only the related slice, so the reviewer can say "extend the existing `Modal`" instead of guessing. |
+| 🧩 **Consolidation across the change** | One call compares the new declarations across every changed file, and against the map, to catch three near-identical components or a second date formatter. It runs on demand, or 30 seconds after new files stop appearing. |
 | 🐳 **Always-hot, isolated reviewer** | The reviewer runs in a hardened Docker container (read-only workspace, no privileges, localhost-only), or as a local daemon when Docker isn't available. |
 | 🗂️ **Sidebar & status bar** | A MALT sidebar shows reviewer health and every changed block, and the status bar keeps a running pass/concern/fail count. |
 
@@ -107,9 +111,10 @@ Then open the folder in VS Code and press <kbd>F5</kbd>. A new **Extension Devel
 | `malt.reviewer.claudePath` | `claude` | Host CLI executable path |
 | `malt.docker.socketPath` | empty | Docker socket/pipe override |
 | `malt.reviewer.backend` | `auto` | `auto` (Docker if ready, else host), `docker` or `host` |
-| `malt.reviewer.reviewModel` | `sonnet` | Model for per-block reviews |
+| `malt.reviewer.triageModel` | `sonnet` | Model for each block's overview and rule sorting |
+| `malt.reviewer.reviewModel` | `sonnet` | Model for each per-rule check |
 | `malt.reviewer.standardsModel` | `opus` | Model for **Scan Project Standards** |
-| `malt.reviewer.maxConcurrentReviews` | `2` | Parallel block reviews |
+| `malt.reviewer.maxConcurrentReviews` | `2` | Parallel reviewer calls |
 | `malt.changes.autoOpen` | `true` | Bring changed files into view (without stealing focus) |
 | `malt.changes.autoReview` | `true` | Review new blocks automatically |
 

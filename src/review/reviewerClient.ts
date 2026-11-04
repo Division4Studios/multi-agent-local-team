@@ -1,13 +1,26 @@
 /** HTTP client for the reviewer service, bound to 127.0.0.1 and authenticated with a per-start token. */
 import { request as httpRequest } from 'node:http';
-import { isRecord, isString } from '../shared/guards';
-import { parseHealthResponse, parseHunkReview, parseRules } from '../shared/protocol';
-import type { HealthResponse, HunkReview, ReviewRequest, Rule } from '../shared/protocol';
+import { isRecord, isString, parseArray } from '../shared/guards';
+import { parseFinding, parseHealthResponse, parseOverviewResponse, parseRuleCheck, parseStandardsScan } from '../shared/protocol';
+import type {
+  CheckRequest,
+  Finding,
+  ConsolidationRequest,
+  HealthResponse,
+  OverviewResponse,
+  ReviewRequest,
+  RuleCheck,
+  StandardsScan,
+} from '../shared/protocol';
 
 export interface ReviewerEndpoint {
   readonly port: number;
   readonly token: string;
 }
+
+const REVIEW_TIMEOUT_MS = 240_000;
+/** Two scan calls run in parallel, then the gap analysis: up to two provider timeouts plus margin. */
+const SCAN_TIMEOUT_MS = 1_860_000;
 
 interface CallOptions {
   readonly method: 'GET' | 'POST';
@@ -73,23 +86,40 @@ export class ReviewerClient {
     return health;
   }
 
-  public async review(request: ReviewRequest): Promise<HunkReview> {
-    const review = parseHunkReview(
-      await call(this.endpoint, { method: 'POST', path: '/review', body: request, timeoutMs: 240_000 }),
+  public async review(request: ReviewRequest): Promise<OverviewResponse> {
+    const response = parseOverviewResponse(
+      await call(this.endpoint, { method: 'POST', path: '/review', body: request, timeoutMs: REVIEW_TIMEOUT_MS }),
     );
-    if (review === undefined) {
-      throw new Error('Reviewer returned an invalid review');
+    if (response === undefined) {
+      throw new Error('Reviewer returned an invalid overview');
     }
-    return review;
+    return response;
   }
 
-  public async scanStandards(): Promise<{ readonly rules: readonly Rule[]; readonly sources: readonly string[] }> {
-    const result = await call(this.endpoint, { method: 'POST', path: '/standards/scan', body: {}, timeoutMs: 960_000 });
-    const rules = isRecord(result) ? parseRules(result['rules']) : undefined;
-    const sources = isRecord(result) && Array.isArray(result['sources']) ? result['sources'].filter(isString) : undefined;
-    if (rules === undefined || sources === undefined) {
+  public async check(request: CheckRequest): Promise<RuleCheck> {
+    const check = parseRuleCheck(
+      await call(this.endpoint, { method: 'POST', path: '/check', body: request, timeoutMs: REVIEW_TIMEOUT_MS }),
+    );
+    if (check?.ruleId !== request.ruleId) {
+      throw new Error('Reviewer returned an invalid check');
+    }
+    return check;
+  }
+
+  public async scanStandards(): Promise<StandardsScan> {
+    const scan = parseStandardsScan(await call(this.endpoint, { method: 'POST', path: '/standards/scan', body: {}, timeoutMs: SCAN_TIMEOUT_MS }));
+    if (scan === undefined) {
       throw new Error('Reviewer returned an invalid standards scan');
     }
-    return { rules, sources };
+    return scan;
+  }
+
+  public async consolidation(request: ConsolidationRequest): Promise<readonly Finding[]> {
+    const result = await call(this.endpoint, { method: 'POST', path: '/consolidation', body: request, timeoutMs: REVIEW_TIMEOUT_MS });
+    const findings = isRecord(result) ? parseArray(result['findings'], parseFinding) : undefined;
+    if (findings === undefined) {
+      throw new Error('Reviewer returned invalid consolidation findings');
+    }
+    return findings;
   }
 }

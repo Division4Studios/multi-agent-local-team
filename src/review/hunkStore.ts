@@ -1,9 +1,13 @@
-/** In-memory state of changed blocks per file and their review status, with results cached by block id. */
+/**
+ * In-memory state of changed blocks per file and their review status, with results cached by block id.
+ * Partial reviews (overview done, some rule checks missing) are kept too, so a restart only runs what is missing.
+ */
 import * as vscode from 'vscode';
 import type { DiffHunk } from '../diff/unifiedDiff';
 import { parseHunkReview } from '../shared/protocol';
 import type { HunkReview } from '../shared/protocol';
 import { isRecord } from '../shared/guards';
+import { missingRules } from './reviewProgress';
 
 /** The subset of `vscode.Memento` the store needs (workspaceState satisfies it). */
 export interface ReviewCacheStorage {
@@ -22,7 +26,10 @@ export interface TrackedHunk {
 
 export interface HunkState {
   readonly status: HunkStatus;
+  /** Present from the overview on; rule checks are added as they finish. */
   readonly review?: HunkReview;
+  /** Ids of the rules being checked right now (display only; the queue decides what is busy). */
+  readonly running?: readonly string[];
   readonly error?: string;
 }
 
@@ -47,7 +54,7 @@ export class HunkStore implements vscode.Disposable {
     for (const [id, value] of Object.entries(persisted)) {
       const review = parseHunkReview(value);
       if (review !== undefined) {
-        this.states.set(id, { status: 'reviewed', review });
+        this.states.set(id, { status: missingRules(review).length === 0 ? 'reviewed' : 'pending', review });
       }
     }
   }
@@ -110,7 +117,7 @@ export class HunkStore implements vscode.Disposable {
       }
     }
     this.changeEmitter.fire();
-    if (state.status === 'reviewed') {
+    if (state.review !== undefined) {
       void this.persist();
     }
   }
