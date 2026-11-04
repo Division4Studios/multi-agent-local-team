@@ -74,7 +74,7 @@ const createFakeProvider = (calls: StructuredCall[]): ReviewProvider => ({
   },
 });
 
-const startServer = async (calls: StructuredCall[]): Promise<{ server: Server; port: number }> => {
+const startServer = async (provider: ReviewProvider): Promise<{ server: Server; port: number }> => {
   const root = await mkdtemp(join(tmpdir(), 'malt-test-'));
   await mkdir(join(root, 'src'));
   await writeFile(join(root, 'src', 'a.ts'), 'const a = 1;\nconst b = 2;\n');
@@ -83,7 +83,7 @@ const startServer = async (calls: StructuredCall[]): Promise<{ server: Server; p
   await writeFile(join(root, '.malt', 'standards.json'), JSON.stringify(HOSTILE_STANDARDS));
   await writeFile(join(root, '.malt', 'architecture.json'), JSON.stringify(ARCHITECTURE));
   const conversations = new ConversationLog();
-  const service = new ReviewService({ workspaceRoot: root, profiles: TEST_PROFILES }, createFakeProvider(calls), conversations);
+  const service = new ReviewService({ workspaceRoot: root, profiles: TEST_PROFILES }, provider, conversations);
   const server = createReviewerServer(service, TOKEN, conversations);
   await new Promise<void>((resolvePromise) => {
     server.listen(0, '127.0.0.1', resolvePromise);
@@ -92,9 +92,12 @@ const startServer = async (calls: StructuredCall[]): Promise<{ server: Server; p
   return { server, port: typeof address === 'object' && address !== null ? address.port : 0 };
 };
 
-const withServer = async (test: (port: number, calls: StructuredCall[]) => Promise<void>): Promise<void> => {
+const withServer = async (
+  test: (port: number, calls: StructuredCall[]) => Promise<void>,
+  provider: (calls: StructuredCall[]) => ReviewProvider = createFakeProvider,
+): Promise<void> => {
   const calls: StructuredCall[] = [];
-  const { server, port } = await startServer(calls);
+  const { server, port } = await startServer(provider(calls));
   try {
     await test(port, calls);
   } finally {
@@ -159,6 +162,31 @@ export const tests: readonly TestCase[] = [
         assert.deepEqual(await client.consolidation({ blocks: [{ ...request, patch: '@@\n+x + 1' }] }), [], 'no declarations, no call');
         assert.equal(calls.length, callsBefore);
       });
+    },
+  },
+  {
+    name: 'reviewer server: a failed call reports its message with secrets redacted, never a thrown non-Error value',
+    run: async (): Promise<void> => {
+      const failing = (thrown: Error): (() => ReviewProvider) => (): ReviewProvider => ({
+        name: 'failing',
+        callStructured: async (): Promise<unknown> => await Promise.reject(thrown),
+      });
+      const request = { filePath: 'src/a.ts', startLine: 1, endLine: 1, patch: '@@\n+const b = 2;' };
+      const secret = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123';
+      const failureOf = async (port: number): Promise<string> =>
+        await new ReviewerClient({ port, token: TOKEN }).review(request).then(
+          () => 'no error',
+          (rejected: unknown) => (rejected instanceof Error ? rejected.message : 'not an Error'),
+        );
+      await withServer(async (port) => {
+        assert.equal(await failureOf(port), 'Reviewer error (HTTP 500): claude exited: invalid key [REDACTED]',
+          'the cause stays readable and the secret never leaves the reviewer');
+      }, failing(new Error(`claude exited: invalid key ${secret}`)));
+      // Error-shaped but not an Error instance, as a dependency could reject with: nothing of it may be sent.
+      const errorLike: Error = { name: 'Error', message: secret, stack: `at secret (${secret})` };
+      await withServer(async (port) => {
+        assert.equal(await failureOf(port), 'Reviewer error (HTTP 500): Internal reviewer error', 'a thrown non-Error value is never sent');
+      }, failing(errorLike));
     },
   },
   {
