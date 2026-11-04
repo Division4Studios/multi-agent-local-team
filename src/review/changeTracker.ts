@@ -8,6 +8,7 @@ import type { GitApi, GitChange, GitRepository } from '../git/gitApi';
 import { hunkId, newFileHunks, parseUnifiedDiff } from '../diff/unifiedDiff';
 import type { DiffHunk } from '../diff/unifiedDiff';
 import type { HunkStore, TrackedHunk } from './hunkStore';
+import { realPathInside } from '../shared/realPath';
 
 const DEBOUNCE_MS = 600;
 const MAX_NEW_FILE_BYTES = 512_000;
@@ -123,11 +124,24 @@ export class ChangeTracker implements vscode.Disposable {
     }
   }
 
+  /** A regular file (not a symlink) whose real location is inside this workspace folder. */
+  private async isReviewableFile(uri: vscode.Uri, stat: vscode.FileStat): Promise<boolean> {
+    const isLink = (stat.type & vscode.FileType.SymbolicLink) !== 0;
+    const isFile = (stat.type & vscode.FileType.File) !== 0;
+    return !isLink && isFile && (await realPathInside(this.folder.uri.fsPath, uri.fsPath)) !== undefined;
+  }
+
   private async computeHunks(repository: GitRepository, change: GitChange): Promise<readonly DiffHunk[]> {
     let stat: vscode.FileStat;
     try {
       stat = await vscode.workspace.fs.stat(change.uri);
     } catch {
+      return [];
+    }
+    // Never follow a link out of the workspace: a symlink's target is not part of the change, and reading it
+    // (to outline, open or send to the reviewer) could expose any file on the machine. Git tracks the link
+    // itself, so there is nothing of the change to review here.
+    if (!(await this.isReviewableFile(change.uri, stat))) {
       return [];
     }
     const key = change.uri.toString();

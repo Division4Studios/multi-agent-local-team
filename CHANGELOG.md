@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Changed files are only read when they really live in the workspace: symlinks (and files reached through linked folders) are skipped, so a link in the repository can never pull an outside file into a review or the editor.
+- Opening a gap or finding resolves its real path and refuses anything outside the workspace.
+- The live log page only accepts messages from the extension host (same origin).
+
 - The live reviewer log redacts recognizable secrets (API keys, tokens, private keys, credentials in URLs and literals) in prompts, streamed text and errors, including secrets split across streamed chunks.
 - Stream readers decode UTF-8 across chunk boundaries (Claude output, the live stream, Docker build logs and host logs); a final line without a newline is no longer lost.
 - The live log disconnects when the reviewer stops and reattaches to a restarted one; reviewer shutdown closes open streams, and a host reviewer that does not exit is force-stopped.

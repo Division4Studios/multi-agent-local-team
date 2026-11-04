@@ -8,16 +8,27 @@
  */
 import * as vscode from 'vscode';
 import { BORDER_WIDTHS, EDGES, outlineRanges } from './decorations';
+import { realPathInside } from '../shared/realPath';
 import type { Edge } from './decorations';
 import type { Finding, FindingAnchor } from '../shared/protocol';
 
 const COLOR = new vscode.ThemeColor('malt.finding');
 
-/** A workspace-relative path from untrusted data, or undefined if it could point outside the folder. */
-export const workspaceFile = (folder: vscode.WorkspaceFolder, path: string): vscode.Uri | undefined => {
+/**
+ * Resolves a workspace-relative path from untrusted data (a generated file or model output) to the file it really
+ * is, or undefined. The path must be lexically inside the folder, and its real location (after symlinks and
+ * junctions) must be too, so a link in the workspace can never open a file from elsewhere on the machine. Fails
+ * closed: a missing or unreadable path resolves to undefined. Returns the real path, so what was checked is what
+ * is opened.
+ */
+export const workspaceFile = async (folder: vscode.WorkspaceFolder, path: string): Promise<vscode.Uri | undefined> => {
   const segments = path.split(/[\\/]/u);
   const unsafe = path === '' || /^[a-zA-Z]:|^[\\/]/u.test(path) || segments.some((segment) => segment === '..' || segment === '');
-  return unsafe ? undefined : vscode.Uri.joinPath(folder.uri, ...segments);
+  if (unsafe) {
+    return undefined;
+  }
+  const real = await realPathInside(folder.uri.fsPath, vscode.Uri.joinPath(folder.uri, ...segments).fsPath);
+  return real === undefined ? undefined : vscode.Uri.file(real);
 };
 
 const lastSegment = (symbol: string): string => symbol.split(/\.|::/u).at(-1) ?? symbol;
@@ -96,7 +107,7 @@ export class FindingHighlight implements vscode.Disposable, vscode.HoverProvider
 
   /** Opens the anchor's file and outlines the declaration. Returns false if it cannot be shown. */
   public async show(folder: vscode.WorkspaceFolder, finding: Finding, anchor: FindingAnchor, kind: string): Promise<boolean> {
-    const uri = workspaceFile(folder, anchor.file);
+    const uri = await workspaceFile(folder, anchor.file);
     if (uri === undefined || !finding.files.includes(anchor.file)) {
       return false;
     }

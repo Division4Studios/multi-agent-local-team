@@ -216,7 +216,7 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
-    name: 'live log page: evicted cards release their state, so a long session stays bounded',
+    name: 'live log page: bounded (evicted cards release their state) and only the extension host can drive it',
     run: async (): Promise<void> => {
       const page = await loadLiveLogPage();
       try {
@@ -231,12 +231,24 @@ export const tests: readonly TestCase[] = [
         assert.deepEqual(evicted.map((element) => element.writes), before, 'the timer never touches evicted calls');
         page.post({ type: 'event', event: { kind: 'text', callId: '0'.repeat(16), at: 2, text: 'late' } });
         assert.equal(page.list.children.length, 150, 'events for evicted calls are ignored');
+        page.post({ type: 'clear' });
+        assert.equal(page.list.children.length, 0, 'the extension host can drive the page');
+        const forged = { type: 'event', event: { kind: 'start', callId: 'f'.repeat(16), at: 1, label: 'forged', model: 'm', effort: 'low', prompt: 'p' } };
+        for (const origin of ['https://evil.example', 'null', 'vscode-webview://other-page', '']) {
+          page.postFrom(origin, forged);
+          page.postFrom(origin, { type: 'status', text: 'forged status' });
+        }
+        assert.equal(page.list.children.length, 0, 'messages from any other origin are ignored');
+        assert.notEqual(page.status.textContent, 'forged status');
       } finally {
         page.cleanup();
       }
     },
   },
 ];
+
+/** Measured in a real webview: extension messages arrive with the page's own origin. */
+const PAGE_ORIGIN = 'vscode-webview://malt-test';
 
 /** A minimal DOM for running media/liveLog.js outside a browser. */
 class FakeElement {
@@ -281,7 +293,11 @@ class FakeElement {
 
 interface FakePage {
   readonly list: FakeElement;
+  readonly status: FakeElement;
+  /** A message from the extension host (same origin as the page, as VS Code delivers it). */
   readonly post: (data: unknown) => void;
+  /** A message from some other origin. */
+  readonly postFrom: (origin: string, data: unknown) => void;
   readonly tick: () => void;
   /** Elements the script created that are no longer on the page. */
   readonly detached: () => FakeElement[];
@@ -289,12 +305,19 @@ interface FakePage {
   readonly cleanup: () => void;
 }
 
-const loadLiveLogPage = async (): Promise<FakePage> => {
+type MessageListener = (message: { readonly data: unknown; readonly origin: string }) => void;
+
+interface FakeBrowser {
+  readonly byId: ReadonlyMap<string, FakeElement>;
+  readonly created: FakeElement[];
+  readonly listener: () => MessageListener | undefined;
+}
+
+/** Installs fake `document` and `window` globals with the page's ids; the page script reads them on load. */
+const installFakeBrowser = (): FakeBrowser => {
   const byId = new Map(['calls', 'status', 'usage'].map((id) => [id, new FakeElement()]));
   const created: FakeElement[] = [];
-  let onMessage: ((message: { readonly data: unknown }) => void) | undefined;
-  let tick: (() => void) | undefined;
-  const originalSetInterval = globalThis.setInterval;
+  let onMessage: MessageListener | undefined;
   Reflect.set(globalThis, 'document', {
     getElementById: (id: string) => byId.get(id),
     createElement: () => {
@@ -305,7 +328,8 @@ const loadLiveLogPage = async (): Promise<FakePage> => {
     body: { scrollHeight: 0 },
   });
   Reflect.set(globalThis, 'window', {
-    addEventListener: (type: string, listener: (message: { readonly data: unknown }) => void) => {
+    origin: PAGE_ORIGIN,
+    addEventListener: (type: string, listener: MessageListener) => {
       if (type === 'message') {
         onMessage = listener;
       }
@@ -314,6 +338,13 @@ const loadLiveLogPage = async (): Promise<FakePage> => {
     scrollY: 0,
     scrollTo: () => undefined,
   });
+  return { byId, created, listener: () => onMessage };
+};
+
+const loadLiveLogPage = async (): Promise<FakePage> => {
+  const { byId, created, listener: currentListener } = installFakeBrowser();
+  let tick: (() => void) | undefined;
+  const originalSetInterval = globalThis.setInterval;
   Reflect.set(globalThis, 'setInterval', (callback: () => void) => {
     tick = callback;
     return 0;
@@ -325,16 +356,21 @@ const loadLiveLogPage = async (): Promise<FakePage> => {
     Reflect.set(globalThis, 'setInterval', originalSetInterval);
   }
   const list = byId.get('calls');
-  if (list === undefined || onMessage === undefined || tick === undefined) {
+  const status = byId.get('status');
+  const listener = currentListener();
+  if (list === undefined || status === undefined || listener === undefined || tick === undefined) {
     assert.fail('the page script did not initialise');
   }
-  const listener = onMessage;
   const timer = tick;
   const attached = (): Set<FakeElement> => new Set([list, ...list.descendants()]);
   return {
     list,
+    status,
     post: (data: unknown): void => {
-      listener({ data });
+      listener({ data, origin: PAGE_ORIGIN });
+    },
+    postFrom: (origin: string, data: unknown): void => {
+      listener({ data, origin });
     },
     tick: timer,
     detached: (): FakeElement[] => {
