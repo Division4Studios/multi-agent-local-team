@@ -14,11 +14,23 @@ const STATE_ICONS: Readonly<Record<ReviewerStatus['state'], vscode.ThemeIcon>> =
   stopped: new vscode.ThemeIcon('circle-slash'),
   starting: new vscode.ThemeIcon('loading~spin'),
   running: new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('malt.hunkPass')),
-  unhealthy: new vscode.ThemeIcon('warning', new vscode.ThemeColor('malt.hunkConcerns')),
+  unhealthy: new vscode.ThemeIcon('warning', new vscode.ThemeColor('problemsWarningIcon.foreground')),
   error: new vscode.ThemeIcon('error', new vscode.ThemeColor('malt.hunkFail')),
 };
 
 const BACKEND_LABELS = { docker: 'Docker container', host: 'Host daemon' };
+
+/** The map's age matters: a stale map misses new modules, so rescanning is one click away. */
+const architectureSummary = (status: ReviewerStatus): string => {
+  if (status.architectureScannedAt === undefined) {
+    return 'unknown';
+  }
+  if (status.architectureScannedAt === '') {
+    return 'not mapped; scan to map';
+  }
+  const scanned = new Date(status.architectureScannedAt);
+  return `${String(status.modulesLoaded ?? 0)} file(s) · scanned ${scanned.toLocaleDateString()}`;
+};
 
 export class ReviewerTreeProvider implements vscode.TreeDataProvider<Row>, vscode.Disposable {
   private readonly changeEmitter = new vscode.EventEmitter<undefined>();
@@ -54,6 +66,18 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Row>, vscod
         label: 'Standards',
         description: status.rulesLoaded === undefined ? 'unknown' : `${String(status.rulesLoaded)} project rule(s) + baseline`,
         icon: new vscode.ThemeIcon('checklist'),
+        command: { command: 'malt.scanStandards', title: 'Scan project standards' },
+      },
+      {
+        label: 'Gaps',
+        description: status.gapsFound === undefined ? 'unknown' : `${String(status.gapsFound)} gap(s) in the standards`,
+        icon: new vscode.ThemeIcon('question'),
+        command: { command: 'malt.showStandardsGaps', title: 'Show standards gaps' },
+      },
+      {
+        label: 'Architecture',
+        description: architectureSummary(status),
+        icon: new vscode.ThemeIcon('type-hierarchy'),
         command: { command: 'malt.scanStandards', title: 'Scan project standards' },
       },
       { label: 'Queue', description: this.queueSummary(), icon: new vscode.ThemeIcon('list-ordered') },

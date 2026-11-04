@@ -1,5 +1,17 @@
 /** Small helpers shared by tests. */
 import type { ReviewCacheStorage } from '../../review/hunkStore';
+import type { CheckStatus, HunkReview, Rule, RuleCheck } from '../../shared/protocol';
+
+export const testRule = (id: string, category = 'Style'): Rule => ({ id, title: `Rule ${id}`, check: `${id}?`, category, source: 'CLAUDE.md' });
+
+export const testCheck = (rule: Rule, status: CheckStatus): RuleCheck => ({ ruleId: rule.id, title: rule.title, status, note: `${rule.id} ${status}`, detail: 'd' });
+
+/** A review over `rules` where `applicable` lists the rule ids worth a check. */
+export const testReview = (rules: readonly Rule[], applicable: readonly string[], checks: readonly RuleCheck[] = []): HunkReview => ({
+  overview: { summary: 'Same content', purpose: 'p', technical: 't', design: 'd', applicable },
+  rules,
+  checks,
+});
 
 export class MemoryStorage implements ReviewCacheStorage {
   private readonly values = new Map<string, unknown>();

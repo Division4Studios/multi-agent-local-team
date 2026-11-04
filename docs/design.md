@@ -9,7 +9,7 @@ MALT's identity is an upright ear of malt barley: warm, crafted and recognizable
 | `media/icon.png` | Generated square barley icon for VSIX/Marketplace metadata |
 | `media/banner.png` | Generated repository header with MALT wordmark and tagline |
 
-Brand colors: charcoal `#191D24`, amber `#E6B85C`, cream `#F7EFDA`. Brand colors belong to identity assets. Review states use contributed theme colors, so light and high-contrast themes remain supported. Amber branding does not replace the green/amber/red verdict system.
+Brand colors: charcoal `#191D24`, amber `#E6B85C`, cream `#F7EFDA`. Brand colors belong to identity assets. Review states use contributed theme colors, so light and high-contrast themes remain supported. Amber branding does not replace the green/red verdict colors.
 
 Use VS Code product icons for actions and review status: play/stop for lifecycle, checklist for standards, output for logs, key/trash for credentials, refresh for retries, pass/warning/error for verdicts, and disconnected for request errors. These icons are deliberately native and respond to product icon themes. Do not replace them with platform-dependent emoji.
 

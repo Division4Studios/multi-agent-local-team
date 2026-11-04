@@ -22,6 +22,10 @@ export interface ReviewerStatus {
   readonly detail: string;
   readonly provider?: string;
   readonly rulesLoaded?: number;
+  readonly gapsFound?: number;
+  readonly modulesLoaded?: number;
+  /** When the architecture map was generated; empty if there is none. */
+  readonly architectureScannedAt?: string;
 }
 
 const HEALTH_INTERVAL_MS = 10_000;
@@ -82,6 +86,7 @@ export class ReviewerManager implements vscode.Disposable {
       const endpoint = { port: await freePort(), token: randomBytes(32).toString('hex') };
       const settings = readSettings();
       const env = {
+        MALT_TRIAGE_MODEL: settings.triageModel,
         MALT_REVIEW_MODEL: settings.reviewModel,
         MALT_STANDARDS_MODEL: settings.standardsModel,
         ...(await this.credentials.env()),
@@ -169,6 +174,9 @@ export class ReviewerManager implements vscode.Disposable {
       detail: 'Healthy',
       provider: health.provider,
       rulesLoaded: health.rulesLoaded,
+      gapsFound: health.gapsFound,
+      modulesLoaded: health.modulesLoaded,
+      architectureScannedAt: health.architectureScannedAt,
     });
   }
 

@@ -110,6 +110,30 @@
         "title": "Reveal Change",
         "category": "MALT",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "malt.showRuleCheck",
+        "title": "Show Rule Result",
+        "category": "MALT",
+        "icon": "$(book)"
+      },
+      {
+        "command": "malt.checkConsolidation",
+        "title": "Check Consolidation Across Changes",
+        "category": "MALT",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "malt.showStandardsGaps",
+        "title": "Show Standards Gaps",
+        "category": "MALT",
+        "icon": "$(question)"
+      },
+      {
+        "command": "malt.showFinding",
+        "title": "Show Consolidation Finding",
+        "category": "MALT",
+        "icon": "$(book)"
       }
     ],
     "menus": {
@@ -148,6 +172,11 @@
           "command": "malt.reviewAll",
           "when": "view == malt.changes",
           "group": "navigation@1"
+        },
+        {
+          "command": "malt.checkConsolidation",
+          "when": "view == malt.changes",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -164,6 +193,14 @@
         },
         {
           "command": "malt.revealHunk",
+          "when": "false"
+        },
+        {
+          "command": "malt.showRuleCheck",
+          "when": "false"
+        },
+        {
+          "command": "malt.showFinding",
           "when": "false"
         }
       ]
@@ -191,10 +228,15 @@
           "default": true,
           "description": "Start the reviewer automatically when a workspace opens."
         },
+        "malt.reviewer.triageModel": {
+          "type": "string",
+          "default": "sonnet",
+          "markdownDescription": "Claude model for each block's overview: it writes the purpose, technical and design descriptions and sorts out which rules apply. `haiku` costs less but writes weaker design arguments. Restart the reviewer after changing."
+        },
         "malt.reviewer.reviewModel": {
           "type": "string",
           "default": "sonnet",
-          "markdownDescription": "Claude model for per-block reviews (alias like `sonnet`, `haiku`, `opus`, or a full model id). Restart the reviewer after changing."
+          "markdownDescription": "Claude model for checking a block against each applicable rule, one call per rule (alias like `sonnet`, `haiku`, `opus`, or a full model id). Restart the reviewer after changing."
         },
         "malt.reviewer.standardsModel": {
           "type": "string",
@@ -206,7 +248,7 @@
           "default": 2,
           "minimum": 1,
           "maximum": 8,
-          "description": "How many changed blocks are reviewed in parallel."
+          "description": "How many reviewer calls (block overviews and rule checks) run in parallel."
         },
         "malt.reviewer.claudePath": {
           "type": "string",
@@ -227,6 +269,11 @@
           "type": "boolean",
           "default": true,
           "description": "Review each new changed block automatically."
+        },
+        "malt.changes.autoConsolidation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check the whole change for code that should be consolidated (one reviewer call) 30 seconds after new files stop appearing."
         }
       }
     },
@@ -249,16 +296,6 @@
           "light": "#1a7f37",
           "highContrast": "#3fb950",
           "highContrastLight": "#1a7f37"
-        }
-      },
-      {
-        "id": "malt.hunkConcerns",
-        "description": "Outline of a changed block with review concerns.",
-        "defaults": {
-          "dark": "#d29922",
-          "light": "#9a6700",
-          "highContrast": "#d29922",
-          "highContrastLight": "#9a6700"
         }
       },
       {
