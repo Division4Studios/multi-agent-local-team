@@ -9,6 +9,7 @@ By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 - [Before you start](#before-you-start)
 - [Development setup](#development-setup)
 - [The quality gate](#the-quality-gate)
+- [Branches and merging](#branches-and-merging)
 - [Pull request guidelines](#pull-request-guidelines)
 - [AI-assisted contributions](#ai-assisted-contributions)
 - [Dependency policy](#dependency-policy)
@@ -17,8 +18,11 @@ By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Before you start
 
+- **Questions:** ask in [Discussions → Q&A](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/q-a), not in issues.
 - **Bugs:** search [existing issues](https://github.com/Division4Studios/multi-agent-local-team/issues) first, then open a [bug report](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=bug_report.yml).
+- **A wrong verdict** (MALT flagged good code, or missed a real problem): open a [wrong review result](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=review_quality.yml) report with a small snippet that reproduces it.
 - **Features and larger changes:** open a [feature request](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml) and get agreement on the approach **before** writing code. Unsolicited large PRs are likely to be closed.
+- **New dependencies or toolchain changes:** open a [dependency request](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=dependency_request.yml) and wait for approval. See [Dependency policy](#dependency-policy).
 - **Small fixes** (typos, docs, obvious bugs) can go straight to a PR.
 
 ## Development setup
@@ -54,6 +58,20 @@ Rules that are enforced and will not be waived in review:
 - No `TODO`/`FIXME` comments; open an issue instead.
 - New behavior comes with tests.
 
+## Branches and merging
+
+| Branch | Role | Accepts |
+|---|---|---|
+| `dev` | Default branch. All work lands here first. | Pull requests from any branch or fork, squash-merged |
+| `main` | What has been released. | Pull requests from `dev` only, opened by a maintainer, merged with a merge commit |
+
+- **Branch from `dev` and open your pull request against `dev`.** A pull request into `main` from any other branch fails the *Source branch is dev* check and can't merge.
+- Both branches are protected by repository rulesets. Nobody can push to them directly, force-push or delete them. Every change needs a pull request with an approving code-owner review, all review conversations resolved, and every CI check passing: the build, tests on Linux, macOS and Windows, CodeQL with no new alerts, and dependency review. New commits dismiss earlier approvals.
+- Commits that land on `dev` and `main` must be signed. GitHub signs the squash and merge commits it makes, so your own commits don't need to be signed, though it's encouraged.
+- Release tags (`v*`) can only be created by maintainers, and can't be moved or deleted.
+
+[docs/repository-settings.md](docs/repository-settings.md) lists every repository setting and the reason for it.
+
 ## Pull request guidelines
 
 - **Keep PRs small and focused.** One logical change per PR. If your diff is large, split it.
@@ -61,7 +79,7 @@ Rules that are enforced and will not be waived in review:
 - **Fill out the PR template completely**, including the AI-assistance disclosure.
 - **You must be able to explain every line** you are submitting. Reviewers will ask.
 - Don't mix refactors, formatting changes and behavior changes in one PR.
-- Keep the branch up to date with `main`; maintainers squash-merge.
+- Keep your branch up to date with `dev`; maintainers squash-merge it into `dev`.
 
 ## AI-assisted contributions
 
@@ -111,7 +129,7 @@ docs: clarify dependency policy
 chore: update the TypeScript compiler alias
 ```
 
-Signed commits are strongly encouraged ([GitHub docs](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)).
+Your pull request title becomes the squash commit message on `dev`, so write it in the same form. Signed commits are encouraged ([GitHub docs](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits)).
 
 ## Reporting security issues
 

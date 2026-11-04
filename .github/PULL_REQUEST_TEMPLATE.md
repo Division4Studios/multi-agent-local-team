@@ -1,3 +1,5 @@
+<!-- Target the dev branch. Pull requests into main are only accepted from dev, opened by a maintainer for a release. -->
+
 ## What and why
 
 <!-- What does this PR change, and why is it needed? Link the issue. -->
@@ -9,6 +11,7 @@ Closes #
 <!-- Commands run, manual steps in the Extension Development Host, screenshots for UI changes. -->
 
 - [ ] `npm run verify` passes locally
+- [ ] This pull request targets `dev`
 
 ## AI assistance
 
