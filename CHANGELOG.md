@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Replace vulnerable minimatch toolchain dependencies with 11.0.4 using exact, parent-scoped security overrides; preserve ESLint and VSCE file selection.
 - Give repeated identical blocks distinct sidebar identities and navigate to the selected occurrence while retaining content-based review caching.
 
 - Check Git ignore rules before generating review or auto-open events; remove blocks when files become ignored.
@@ -16,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Reject low and higher dependency advisories, including development tools; verify security exception policy and ESLint/VSCE file selection on all CI platforms.
 - Raise the minimum VS Code version and API definitions together to 1.144; retain Dependabot API updates.
 
 - Standards discovery continues to read ignored instructions and now includes `.agents/`.

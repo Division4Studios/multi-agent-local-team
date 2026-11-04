@@ -53,6 +53,9 @@ jobs:
       - name: Lint (zero warnings)
         run: npm run lint
 
+      - name: Dependency policy and file selection regression tests
+        run: npm run test:toolchain
+
       - name: Extension tests (Linux)
         if: runner.os == 'Linux'
         run: xvfb-run -a npm test
@@ -62,5 +65,4 @@ jobs:
         run: npm test
 
       - name: Package contents check
-        if: runner.os == 'Linux'
         run: npx --no-install vsce ls --no-dependencies

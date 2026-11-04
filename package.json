@@ -279,8 +279,9 @@
     "check-types": "node --permission --allow-fs-read=\"*\" node_modules/typescript/bin/tsc -p . --noEmit && node --permission --allow-fs-read=\"*\" node_modules/typescript/bin/tsc -p scripts",
     "lint": "node --permission --allow-fs-read=\"*\" node_modules/eslint/bin/eslint.js . --max-warnings 0",
     "check-deps": "node --permission --allow-fs-read=\"*\" scripts/check-deps.mts",
-    "audit": "npm audit --omit=dev --audit-level=low && npm audit --audit-level=high && npm audit signatures",
-    "verify": "npm run check-deps && npm run check-types && npm run lint && npm test",
+    "audit": "npm audit --audit-level=low && npm audit signatures",
+    "test:toolchain": "node --test scripts/test/*.test.mjs",
+    "verify": "npm run check-deps && npm run check-types && npm run lint && npm run test:toolchain && npm test",
     "test": "npm run compile && node out/test/runTest.js",
     "vscode:prepublish": "npm run compile",
     "vsix": "npm run compile && vsce package --no-dependencies"
@@ -294,6 +295,12 @@
     "eslint": "10.14.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1"
+  },
+  "overrides": {
+    "@vscode/vsce@4.1.0": { "minimatch": "11.0.4" },
+    "eslint@10.14.0": { "minimatch": "11.0.4" },
+    "@eslint/config-array@0.23.5": { "minimatch": "11.0.4" },
+    "@typescript-eslint/typescript-estree@8.72.1": { "minimatch": "11.0.4" }
   },
   "icon": "media/icon.png",
   "keywords": [

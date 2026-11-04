@@ -122,7 +122,8 @@ Then open the folder in VS Code and press <kbd>F5</kbd>. A new **Extension Devel
 | `npm run check-types` | Strict type-check of the extension and repo scripts |
 | `npm run lint` | ESLint, strictest type-aware rules, **zero warnings allowed** |
 | `npm run check-deps` | Enforce the dependency allowlist and exact pinning |
-| `npm run audit` | Fail on any runtime advisory or any high/critical advisory; verify registry signatures |
+| `npm run audit` | Fail on low and higher advisories, including development tools; verify registry signatures |
+| `npm run test:toolchain` | Verify security exception policy and ESLint/VSCE file selection |
 | `npm test` | Compile, then run the tests inside a real VS Code instance |
 | `npm run verify` | Everything CI runs: deps → types → lint → tests |
 | `npm run vsix` | Package the extension as a `.vsix` |

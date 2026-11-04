@@ -33,7 +33,7 @@ const NO_VSCODE_IN_REVIEWER = [
 const TOOLING_PATTERNS = [
   {
     group: ['minimatch', 'minimatch/*', 'glob', 'glob/*'],
-    message: 'Tooling-only package with an open advisory; it must never be imported by extension code.',
+    message: 'Tooling-only package; it must never be imported by extension code.',
   },
 ];
 

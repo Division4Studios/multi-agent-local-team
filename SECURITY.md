@@ -63,14 +63,14 @@ MALT is designed to keep its attack surface as small as possible.
 
 **What ships to users**
 
-- The published extension has **zero runtime dependencies**. The `.vsix` contains only the compiled extension and reviewer, the activity-bar icon, the reviewer `Dockerfile`, `package.json`, the README, the changelog and the license; `.vscodeignore` is an allowlist.
+- The published extension has **zero runtime dependencies**. The `.vsix` contains only the compiled extension and reviewer, branding assets, guides, the reviewer `Dockerfile`, `package.json`, the README, the changelog and the license; `.vscodeignore` is an allowlist. Development-tool dependencies are not packaged.
 - The reviewer image is built locally from a base image pinned by digest (`node:24-slim@sha256:…`), with the Claude Code CLI pinned to an exact version.
 
 **What runs on developer and CI machines**
 
 - A fixed allowlist of development tools, enforced by `npm run check-deps` in CI: `typescript`, `@types/node`, `@types/vscode`, `eslint`, `@eslint/js`, `typescript-eslint`, `@vscode/test-electron`, `@vscode/vsce`.
 - Every version is pinned exactly, `package-lock.json` (with integrity hashes) is committed, and CI installs with `npm ci`.
-- `overrides` and `resolutions` are forbidden, so the tree is always exactly what upstream publishes and what the lockfile records.
+- Dependency overrides are forbidden except for the exact, parent-version-scoped minimatch security exceptions below. `npm run check-deps` rejects broader overrides or other replacement versions. `resolutions` remain forbidden. Published registry artifacts and integrity hashes are recorded in the lockfile; no dependency source is edited after installation.
 - Package install scripts are disabled (`ignore-scripts=true` in `.npmrc`).
 - Registry signatures and provenance are verified in CI (`npm audit signatures`).
 - Type-checking, linting and the dependency check run under the **Node.js permission model** (`node --permission`) with **read-only** filesystem access and **no child processes, workers or native addons**. The compiler may write only to `out/`. A compromised tool in those steps cannot modify the repository or launch other programs.
@@ -79,13 +79,23 @@ MALT is designed to keep its attack surface as small as possible.
 
 **Audit gate**
 
-`npm run audit` (run in CI) fails on:
+`npm run audit` fails on low, moderate, high, or critical advisories anywhere in the dependency tree, including development tools, then verifies registry signatures and provenance. Dependency review also rejects newly introduced advisories at low severity or above. Audit failures are investigated and remediated; the threshold is not lowered to pass CI.
 
-- **any** advisory in runtime dependencies (there are none), and
-- any **high** or **critical** advisory anywhere in the tree.
+### Temporary minimatch security overrides (2026-11-03)
 
-**Known, accepted advisories**
+[GHSA-g3hv-75wg-m249 / CVE-2026-118764](https://github.com/advisories/GHSA-g3hv-75wg-m249) describes excessive CPU and memory use with attacker-controlled patterns at `optimizationLevel >= 2`. The advisory identifies versions below 11.0.1 as affected. MALT replaces all four affected dependency paths with published **minimatch 11.0.4**:
 
-| Advisory | Package | Reached via | Why accepted |
-|---|---|---|---|
-| [minimatch ReDoS (< 11.0.1)](https://github.com/advisories?query=minimatch) | `minimatch@10.x` | `eslint`, `typescript-eslint`, `@vscode/vsce` | Moderate severity, development-only, never shipped. It only parses glob patterns from this repository's own config. No upstream release has a fix yet, and `overrides` are forbidden by policy. Lint runs sandboxed (read-only, no process spawning). Extension code is lint-blocked from importing `minimatch` or `glob`. Re-evaluated on every Dependabot update. |
+| Exact parent | Upstream range | Reviewed override |
+|---|---|---|
+| `@vscode/vsce@4.1.0` | `^10.2.6` | `minimatch@11.0.4` |
+| `eslint@10.14.0` | `^10.2.6` | `minimatch@11.0.4` |
+| `@eslint/config-array@0.23.5` | `^10.2.4` | `minimatch@11.0.4` |
+| `@typescript-eslint/typescript-estree@8.72.1` | `^10.2.2` | `minimatch@11.0.4` |
+
+This is a MALT compatibility decision, not an upstream endorsement of minimatch 11 for these releases. npm explicitly supports [overrides for vulnerable transitive dependencies](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/#overrides). The exception applies only to the listed parent versions. It cannot silently apply to future parent releases. The dependency guard also rejects any root or nested minimatch lock entry below 11.0.1, including versions introduced by new dependency paths.
+
+Minimatch 11 removes APIs and changes some matching semantics. These parent releases use `minimatch()`, `Minimatch`, and `.match()`, rather than removed APIs such as `makeRe()`. `npm run test:toolchain` verifies ESLint and VSCE file selection with nested paths, dotfiles, exclusions and negations, checks that lint suppression cannot disable the test rule, checks the real package allowlist, and exercises rejection of unreviewed overrides and vulnerable nested lock entries. CI runs these checks on Windows, Linux and macOS alongside the existing strict linting and extension tests. No ESLint rule is relaxed for this upgrade.
+
+**Removing the exception:** inspect each Dependabot parent update. When its supported dependency range admits a patched minimatch, remove that parent's override and its approved entry in `scripts/security-overrides.mts`. If an updated parent still requires an affected release, review compatibility and update the exact exception explicitly; do not broaden it to an unversioned parent. Run `npm ci`, `npm run verify`, `npm run audit`, `npm ls minimatch --all`, and `npm run vsix`. Confirm there are no affected minimatch versions and inspect the archive for unintended files. Remove the remaining exception machinery once all parent dependencies support patched releases; keep the regression checks and strict audit gate.
+
+Minimatch is development-only and is absent from the shipped extension and reviewer. Node's permission model does not prevent CPU or memory exhaustion; neither sandboxing nor a CI timeout substitutes for this dependency fix. [Dependabot alert #1](https://github.com/Division4Studios/multi-agent-local-team/security/dependabot/1) should close through GitHub's dependency analysis after the fixed lockfile reaches the default branch, rather than through manual dismissal.

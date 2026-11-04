@@ -5,13 +5,14 @@
  * - declares runtime `dependencies` (the extension ships with zero),
  * - declares a devDependency outside the approved allowlist,
  * - uses a non-exact version (ranges, tags, URLs, git refs),
- * - declares `overrides`, `resolutions`, optional or peer dependencies,
- * or if package-lock.json is missing.
+ * - declares unreviewed overrides, resolutions, optional or peer dependencies,
+ * or if package-lock.json is missing or contains affected minimatch versions.
  *
  * Changing the allowlist is a policy change: it requires a maintainer-approved PR.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { checkMinimatchLockfile, checkSecurityOverrides } from './security-overrides.mts';
 
 const ALLOWED_DEV_DEPENDENCIES: ReadonlySet<string> = new Set([
   '@eslint/js',
@@ -30,7 +31,6 @@ const FORBIDDEN_FIELDS = [
   'peerDependencies',
   'bundleDependencies',
   'bundledDependencies',
-  'overrides',
   'resolutions',
 ] as const;
 
@@ -45,7 +45,7 @@ if (!isRecord(parsed)) {
   throw new Error('package.json is not a JSON object');
 }
 
-const problems: string[] = [];
+const problems: string[] = checkSecurityOverrides(parsed['overrides']);
 
 for (const field of FORBIDDEN_FIELDS) {
   const value = parsed[field];
@@ -68,6 +68,9 @@ if (isRecord(devDependencies)) {
 
 if (!existsSync(join(root, 'package-lock.json'))) {
   problems.push('package-lock.json is missing');
+} else {
+  const lockfile: unknown = JSON.parse(readFileSync(join(root, 'package-lock.json'), 'utf8'));
+  problems.push(...checkMinimatchLockfile(lockfile));
 }
 
 if (problems.length > 0) {

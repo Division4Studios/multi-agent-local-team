@@ -43,7 +43,7 @@ Before pushing, run:
 npm run verify
 ```
 
-This runs, in order: the dependency policy check, strict type-checking, lint (zero warnings), and the extension tests inside a real VS Code instance. CI runs the same checks plus `npm run audit`, CodeQL and dependency review. **A PR cannot merge unless all of them pass.**
+This runs, in order: the dependency policy check, strict type-checking, lint (zero warnings), dependency policy and file-selection regression tests, and the extension tests inside a real VS Code instance. CI runs the same checks plus `npm run audit`, CodeQL and dependency review. **A PR cannot merge unless all of them pass.**
 
 Rules that are enforced and will not be waived in review:
 
@@ -87,7 +87,9 @@ MALT ships with **zero runtime dependencies**, and the development toolchain is 
 | `@vscode/test-electron` | Runs tests in a real VS Code instance |
 | `@vscode/vsce` | Packages the `.vsix` |
 
-`npm run check-deps` fails if any other package, any runtime dependency, any `overrides`/`resolutions`, or any non-exact version appears. **Proposals to add a dependency need an issue and maintainer approval before any code is written.** Prefer the Node.js standard library and the VS Code API.
+`npm run check-deps` fails if any other package, any runtime dependency, unreviewed override, `resolutions`, or non-exact direct dependency version appears. The only override exceptions are the exact parent/version pairs documented in [SECURITY.md](SECURITY.md#temporary-minimatch-security-overrides-2026-11-03); the guard also rejects vulnerable minimatch versions anywhere in the lockfile. **Proposals to add a dependency need an issue and maintainer approval before any code is written.** Prefer the Node.js standard library and the VS Code API.
+
+`npm run audit` rejects low and higher severity advisories, including development dependencies, and verifies registry signatures. Keep Dependabot updates enabled. A parent update requires reviewing and removing or explicitly revising its version-scoped security exception; never replace it with a blanket override. Run `npm run test:toolchain` to verify the dependency guard and ESLint/VSCE file selection after dependency changes.
 
 ### VS Code API compatibility
 
