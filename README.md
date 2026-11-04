@@ -163,8 +163,9 @@ Contributions are welcome! Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) be
 
 - 🐛 Found a bug? [Open a bug report](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=bug_report.yml)
 - 🎯 MALT got a verdict wrong? [Report a wrong review result](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=review_quality.yml)
-- ✨ Have an idea? [Discuss it](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/ideas) or [request a feature](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml)
-- ❓ Need help? [Ask in Discussions](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/q-a) or see [SUPPORT.md](SUPPORT.md)
+- 💬 Want to talk? [Join the MALT Discord](https://discord.gg/DwSpsGjvFY): help, ideas, development and office hours
+- ✨ Have an idea? Discuss it in #ideas on Discord, or [request a feature](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml)
+- ❓ Need help? Ask in #help on Discord, [ask in Discussions](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/q-a) for a searchable answer, or see [SUPPORT.md](SUPPORT.md)
 
 ## 🔒 Security
 
