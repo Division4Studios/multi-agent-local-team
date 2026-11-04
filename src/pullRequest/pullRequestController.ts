@@ -17,7 +17,7 @@ import type { ReviewerClient } from '../review/reviewerClient';
 import type { ChangesNode } from '../views/changesView';
 import { checkOutPullRequest, checkoutChange, findGitHubRemote, returnFromPullRequest, returnOnFailure } from './pullRequestCheckout';
 import type { GitHubRemote } from './pullRequestCheckout';
-import { blocksFromFiles, filesAtHead } from './pullRequestBlocks';
+import { blocksFromFiles, filesAtHead, refusePolicyChanges } from './pullRequestBlocks';
 import { PullRequestReview } from './pullRequestReview';
 
 export interface PullRequestDeps {
@@ -243,8 +243,11 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
           // Read again: the author may have pushed while the picker or confirmation was open.
           const pull = await client.pullRequest(picked.number);
           const previous = await checkOutPullRequest(repository, remote.remote, pull);
-          const { blocks, skipped } = await returnOnFailure(repository, previous, async () =>
-            await blocksFromFiles(folder, repository.rootUri, await filesAtHead(client, pull.number, pull.headSha)));
+          const { blocks, skipped } = await returnOnFailure(repository, previous, async () => {
+            const files = await filesAtHead(client, pull.number, pull.headSha);
+            refusePolicyChanges(pull.number, files);
+            return await blocksFromFiles(folder, repository.rootUri, files);
+          });
           this.open(repository, new PullRequestReview({
             pull,
             previous,

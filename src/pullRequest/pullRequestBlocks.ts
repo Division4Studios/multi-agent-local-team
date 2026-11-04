@@ -7,7 +7,9 @@ import * as vscode from 'vscode';
 import { relative } from 'node:path';
 import { hunkId, parseUnifiedDiff } from '../diff/unifiedDiff';
 import type { TrackedHunk } from '../review/hunkStore';
+import { MAX_FILE_PAGES } from '../github/githubApi';
 import type { PullRequestFile, PullRequestSummary } from '../github/githubApi';
+import { STANDARDS_FILE } from '../shared/protocol';
 import { workspaceFile } from '../editor/findingHighlight';
 
 /** Enough for a very large PR; beyond this, a PR should be split before review anyway. */
@@ -41,6 +43,32 @@ export const filesAtHead = async (source: PullRequestSource, number: number, hea
     throw new Error(`#${String(number)} was updated while MALT was loading it (head is now ${now.headSha.slice(0, 7)}). Start the review again.`);
   }
   return files;
+};
+
+/** The folder the reviewer takes its rules and architecture map from (`.malt`). */
+const POLICY_FOLDER = STANDARDS_FILE.split('/')[0] ?? '.malt';
+
+/**
+ * The reviewer takes its rules and architecture map from `.malt/` in the workspace, and during a PR review that is
+ * the PR's checkout. A PR that changes anything in a `.malt` folder (adding, editing, deleting, renaming it away, or
+ * replacing the folder with a link) would choose the rules it is reviewed against, so MALT refuses to review it.
+ * So does a file list GitHub may have cut short, since a policy change could be in the part not listed.
+ */
+export const refusePolicyChanges = (number: number, files: readonly PullRequestFile[]): void => {
+  if (files.length >= MAX_FILE_PAGES * 100) {
+    throw new Error(`#${String(number)} changes too many files for MALT to confirm it leaves its review rules alone.`);
+  }
+  // Compared as Windows and macOS file systems do: ignoring case, and Windows' trailing dots and spaces. Other aliases
+  // (e.g. 8.3 short names) would overwrite a tracked `.malt` file, which stops the review as a changed checkout.
+  const inPolicyFolder = (path: string | undefined): boolean =>
+    path?.split('/').some((segment) => segment.toLowerCase().replace(/[. ]+$/u, '') === POLICY_FOLDER) === true;
+  const changed = files.find((file) => inPolicyFolder(file.filename) || inPolicyFolder(file.previousFilename));
+  if (changed !== undefined) {
+    throw new Error(
+      `#${String(number)} changes ${changed.previousFilename ?? changed.filename}, which holds the rules MALT would review it with, ` +
+        'so MALT will not review it: the pull request would choose its own rules. Review that change yourself, or merge it separately first.',
+    );
+  }
 };
 
 const skipReason = (file: PullRequestFile): string | undefined => {

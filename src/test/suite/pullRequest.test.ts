@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { parseGitHubRemote } from '../../github/githubApi';
 import { checkOutPullRequest, checkoutChange, findGitHubRemote, returnFromPullRequest, returnOnFailure } from '../../pullRequest/pullRequestCheckout';
-import { blocksFromFiles, filesAtHead } from '../../pullRequest/pullRequestBlocks';
+import { blocksFromFiles, filesAtHead, refusePolicyChanges } from '../../pullRequest/pullRequestBlocks';
 import type { PullRequestSource } from '../../pullRequest/pullRequestBlocks';
 import type { PullRequestFile, PullRequestSummary } from '../../github/githubApi';
 import type { GitFetchOptions, GitRepository } from '../../git/gitApi';
@@ -114,11 +114,41 @@ const checkoutChanges = async (): Promise<void> => {
 };
 
 
+/** A PR must never choose the rules it is reviewed with: any change under a `.malt` folder is refused. */
+const policyChangesRefused = (): void => {
+  const file = (filename: string, previousFilename?: string): PullRequestFile => ({
+    filename,
+    status: previousFilename === undefined ? 'modified' : 'renamed',
+    patch: '@@ -1 +1 @@\n-a\n+b',
+    ...(previousFilename === undefined ? {} : { previousFilename }),
+  });
+  refusePolicyChanges(7, [file('src/a.ts'), file('docs/malt.md'), file('.maltrc'), file('src/.malt-cache.ts')]);
+  const attempts = [
+    [file('.malt/standards.json')],
+    [file('.malt/architecture.json')],
+    [file('packages/app/.malt/standards.json')],
+    [file('notes.json', '.malt/standards.json')],
+    [file('.malt')],
+    [file('.MALT/standards.json')],
+    [file('.malt. /standards.json')],
+  ];
+  for (const files of attempts) {
+    assert.throws(() => {
+      refusePolicyChanges(7, files);
+    }, /holds the rules MALT would review it with/u, files[0]?.filename);
+  }
+  const many = [...Array(3000).keys()].map((index) => file(`src/f${String(index)}.ts`));
+  assert.throws(() => {
+    refusePolicyChanges(7, many);
+  }, /too many files/u, 'a list GitHub may have cut short cannot prove the rules are untouched');
+};
+
 export const tests: readonly TestCase[] = [
   { name: 'pull requests: a load that fails after checkout returns the user to their branch', run: failedLoadReturns },
   { name: 'pull requests: patches must belong to the checked-out head; a push mid-load is refused', run: patchesMatchHead },
   { name: 'pull requests: finishing lets running reviews settle before switching back, and stops nothing if it refuses', run: finishSettlesFirst },
     { name: 'pull requests: leaving the PR commit or editing its files is detected', run: checkoutChanges },
+  { name: 'pull requests: a PR that changes MALT\'s rules (.malt/) is refused', run: policyChangesRefused },
   {
     name: 'pull requests: only real github.com remotes are recognized',
     run: (): void => {

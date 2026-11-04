@@ -9,7 +9,8 @@ import { isNonNegativeInteger, isRecord, isString, parseArray } from '../shared/
 
 const HOST = 'api.github.com';
 const MAX_RESPONSE_BYTES = 20_000_000;
-const MAX_FILE_PAGES = 30;
+/** GitHub lists at most 3,000 files for a pull request (30 pages of 100). */
+export const MAX_FILE_PAGES = 30;
 const TIMEOUT_MS = 30_000;
 
 /** `owner/repo` of a GitHub repository, as parsed from a git remote. */
@@ -34,6 +35,8 @@ export interface PullRequestFile {
   readonly status: string;
   /** GitHub's unified-diff hunks for the file; absent for binary or very large files. */
   readonly patch: string | undefined;
+  /** For a rename, the path it was renamed from. */
+  readonly previousFilename?: string;
 }
 
 const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,99})$/u;
@@ -72,7 +75,13 @@ const parseFile = (value: unknown): PullRequestFile | undefined => {
     return undefined;
   }
   const patch = value['patch'];
-  return { filename: value['filename'], status: value['status'], patch: isString(patch) ? patch : undefined };
+  const previous = value['previous_filename'];
+  return {
+    filename: value['filename'],
+    status: value['status'],
+    patch: isString(patch) ? patch : undefined,
+    ...(isString(previous) ? { previousFilename: previous } : {}),
+  };
 };
 
 /** A non-200 answer from the GitHub API. */
