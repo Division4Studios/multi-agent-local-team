@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A failed reviewer request redacts secrets in the error it returns and logs (a Claude CLI error could quote a key), and a thrown value that isn't an `Error` is reported only as "Internal reviewer error", never echoed. Fixes CodeQL `js/stack-trace-exposure`.
+
 - `malt.reviewer.claudePath` and `malt.docker.socketPath` are machine-scoped: a repository's `.vscode/settings.json` can no longer choose the program MALT runs or the Docker endpoint it talks to. In untrusted workspaces they are restricted too.
 
 - Changed files are only read when they really live in the workspace: symlinks (and files reached through linked folders) are skipped, so a link in the repository can never pull an outside file into a review or the editor.

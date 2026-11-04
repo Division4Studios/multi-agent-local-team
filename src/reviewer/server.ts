@@ -11,7 +11,8 @@ import { PROTOCOL_VERSION, parseCheckRequest, parseConsolidationRequest, parseRe
 import type { ReviewRequest } from '../shared/protocol';
 import type { ReviewService } from './service';
 import { ConversationLog } from './conversations';
-import { describeError, log } from './log';
+import { log } from './log';
+import { redactSecrets } from './redact';
 import { isRecord } from '../shared/guards';
 import { isGapId } from '../shared/investigation';
 
@@ -26,7 +27,19 @@ class HttpError extends Error {
   }
 }
 
-const isAuthorized = (request: IncomingMessage, token: string): boolean => {
+/**
+ * What a failed request may report, in its response and in the log: the server's own HTTP errors as written, any
+ * other error's message with secrets redacted (a model call's error can quote CLI output), and never a stack or a
+ * thrown non-Error value.
+ */
+const publicMessage = (error: unknown): string => {
+  if (error instanceof HttpError) {
+    return error.message;
+  }
+  return error instanceof Error ? redactSecrets(error.message) : 'Internal reviewer error';
+};
+
+const isAuthorized =(request: IncomingMessage, token: string): boolean => {
   const expected = Buffer.from(`Bearer ${token}`);
   const actual = Buffer.from(request.headers.authorization ?? '');
   return actual.length === expected.length && timingSafeEqual(actual, expected);
@@ -178,8 +191,9 @@ export const createReviewerServer = (service: ReviewService, token: string, conv
       },
       (error: unknown) => {
         const status = error instanceof HttpError ? error.status : 500;
-        log(`error ${String(status)}: ${describeError(error)}`);
-        sendJson(response, status, { error: describeError(error) });
+        const message = publicMessage(error);
+        log(`error ${String(status)}: ${message}`);
+        sendJson(response, status, { error: message });
       },
     );
   });
