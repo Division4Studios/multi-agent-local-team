@@ -311,7 +311,7 @@
       "view/item/context": [
         {
           "command": "malt.reviewAgain",
-          "when": "view == malt.changes && viewItem == malt.hunk",
+          "when": "(view == malt.changes || view == malt.pullRequest) && viewItem == malt.hunk",
           "group": "inline"
         },
         {
@@ -321,7 +321,7 @@
         },
         {
           "command": "malt.showFinding",
-          "when": "view == malt.changes && viewItem == malt.finding",
+          "when": "(view == malt.changes || view == malt.pullRequest) && viewItem == malt.finding",
           "group": "inline"
         },
         {

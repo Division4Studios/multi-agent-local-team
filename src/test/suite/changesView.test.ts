@@ -167,7 +167,7 @@ export const tests: readonly TestCase[] = [
         const findings = provider.getChildren(top).map((node) => provider.getTreeItem(node));
         assert.deepEqual(
           findings.map((item) => [item.label, item.description, item.command?.command, item.command?.arguments, item.contextValue]),
-          [[finding.title, 'a.txt, b.txt', 'malt.showFindingLocation', [0, 0], 'malt.finding']],
+          [[finding.title, 'a.txt, b.txt', 'malt.showFindingLocation', [0, 0, 'changes'], 'malt.finding']],
           'selecting a finding goes to where it applies; its details are an inline action',
         );
       } finally {

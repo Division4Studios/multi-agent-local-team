@@ -27,6 +27,8 @@ export class ConsolidationCheck implements vscode.Disposable {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   public readonly onDidChange = this.changeEmitter.event;
   private timer: NodeJS.Timeout | undefined;
+  private stopped = false;
+  private inFlight: Promise<void> | undefined;
   private readonly store: HunkStore;
   private readonly client: () => ConsolidationClient | undefined;
 
@@ -42,9 +44,27 @@ export class ConsolidationCheck implements vscode.Disposable {
   /** Checks the current change. Does nothing while a check is running or the reviewer is offline. */
   public async run(): Promise<void> {
     const client = this.client();
-    if (client === undefined || this.current.status === 'running') {
+    if (this.stopped || client === undefined || this.current.status === 'running') {
       return;
     }
+    this.inFlight = this.check(client);
+    await this.inFlight;
+  }
+
+  /** Stops for good: no new or scheduled check runs; resolves once a check already in flight has finished. */
+  public async stop(): Promise<void> {
+    this.stopped = true;
+    clearTimeout(this.timer);
+    await this.inFlight;
+  }
+
+  /** Runs once new files have stopped appearing for a while, so a burst of agent edits costs one call. */
+  public schedule(): void {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => void this.run(), AUTO_DELAY_MS);
+  }
+
+  private async check(client: ConsolidationClient): Promise<void> {
     this.set({ status: 'running', findings: this.current.findings });
     try {
       const findings = await client.consolidation({ blocks: this.blocks() });
@@ -52,12 +72,6 @@ export class ConsolidationCheck implements vscode.Disposable {
     } catch (error: unknown) {
       this.set({ status: 'error', findings: [], error: error instanceof Error ? error.message : String(error) });
     }
-  }
-
-  /** Runs once new files have stopped appearing for a while, so a burst of agent edits costs one call. */
-  public schedule(): void {
-    clearTimeout(this.timer);
-    this.timer = setTimeout(() => void this.run(), AUTO_DELAY_MS);
   }
 
   public dispose(): void {

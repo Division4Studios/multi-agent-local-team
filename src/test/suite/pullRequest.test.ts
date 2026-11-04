@@ -8,11 +8,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { parseGitHubRemote } from '../../github/githubApi';
-import { checkOutPullRequest, findGitHubRemote, returnFromPullRequest } from '../../pullRequest/pullRequestCheckout';
-import { blocksFromFiles } from '../../pullRequest/pullRequestBlocks';
+import { checkOutPullRequest, findGitHubRemote, returnFromPullRequest, returnOnFailure } from '../../pullRequest/pullRequestCheckout';
+import { blocksFromFiles, filesAtHead } from '../../pullRequest/pullRequestBlocks';
+import type { PullRequestSource } from '../../pullRequest/pullRequestBlocks';
+import { PullRequestReview } from '../../pullRequest/pullRequestReview';
+import type { PullRequestReviewOptions } from '../../pullRequest/pullRequestReview';
+import type { PullRequestFile, PullRequestSummary } from '../../github/githubApi';
+import { HunkStore } from '../../review/hunkStore';
+import type { TrackedHunk } from '../../review/hunkStore';
+import { ReviewQueue } from '../../review/reviewQueue';
+import { ConsolidationCheck } from '../../review/consolidation';
+import { findingsFor } from '../../commands';
+import type { CheckRequest, ConsolidationRequest, Finding, OverviewResponse, ReviewRequest, RuleCheck } from '../../shared/protocol';
 import type { GitFetchOptions, GitRepository } from '../../git/gitApi';
 import { readSettings } from '../../config';
-import { waitFor } from './testUtils';
+import { MemoryStorage, deferred, testCheck, testReview, testRule, waitFor } from './testUtils';
 import type { TestCase } from './harness';
 
 const HEAD_SHA = 'a'.repeat(40);
@@ -61,7 +71,178 @@ const fakeRepository = (options: { readonly dirty?: boolean; readonly headAfterC
   };
 };
 
+const summary = (number: number, headSha: string): PullRequestSummary => ({
+  number,
+  title: 'Add cards',
+  author: 'someone',
+  headSha,
+  baseRef: 'main',
+  headRef: 'cards',
+  htmlUrl: `https://github.com/team/app/pull/${String(number)}`,
+});
+
+const finding = (title: string): Finding => ({ title, files: ['a.ts'], note: 'n', detail: 'd', anchors: [] });
+
+const RULE = testRule('a');
+const OVERVIEW: OverviewResponse = { overview: testReview([RULE], ['a']).overview, rules: [RULE] };
+
+const tracked = (id: string): TrackedHunk => ({
+  id,
+  uri: vscode.Uri.file(`/workspace/${id}.ts`),
+  relativePath: `${id}.ts`,
+  hunk: { header: '@@ -1 +1 @@', body: `+${id}`, startLine: 0, endLine: 0, added: 1, removed: 0 },
+});
+
+const pause = async (): Promise<void> => {
+  await new Promise<void>((resolvePromise) => {
+    setTimeout(resolvePromise, 50);
+  });
+};
+
+/** Stopping a review: queued blocks never start, an overview that lands later queues no checks, and stop waits. */
+const queueStops = async (): Promise<void> => {
+  const store = new HunkStore(new MemoryStorage());
+  const gate = deferred<undefined>();
+  const reviews: ReviewRequest[] = [];
+  const checks: CheckRequest[] = [];
+  const reviewer = {
+    review: async (request: ReviewRequest): Promise<OverviewResponse> => {
+      reviews.push(request);
+      await gate.promise;
+      return OVERVIEW;
+    },
+    check: async (request: CheckRequest): Promise<RuleCheck> => {
+      checks.push(request);
+      return await Promise.resolve(testCheck(RULE, 'pass'));
+    },
+  };
+  const queue = new ReviewQueue({ store, client: (): typeof reviewer => reviewer, concurrency: (): number => 1 });
+  for (const block of [tracked('one'), tracked('two')]) {
+    store.setFileHunks(block.uri, [block]);
+    queue.enqueue(block);
+  }
+  let stopped = false;
+  const stopping = queue.stop().then(() => {
+    stopped = true;
+  });
+  await pause();
+  assert.equal(stopped, false, 'stop waits for the call in flight');
+  gate.resolve(undefined);
+  await stopping;
+  queue.enqueue(tracked('three'));
+  await pause();
+  assert.deepEqual(reviews.map((request) => request.filePath), ['one.ts'], 'queued and new blocks never start');
+  assert.deepEqual(checks, [], 'the overview that finished after stop scheduled no rule checks');
+  store.dispose();
+};
+
+const consolidationStops = async (): Promise<void> => {
+  const store = new HunkStore(new MemoryStorage());
+  const gate = deferred<undefined>();
+  const requests: ConsolidationRequest[] = [];
+  const check = new ConsolidationCheck(store, () => ({
+    consolidation: async (request: ConsolidationRequest): Promise<readonly Finding[]> => {
+      requests.push(request);
+      await gate.promise;
+      return [];
+    },
+  }));
+  const running = check.run();
+  let stopped = false;
+  const stopping = check.stop().then(() => {
+    stopped = true;
+  });
+  await pause();
+  assert.equal(stopped, false, 'stop waits for the check in flight');
+  gate.resolve(undefined);
+  await Promise.all([running, stopping]);
+  await check.run();
+  check.schedule();
+  assert.equal(requests.length, 1, 'no check runs after stop');
+  vscode.Disposable.from(check, store).dispose();
+};
+
+/** Finding commands resolve against the review the finding came from, never the other one. */
+const findingsRouteBySource = async (): Promise<void> => {
+  const store = new HunkStore(new MemoryStorage());
+  const local = new ConsolidationCheck(store, () => ({
+    consolidation: async (): Promise<readonly Finding[]> => await Promise.resolve([finding('local')]),
+  }));
+  const pullRequest = new PullRequestReview({
+    pull: summary(7, HEAD_SHA),
+    previous: { treeish: 'main', label: 'main' },
+    blocks: [tracked('pr')],
+    skipped: [],
+    client: (): ReturnType<PullRequestReviewOptions['client']> => ({
+      review: async (): Promise<OverviewResponse> => await Promise.resolve(OVERVIEW),
+      check: async (): Promise<RuleCheck> => await Promise.resolve(testCheck(RULE, 'pass')),
+      consolidation: async (): Promise<readonly Finding[]> => await Promise.resolve([finding('pull request')]),
+    }),
+    concurrency: (): number => 1,
+  });
+  try {
+    await Promise.all([local.run(), pullRequest.consolidation.run()]);
+    const [top] = pullRequest.tree.getChildren();
+    assert.ok(top !== undefined);
+    const [findingNode] = pullRequest.tree.getChildren(top);
+    assert.ok(findingNode !== undefined);
+    assert.deepEqual(pullRequest.tree.getTreeItem(findingNode).command?.arguments, [0, 0, 'pullRequest']);
+    const deps = { consolidation: local, pullRequest: (): PullRequestReview => pullRequest };
+    assert.deepEqual(findingsFor(deps, 'pullRequest').map((item) => item.title), ['pull request']);
+    assert.deepEqual(findingsFor(deps, 'changes').map((item) => item.title), ['local']);
+    const closed = { consolidation: local, pullRequest: (): undefined => undefined };
+    assert.deepEqual(findingsFor(closed, 'pullRequest'), [], 'a closed review resolves to nothing, never to local findings');
+  } finally {
+    vscode.Disposable.from(pullRequest, local, store).dispose();
+  }
+};
+
+const failedLoadReturns = async (): Promise<void> => {
+  const repository = fakeRepository({});
+  const previous = await checkOutPullRequest(repository, 'upstream', { number: 7, headSha: HEAD_SHA });
+  const failing = async (): Promise<never> => {
+    await Promise.resolve();
+    throw new Error('GitHub API timed out.');
+  };
+  await assert.rejects(returnOnFailure(repository, previous, failing), /GitHub API timed out\. You are back on main\./u);
+  assert.equal(repository.calls.at(-1), 'checkout main');
+  assert.equal(await returnOnFailure(repository, previous, async () => await Promise.resolve(3)), 3);
+};
+
+const patchesMatchHead = async (): Promise<void> => {
+  const files: PullRequestFile[] = [{ filename: 'a.ts', status: 'modified', patch: '@@ -1 +1 @@\n-a\n+b' }];
+  const source = (headNow: string): PullRequestSource => ({
+    files: async (): Promise<PullRequestFile[]> => await Promise.resolve(files),
+    pullRequest: async (number: number): Promise<PullRequestSummary> => await Promise.resolve(summary(number, headNow)),
+  });
+  assert.deepEqual(await filesAtHead(source(HEAD_SHA), 7, HEAD_SHA), files);
+  await assert.rejects(filesAtHead(source('d'.repeat(40)), 7, HEAD_SHA), /was updated while MALT was loading it/u);
+};
+
+const finishSettlesFirst = async (): Promise<void> => {
+  const clean = fakeRepository({});
+  const order: string[] = [];
+  await returnFromPullRequest(clean, { treeish: 'main', label: 'main' }, async () => {
+    order.push(`settle after ${String(clean.calls.length)} git call(s)`);
+    await Promise.resolve();
+  });
+  assert.deepEqual([...order, ...clean.calls], ['settle after 0 git call(s)', 'checkout main']);
+  const dirty = fakeRepository({ dirty: true });
+  let settled = false;
+  await assert.rejects(returnFromPullRequest(dirty, { treeish: 'main', label: 'main' }, async () => {
+    settled = true;
+    await Promise.resolve();
+  }));
+  assert.equal(settled, false, 'a refused finish keeps the review running');
+};
+
 export const tests: readonly TestCase[] = [
+  { name: 'pull requests: a load that fails after checkout returns the user to their branch', run: failedLoadReturns },
+  { name: 'pull requests: patches must belong to the checked-out head; a push mid-load is refused', run: patchesMatchHead },
+  { name: 'pull requests: finishing lets running reviews settle before switching back, and stops nothing if it refuses', run: finishSettlesFirst },
+  { name: 'review queue: stop drops waiting work, schedules nothing new, and waits for calls in flight', run: queueStops },
+  { name: 'consolidation: stop cancels scheduled checks and waits for the one in flight', run: consolidationStops },
+  { name: 'pull requests: consolidation findings open from the review they belong to', run: findingsRouteBySource },
   {
     name: 'pull requests: only real github.com remotes are recognized',
     run: (): void => {

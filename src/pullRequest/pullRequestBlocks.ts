@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { relative } from 'node:path';
 import { hunkId, parseUnifiedDiff } from '../diff/unifiedDiff';
 import type { TrackedHunk } from '../review/hunkStore';
-import type { PullRequestFile } from '../github/githubApi';
+import type { PullRequestFile, PullRequestSummary } from '../github/githubApi';
 import { workspaceFile } from '../editor/findingHighlight';
 
 /** Enough for a very large PR; beyond this, a PR should be split before review anyway. */
@@ -22,6 +22,26 @@ export interface PullRequestBlocks {
   readonly blocks: readonly TrackedHunk[];
   readonly skipped: readonly SkippedFile[];
 }
+
+/** The parts of the GitHub client that loading a PR's files needs. */
+export interface PullRequestSource {
+  pullRequest: (number: number) => Promise<PullRequestSummary>;
+  files: (number: number) => Promise<PullRequestFile[]>;
+}
+
+/**
+ * The PR's files, guaranteed to be GitHub's patches for `headSha` (the checked-out commit). The files endpoint
+ * always serves the PR's current head, so the head is read again afterwards: if the author pushed in between, the
+ * patches would not match the files on disk, and loading fails instead of mixing the two.
+ */
+export const filesAtHead = async (source: PullRequestSource, number: number, headSha: string): Promise<PullRequestFile[]> => {
+  const files = await source.files(number);
+  const now = await source.pullRequest(number);
+  if (now.headSha !== headSha) {
+    throw new Error(`#${String(number)} was updated while MALT was loading it (head is now ${now.headSha.slice(0, 7)}). Start the review again.`);
+  }
+  return files;
+};
 
 const skipReason = (file: PullRequestFile): string | undefined => {
   if (file.status === 'removed') {

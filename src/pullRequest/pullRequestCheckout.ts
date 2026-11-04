@@ -79,8 +79,15 @@ export const checkOutPullRequest = async (
   return previous;
 };
 
-/** Goes back to where the user was. Refuses, keeping their work, if files were changed on the PR checkout. */
-export const returnFromPullRequest = async (repository: GitRepository, previous: PreviousHead): Promise<void> => {
+/**
+ * Goes back to where the user was. Refuses, keeping their work, if files were changed on the PR checkout.
+ * `beforeLeaving` runs once leaving is certain, just before the checkout (e.g. to let running reviews settle).
+ */
+export const returnFromPullRequest = async (
+  repository: GitRepository,
+  previous: PreviousHead,
+  beforeLeaving?: () => Promise<void>,
+): Promise<void> => {
   const { checkout } = repository;
   if (checkout === undefined) {
     throw new Error('This version of the VS Code Git extension cannot check out.');
@@ -89,5 +96,25 @@ export const returnFromPullRequest = async (repository: GitRepository, previous:
   if (hasTrackedChanges(repository)) {
     throw new Error(`You changed files on the pull request checkout. Commit or stash them, then finish again to return to ${previous.label}.`);
   }
+  await beforeLeaving?.();
   await checkout.call(repository, previous.treeish);
+};
+
+const describeError = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+/**
+ * Runs `load` on the fresh PR checkout. If it fails, returns to `previous` before rethrowing, so a failed load
+ * (a network error, a PR updated mid-load) never strands the user on a detached PR commit with nothing to finish.
+ */
+export const returnOnFailure = async <T>(repository: GitRepository, previous: PreviousHead, load: () => Promise<T>): Promise<T> => {
+  try {
+    return await load();
+  } catch (error: unknown) {
+    try {
+      await returnFromPullRequest(repository, previous);
+    } catch (returnError: unknown) {
+      throw new Error(`${describeError(error)} MALT could not return you to ${previous.label} (${describeError(returnError)}); check it out yourself.`, { cause: returnError });
+    }
+    throw new Error(`${describeError(error)} You are back on ${previous.label}.`, { cause: error });
+  }
 };

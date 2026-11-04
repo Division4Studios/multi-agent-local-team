@@ -15,9 +15,9 @@ import type { PullRequestSummary } from '../github/githubApi';
 import type { ReviewerManager } from '../backend/reviewerManager';
 import type { ReviewerClient } from '../review/reviewerClient';
 import type { ChangesNode } from '../views/changesView';
-import { checkOutPullRequest, findGitHubRemote, returnFromPullRequest } from './pullRequestCheckout';
+import { checkOutPullRequest, findGitHubRemote, returnFromPullRequest, returnOnFailure } from './pullRequestCheckout';
 import type { GitHubRemote } from './pullRequestCheckout';
-import { blocksFromFiles } from './pullRequestBlocks';
+import { blocksFromFiles, filesAtHead } from './pullRequestBlocks';
 import { PullRequestReview } from './pullRequestReview';
 
 export interface PullRequestDeps {
@@ -96,23 +96,28 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
     try {
       const session = await vscode.authentication.getSession('github', ['repo'], { createIfNone: true });
       const client = new GitHubClient(remote.repo, session.accessToken);
-      const pull = await pickPullRequest(client);
-      if (pull === undefined || !(await this.confirmCheckout(pull, repository))) {
+      const picked = await pickPullRequest(client);
+      if (picked === undefined || !(await this.confirmCheckout(picked, repository))) {
         return;
       }
-      const previous = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `MALT: Checking out #${String(pull.number)}…` },
-        async () => await checkOutPullRequest(repository, remote.remote, pull),
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `MALT: Checking out #${String(picked.number)}…` },
+        async () => {
+          // Read again: the author may have pushed while the picker or confirmation was open.
+          const pull = await client.pullRequest(picked.number);
+          const previous = await checkOutPullRequest(repository, remote.remote, pull);
+          const { blocks, skipped } = await returnOnFailure(repository, previous, async () =>
+            await blocksFromFiles(folder, repository.rootUri, await filesAtHead(client, pull.number, pull.headSha)));
+          this.open(new PullRequestReview({
+            pull,
+            previous,
+            blocks,
+            skipped,
+            client: (): ReviewerClient | undefined => this.deps.manager.client,
+            concurrency: (): number => readSettings().maxConcurrentReviews,
+          }));
+        },
       );
-      const { blocks, skipped } = await blocksFromFiles(folder, repository.rootUri, await client.files(pull.number));
-      this.open(new PullRequestReview({
-        pull,
-        previous,
-        blocks,
-        skipped,
-        client: (): ReviewerClient | undefined => this.deps.manager.client,
-        concurrency: (): number => readSettings().maxConcurrentReviews,
-      }));
       await this.offerReview();
     } catch (error: unknown) {
       void vscode.window.showErrorMessage(`MALT could not review the pull request: ${describeError(error)}`);
@@ -127,7 +132,13 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
       return;
     }
     try {
-      await returnFromPullRequest(repository, review.previous);
+      // Running calls read files from the workspace: let them finish on the PR checkout, and start no more.
+      await returnFromPullRequest(repository, review.previous, async () => {
+        await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Notification, title: 'MALT: Waiting for running review calls to finish…' },
+          async () => { await review.stop(); },
+        );
+      });
       this.close();
       void vscode.window.showInformationMessage(`Finished reviewing #${String(review.pull.number)}. Back on ${review.previous.label}.`);
     } catch (error: unknown) {

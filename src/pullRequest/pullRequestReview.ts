@@ -57,7 +57,7 @@ export class PullRequestReview implements vscode.Disposable {
     this.store = new HunkStore(new MemoryCache());
     this.queue = new ReviewQueue({ store: this.store, client: options.client, concurrency: options.concurrency });
     this.consolidation = new ConsolidationCheck(this.store, options.client);
-    this.tree = new ChangesTreeProvider(this.store, this.consolidation);
+    this.tree = new ChangesTreeProvider(this.store, this.consolidation, 'pullRequest');
     const byFile = new Map<string, TrackedHunk[]>();
     for (const block of options.blocks) {
       byFile.set(block.uri.toString(), [...(byFile.get(block.uri.toString()) ?? []), block]);
@@ -100,7 +100,16 @@ export class PullRequestReview implements vscode.Disposable {
     return this.store.get(id, startLine);
   }
 
+  /**
+   * Stops all review work for good and resolves once calls already in flight have finished. In-flight calls read
+   * files from the workspace, so this must settle before the workspace leaves the PR checkout.
+   */
+  public async stop(): Promise<void> {
+    await Promise.all([this.queue.stop(), this.consolidation.stop()]);
+  }
+
   public dispose(): void {
+    void this.stop();
     vscode.Disposable.from(...this.disposables, this.tree, this.consolidation, this.store).dispose();
   }
 }

@@ -61,6 +61,8 @@ MALT sends changed code to a reviewer service that calls an AI model. It's desig
 - **Reviewing a pull request.** A PR is code from someone else, so everything about it is untrusted.
   - GitHub is reached only at `api.github.com` over HTTPS, with a token from VS Code's built-in GitHub sign-in. The token is never logged, stored by MALT or passed to the reviewer. Responses are size-capped and validated; the head commit must be a full SHA.
   - The PR is checked out with VS Code's Git extension (MALT never runs git). It refuses while you have uncommitted tracked changes, checks out GitHub's exact head commit and verifies HEAD before reviewing. Finishing refuses rather than discard anything changed on the checkout.
+  - The PR is read again just before checkout, and its head is read again after its patches are loaded: if the author pushed in between, loading fails instead of reviewing patches against files from another commit. Any failure after checkout returns you to your branch.
+  - Finishing stops the review first (nothing new starts; queued work is dropped) and waits for calls already running, so no reviewer call reads your branch's files as if they were the PR's.
   - File names in the PR's diff must resolve, by real path, inside the workspace folder; links out of it and `../` names are skipped. Blocks are capped per PR.
   - Checking out a PR puts its files in your workspace. VS Code may run tasks, debug configurations or extensions configured by those files. MALT itself never executes PR content, and the settings that pick what MALT runs (`malt.reviewer.claudePath`, `malt.docker.socketPath`) are machine-scoped, so a repository's `.vscode/settings.json` cannot set them.
   - Results are in memory only and nothing is posted to GitHub.

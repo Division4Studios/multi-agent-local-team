@@ -7,6 +7,7 @@ import type { ReviewQueue } from './review/reviewQueue';
 import { scanStandards, showSavedGaps } from './standards/scanStandards';
 import { showFinding, showRuleCheck } from './views/detailPanel';
 import type { ConsolidationCheck } from './review/consolidation';
+import type { Finding } from './shared/protocol';
 import { isNonNegativeInteger, isRecord, isString } from './shared/guards';
 import type { StandardsModel } from './standards/standardsModel';
 import type { FindingHighlight } from './editor/findingHighlight';
@@ -50,6 +51,13 @@ const ownerOf = (deps: CommandDeps, id: string, startLine?: unknown): { readonly
   const line = isNonNegativeInteger(startLine) ? startLine : undefined;
   return review?.find(id, line) === undefined ? { store: deps.store, queue: deps.queue } : { store: review.store, queue: review.queue };
 };
+
+/**
+ * The consolidation findings a finding command refers to: the pull request's when the command came from the Pull
+ * Request view, else the local changes'. A pull request finding with no review open resolves to none.
+ */
+export const findingsFor = (deps: Pick<CommandDeps, 'consolidation' | 'pullRequest'>, source: unknown): readonly Finding[] =>
+  source === 'pullRequest' ? deps.pullRequest()?.consolidation.state.findings ?? [] : deps.consolidation.state.findings;
 
 /** Accepts a hunk id (hover link) or a tree node (`{ tracked }`) and returns the id. */
 const hunkIdFrom = (arg: unknown): string | undefined => {
@@ -184,14 +192,15 @@ const registerViewCommands = (deps: CommandDeps): vscode.Disposable =>
   vscode.Disposable.from(
     userCommand(deps, 'malt.showFinding', (arg: unknown) => {
       const index = isRecord(arg) ? arg['index'] : arg;
-      showFinding(deps.consolidation.state.findings, index);
+      showFinding(findingsFor(deps, isRecord(arg) ? arg['source'] : undefined), index);
     }),
-    userCommand(deps, 'malt.showFindingLocation', async (index: unknown, anchorIndex: unknown) => {
-      const finding = isNonNegativeInteger(index) ? deps.consolidation.state.findings[index] : undefined;
+    userCommand(deps, 'malt.showFindingLocation', async (index: unknown, anchorIndex: unknown, source: unknown) => {
+      const findings = findingsFor(deps, source);
+      const finding = isNonNegativeInteger(index) ? findings[index] : undefined;
       if (finding !== undefined) {
         const target = { folder: workspaceFolder(), finding, kind: 'Consolidation' };
         await showFindingLocation(deps.highlight, target, anchorIndex, () => {
-          showFinding(deps.consolidation.state.findings, index);
+          showFinding(findings, index);
         });
       }
     }),
