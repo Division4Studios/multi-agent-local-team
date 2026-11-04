@@ -78,8 +78,8 @@ jobs:
               .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, ' ')
               .replace(/`/g, "'")
               .replace(/\s+/g, ' ')
-              .trim()
-              .slice(0, 4000))
+              .trim())
+              .slice(0, 4000)
               .slice(0, max);
             const login = (value) => (/^[A-Za-z0-9-]{1,39}$/.test(String(value)) ? String(value) : 'someone');
             const repo = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
