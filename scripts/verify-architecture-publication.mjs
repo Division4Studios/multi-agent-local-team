@@ -83,6 +83,8 @@ async function verify() {
   assert.deepEqual(restored.answer.panels[1], answer.answer.panels[1]);
   writeFileSync(output, 'modified');
   await assert.rejects(command(['check', input, output]), /differs/u);
+  const repository = { url: 'https://gitlab.com/fixture/team/repo', revision: 'a'.repeat(40) };
+  models[0].items[1].source = { path: 'src/ledger one.ts', line: 7, quote: 'function persist() {}', repository };
   const all = write('all.json', { version: 1, diagrams: models }),
     target = file('all.html');
   const failedBrowser = async () => {
@@ -90,6 +92,18 @@ async function verify() {
   };
   await assert.rejects(command(['finalize', all, target], failedBrowser), /simulated/u);
   assert.equal(read('all.finalize.json').gates['browser-check'], 'fail');
+  assert.ok(
+    readFileSync(target, 'utf8').includes(
+      'https://gitlab.com/fixture/team/repo/-/blob/' + repository.revision + '/src/ledger%20one.ts#L7',
+    ),
+  );
+  await assert.rejects(
+    command([
+      'validate',
+      write('unsafe.json', { version: 1, diagrams: models, meta: { repository: { ...repository, url: 'javascript:alert(1)' } } }),
+    ]),
+    /pinned/u,
+  );
   await command(['check', all, target]);
   const delta = globalThis.structuredClone(models[0]);
   delta.items.push({ id: 'audit', label: 'Audit' });
@@ -97,7 +111,7 @@ async function verify() {
   const other = write('other.json', { version: 1, diagrams: [delta] });
   await assert.rejects(command(['compare', file('architecture.json'), other, file('diff.html')], failedBrowser), /simulated/u);
   assert.equal(read('diff.delta.json').relationships[0].type, 'rerouted');
-  assert.equal(read('diff.delta.json').nodes[0].change, 'added');
+  assert.equal(read('diff.delta.json').nodes.find(node => node.id === 'audit')?.change, 'added');
   if (browser) {
     const report = await command(['finalize', all, target], (path, chrome) => browserCheck(path, chrome, true)).catch((error) => {
       console.error(read('all.finalize.json'));

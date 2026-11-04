@@ -15,6 +15,7 @@ window.maltBrowserProbe = function (model) {
       checks.views = true;
       checks.nodeInteraction = true;
       checks.labelsFit = true;
+      checks.pinnedSources = true;
       checks.routeControl = true;
       model.diagrams.forEach((d, i) => {
         el('view').value = String(i);
@@ -34,6 +35,14 @@ window.maltBrowserProbe = function (model) {
         }
         nodes[nodes.length - 1]?.dispatchEvent(new window.MouseEvent('click'));
         checks.nodeInteraction &&= el('detail').textContent.includes(el('part').selectedOptions[0].textContent);
+        const selected = d.items.find((p) => p.id === el('part').value),
+          card = selected?.source;
+        const repo = card?.repository ?? model.meta?.repository;
+        if (card && repo) {
+          const href = el('detail').querySelector('a')?.href;
+          checks.pinnedSources &&=
+            typeof href === 'string' && href.startsWith(repo.url + '/') && href.includes('/' + repo.revision + '/');
+        }
         if (d.links.length) {
           el('next').click();
           checks.routeControl &&= !!el('routes').querySelector('[aria-current="true"]');

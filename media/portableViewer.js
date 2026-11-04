@@ -51,26 +51,13 @@
     for (const n of document.querySelectorAll('[data-label]')) n.textContent = t(n.dataset.label);
     el('find').placeholder = t('find');
   }
+  const citations = new Map([...el('citations').content.querySelectorAll('a')].map((a) => [a.dataset.source, a]));
   function card(parent, source) {
     if (!source) return;
-    const repo = source.repository ?? model.meta?.repository,
-      label = source.path + (source.line ? ' · ' + source.line : '');
-    const match = /^https:\/\/(github|gitlab)\.com\/([\w.-]+(?:\/[\w.-]+)+)$/u.exec(repo?.url ?? '');
-    if (match && /^[a-f0-9]{40}$/u.test(repo.revision) && !match[2].split('/').some((v) => v === '.' || v === '..')) {
-      const suffix =
-        match[2] +
-        (match[1] === 'gitlab' ? '/-/blob/' : '/blob/') +
-        repo.revision +
-        '/' +
-        source.path.split('/').map(encodeURIComponent).join('/') +
-        (source.line ? '#L' + source.line : '');
-      const link = make('a', label);
-      link.href = match[1] === 'gitlab' ? 'https://gitlab.com/' + suffix : 'https://github.com/' + suffix;
-      link.rel = 'noopener noreferrer';
-      parent.append(link);
-    } else {
-      parent.append(make('span', label));
-    }
+    const repo = source.repository ?? model.meta?.repository;
+    const key = JSON.stringify([repo?.url, repo?.revision, source.path, source.line ?? 0]);
+    const citation = citations.get(key);
+    parent.append(citation ? citation.cloneNode(true) : make('span', source.path + (source.line ? ' · ' + source.line : '')));
     if (source.quote) parent.append(make('blockquote', source.quote));
   }
   function info() {

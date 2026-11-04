@@ -20,6 +20,33 @@ const policy =
   '; style-src ' +
   token(style) +
   "; img-src blob: data:; media-src blob:; connect-src 'none'; base-uri 'none'; form-action 'none'";
+function citations(model) {
+  const sources = model.answer?.panels ?? model.diagrams.flatMap((d) => d.items);
+  const links = new Map();
+  for (const item of sources) {
+    const source = item.source,
+      repo = source?.repository ?? model.meta?.repository;
+    if (!source || !repo) continue;
+    const key = JSON.stringify([repo.url, repo.revision, source.path, source.line ?? 0]);
+    if (links.has(key)) continue;
+    // The model validator allows only HTTPS repository roots and full commit IDs.
+    const host = new URL(repo.url);
+    const providerPath = host.hostname === 'gitlab.com' ? '/-/blob/' : '/blob/';
+    host.pathname += providerPath + repo.revision + '/' + source.path.split('/').map(encodeURIComponent).join('/');
+    if (source.line) host.hash = 'L' + source.line;
+    links.set(
+      key,
+      '<a rel="noopener noreferrer" data-source="' +
+        escape(key) +
+        '" href="' +
+        escape(host.href) +
+        '">' +
+        escape(source.path + (source.line ? ' · ' + source.line : '')) +
+        '</a>',
+    );
+  }
+  return '<template id="citations">' + [...links.values()].join('') + '</template>';
+}
 export function render(model, sourceHash) {
   const results = (model.diagrams || []).map((d) => renderDiagram(d));
   const title = model.answer?.title ?? model.diagrams[0].title;
@@ -89,6 +116,7 @@ export function render(model, sourceHash) {
     '<aside id="detail" aria-live="polite"></aside>' +
     button('ask', 'ask') +
     '<textarea id="prompt" hidden readonly aria-label="Panel follow-up"></textarea><p role="status" id="status"></p></main>' +
+    citations(model) +
     '<script id="malt-source" type="application/json">' +
     json +
     '</script><script>' +
