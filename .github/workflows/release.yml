@@ -12,6 +12,10 @@ name: Release
 #    A maintainer reviews the draft and publishes it. Publishing makes the release immutable (repository setting)
 #    and, because a person does it, triggers the Discord feeds (events made with GITHUB_TOKEN trigger no workflows).
 #
+# Recovery: a tag's own run uses the tag's copy of this file, so a bug here cannot be fixed by re-running it, and a
+# tag cannot be moved. Once the fix reaches main, run this workflow manually from main with the tag: it repeats every
+# check on that tag and builds exactly the tagged commit (CI and the live test check out the tag, not main's head).
+#
 # Security:
 # - Only the repository admin can create v* tags, and nobody can move or delete them (the `release tags` ruleset).
 # - The token has no permissions by default; only the publish job can write releases and sign attestations.
@@ -22,11 +26,19 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Builds an existing signed tag when its own run could not finish because of a problem in this workflow (a tag's
+  # own run always uses the tag's copy of this file). Run it from main; every check below still applies to the tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing signed release tag to build, for example v1.0.0
+        required: true
+        type: string
 
 permissions: {}
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -37,19 +49,23 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout
+      - name: Checkout the tagged commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ format('refs/tags/{0}', inputs.tag || github.ref_name) }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Tag is vMAJOR.MINOR.PATCH, signed, annotated and on main
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag || github.ref_name }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Run this workflow from main, so the release is built by main's reviewed copy of it"; exit 1
+          fi
           if ! [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "::error::Release tags are vMAJOR.MINOR.PATCH; got $TAG"; exit 1
           fi
@@ -61,16 +77,19 @@ jobs:
           if [ "$verified" != "true" ]; then
             echo "::error::GitHub could not verify the signature on $TAG. Sign it with a key on your GitHub account (git tag -s)."; exit 1
           fi
-          if [ "$target" != "$GITHUB_SHA" ]; then
-            echo "::error::$TAG points to $target, not the commit this run checked out ($GITHUB_SHA)"; exit 1
+          checked_out=$(git rev-parse HEAD)
+          if [ "$target" != "$checked_out" ]; then
+            echo "::error::$TAG points to $target, not the commit this run checked out ($checked_out)"; exit 1
           fi
-          if ! git rev-list --first-parent origin/main | grep -qx "$GITHUB_SHA"; then
+          # The checkout of a tag does not include main; fetch it (public repository, no credentials needed).
+          git fetch --no-tags --quiet origin +refs/heads/main:refs/remotes/origin/main
+          if ! git rev-list --first-parent origin/main | grep -qx "$checked_out"; then
             echo "::error::$TAG must point to a commit on main (the release pull request's merge commit)"; exit 1
           fi
 
       - name: Tag matches package.json, package-lock.json and CHANGELOG.md
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: node scripts/release.mts check "$TAG" "$RUNNER_TEMP/release-notes.md"
 
   verify:
@@ -79,6 +98,8 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ format('refs/tags/{0}', inputs.tag || github.ref_name) }}
 
   live:
     needs: check
@@ -86,6 +107,8 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/reviewer-live.yml
+    with:
+      ref: ${{ format('refs/tags/{0}', inputs.tag || github.ref_name) }}
 
   publish:
     needs: [verify, live]
@@ -97,9 +120,10 @@ jobs:
       id-token: write # sign the build provenance attestation (Sigstore)
       attestations: write # store the attestation on this repository
     steps:
-      - name: Checkout
+      - name: Checkout the tagged commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ format('refs/tags/{0}', inputs.tag || github.ref_name) }}
           persist-credentials: false
 
       - name: Set up Node.js
@@ -118,7 +142,7 @@ jobs:
 
       - name: Package the extension (compiles with TypeScript 7 in the isolated container)
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: npx --no-install vsce package --no-dependencies --out "malt-${TAG#v}.vsix"
 
       - name: Shipped JavaScript is byte-identical to what CI tested
@@ -126,7 +150,7 @@ jobs:
 
       - name: Checksum
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: sha256sum "malt-${TAG#v}.vsix" | tee SHA256SUMS.txt
 
       - name: Build provenance attestation
@@ -136,7 +160,7 @@ jobs:
 
       - name: Draft the release
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag || github.ref_name }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |

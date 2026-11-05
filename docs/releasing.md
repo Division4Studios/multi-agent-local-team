@@ -44,7 +44,11 @@ Only the repository admin can create release tags. The steps follow the usual br
 
 5. **Publish the draft.** Open the draft under **Releases**, check the notes and assets, and select **Publish release**. Publishing makes the release immutable, and posts it to the Discord #releases and #shipped channels.
 
-If a step fails, fix the cause in a new pull request. A pushed tag can't be moved, so the fix ships as the next patch version. If the workflow fails on something outside the repository (for example a runner outage), re-run it from the Actions tab; it never replaces an existing release.
+If a step fails because of something outside the repository (a runner outage, a flaky network), re-run the failed run from the Actions tab.
+
+If it fails because of a problem in the Release workflow itself, re-running won't help: a tag's own run always uses the workflow file from the tagged commit, and a tag can't be moved. Fix the workflow through `dev` and a release pull request to `main`, then open **Actions → Release → Run workflow**, choose **`main`**, and enter the existing tag (for example `v1.0.0`). That run repeats every check on the tag (signed, annotated, on `main`, matching versions) and builds exactly the tagged commit, not `main`'s newer head.
+
+If a step fails because of the release's own content (a bug in MALT itself), fix it in a new pull request. A pushed tag can't be moved, so the fix ships as the next patch version. No run ever replaces an existing release.
 
 ## Install and verify a release
 
