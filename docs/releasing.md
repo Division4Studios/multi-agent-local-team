@@ -46,7 +46,7 @@ Only the repository admin can create release tags. The steps follow the usual br
 
 If a step fails because of something outside the repository (a runner outage, a flaky network), re-run the failed run from the Actions tab.
 
-If it fails because of a problem in the Release workflow itself, re-running won't help: a tag's own run always uses the workflow file from the tagged commit, and a tag can't be moved. Fix the workflow through `dev` and a release pull request to `main`, then open **Actions → Release → Run workflow**, choose **`main`**, and enter the existing tag (for example `v1.0.0`). That run repeats every check on the tag (signed, annotated, on `main`, matching versions) and builds exactly the tagged commit, not `main`'s newer head.
+If it fails because of a problem in the Release workflow itself, re-running won't help: a tag's own run always uses the workflow file from the tagged commit, and a tag can't be moved. Fix the workflow through `dev` and a release pull request to `main`, then open **Actions → Release → Run workflow**, choose **`main`**, and enter the existing tag (for example `v1.0.0`). That run repeats every check on the tag (signed, annotated, on `main`, matching versions). It requires the tagged commit's own CI run on `main` to have passed, runs the live reviewer test on the tag, and builds exactly the tagged commit, requiring the result to be byte-identical to what that CI run tested. That run's compiled output is kept for 14 days, so use this within two weeks of the release merge.
 
 If a step fails because of the release's own content (a bug in MALT itself), fix it in a new pull request. A pushed tag can't be moved, so the fix ships as the next patch version. No run ever replaces an existing release.
 

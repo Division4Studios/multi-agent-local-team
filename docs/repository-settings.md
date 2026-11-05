@@ -57,7 +57,7 @@ Releases are made by `.github/workflows/release.yml` when the admin pushes a `vM
 - rebuilds the `.vsix` without the npm cache and fails unless its compiled JavaScript is byte-identical to the output CI tested;
 - signs a build provenance attestation (`id-token: write`, `attestations: write`) and creates a **draft** release (`contents: write`). These permissions belong to that one job; every other job reads only.
 
-If a tag's run fails because of a bug in the workflow itself, a manual run from `main` (`workflow_dispatch` with the tag) builds that existing tag with main's fixed workflow. It refuses to run from any other branch and repeats every check on the tag; CI and the live test check out the tagged commit.
+If a tag's run fails because of a bug in the workflow itself, a manual run from `main` (`workflow_dispatch` with the tag) builds that existing tag with main's fixed workflow. It refuses to run from any other branch and repeats every check on the tag. Instead of re-running `ci.yml` on a passed-in ref, it requires the tagged commit's own passing CI run on `main` and builds byte-identical to that run's output (kept 14 days on `main`); the live test runs on the tag.
 
 A maintainer publishes the draft. A release made with `GITHUB_TOKEN` triggers no workflows, so publishing by hand is also what posts it to #shipped. Published releases are immutable (see **Features**), so a release is never edited: a fix ships as the next version.
 

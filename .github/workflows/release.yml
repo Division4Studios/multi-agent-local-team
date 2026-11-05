@@ -13,8 +13,9 @@ name: Release
 #    and, because a person does it, triggers the Discord feeds (events made with GITHUB_TOKEN trigger no workflows).
 #
 # Recovery: a tag's own run uses the tag's copy of this file, so a bug here cannot be fixed by re-running it, and a
-# tag cannot be moved. Once the fix reaches main, run this workflow manually from main with the tag: it repeats every
-# check on that tag and builds exactly the tagged commit (CI and the live test check out the tag, not main's head).
+# tag cannot be moved. Once the fix reaches main, run this workflow manually from main with the tag. It repeats every
+# check on the tag, requires the tagged commit's own CI run on main to have passed (ci.yml is not re-run on a
+# passed-in ref), runs the live test on the tag, and requires the build to match the output that CI run tested.
 #
 # Security:
 # - Only the repository admin can create v* tags, and nobody can move or delete them (the `release tags` ruleset).
@@ -48,6 +49,9 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      actions: read # find the tagged commit's CI run (manual runs)
+    outputs:
+      ci_run: ${{ steps.ci.outputs.run }}
     steps:
       - name: Checkout the tagged commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,19 +91,35 @@ jobs:
             echo "::error::$TAG must point to a commit on main (the release pull request's merge commit)"; exit 1
           fi
 
+      - name: The tagged commit already passed CI on main (manual runs)
+        id: ci
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          run=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&branch=main&status=success" --jq '.workflow_runs[0].id // empty')
+          if [ -z "$run" ]; then
+            echo "::error::No successful CI run on main for $sha; a release must be built from a commit CI tested"; exit 1
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
       - name: Tag matches package.json, package-lock.json and CHANGELOG.md
         env:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: node scripts/release.mts check "$TAG" "$RUNNER_TEMP/release-notes.md"
 
+  # Tag pushes run the full CI matrix on the tag. Manual runs use the tagged commit's own passing CI run instead
+  # (found by the check job), so ci.yml never checks out a ref passed in by another run.
   verify:
     needs: check
+    if: github.event_name == 'push'
     name: CI
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml
-    with:
-      ref: ${{ format('refs/tags/{0}', inputs.tag || github.ref_name) }}
 
   live:
     needs: check
@@ -111,7 +131,10 @@ jobs:
       ref: ${{ format('refs/tags/{0}', inputs.tag || github.ref_name) }}
 
   publish:
-    needs: [verify, live]
+    needs: [check, verify, live]
+    if: >-
+      always() && needs.check.result == 'success' && needs.live.result == 'success' &&
+      (needs.verify.result == 'success' || (github.event_name == 'workflow_dispatch' && needs.verify.result == 'skipped'))
     name: Build and draft release
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -119,6 +142,7 @@ jobs:
       contents: write # create the draft release and upload its assets
       id-token: write # sign the build provenance attestation (Sigstore)
       attestations: write # store the attestation on this repository
+      actions: read # download the tested output from the tagged commit's CI run (manual runs)
     steps:
       - name: Checkout the tagged commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -134,11 +158,21 @@ jobs:
       - name: Install (lockfile only, no install scripts) and enforce dependency policy
         run: npm ci && npm run check-deps
 
-      - name: Download the JavaScript CI tested
+      - name: Download the JavaScript CI tested (this run)
+        if: github.event_name == 'push'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: typescript7-output
           path: ${{ runner.temp }}/tested-out
+
+      - name: Download the JavaScript CI tested (the tagged commit's CI run)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: typescript7-output
+          path: ${{ runner.temp }}/tested-out
+          run-id: ${{ needs.check.outputs.ci_run }}
+          github-token: ${{ github.token }}
 
       - name: Package the extension (compiles with TypeScript 7 in the isolated container)
         env:
