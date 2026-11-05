@@ -96,4 +96,23 @@ export const tests: readonly TestCase[] = [
       assert.equal(first.systemPrompt, second.systemPrompt);
     },
   },
+  {
+    name: 'an answer that requests evidence never counts as a verdict, and needs-context alone is not one',
+    run: async (): Promise<void> => {
+      const root = await fixture();
+      const answers: unknown[] = [];
+      const service = new ReviewService({ workspaceRoot: root, profiles: profilesFromEnv({}) }, {
+        name: 'fake', callStructured: async (): Promise<unknown> => await Promise.resolve(answers.shift()),
+      });
+      // A pass alongside a request is ignored: MALT supplies the evidence and asks again.
+      answers.push(
+        { ...PASS, needsContext: { files: ['far/elsewhere/other.ts'], reason: 'Check the supporting implementation before deciding.' } },
+        { status: 'fail', note: 'Duplicate', detail: 'Repeats remoteEvidence.' },
+      );
+      assert.equal((await service.check({ ...BLOCK, ruleId: 'focused-change' })).status, 'fail');
+      // The request status without a request is not a verdict.
+      answers.push({ status: 'needs-context', note: '', detail: '' });
+      await assert.rejects(service.check({ ...BLOCK, ruleId: 'focused-change' }), /does not match the protocol/u);
+    },
+  },
 ];

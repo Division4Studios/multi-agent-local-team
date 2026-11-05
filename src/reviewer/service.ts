@@ -55,16 +55,25 @@ import { loadArchitecture, loadStandards, readFileWindow } from './workspace';
 import type { ScanProgress, ScanStage } from '../shared/scanProgress';
 import { needsComponentContext } from './reviewContext';
 import { reviewWithEvidence } from './evidenceReview';
+import { trackScanActivity } from './scanActivity';
+import type { ActivityTracker, StageWatch } from './scanActivity';
 
-const scanStage = async <T>(stage: ScanStage, task: () => Promise<T>, report: (progress: ScanProgress) => void): Promise<T> => {
+interface ScanReporting {
+  readonly report: (progress: ScanProgress) => void;
+  readonly activity: ActivityTracker;
+}
+/** Runs one scan stage, reporting its state and (while it runs) its model call's activity. */
+const scanStage = async <T>(stage: ScanStage, task: (watch: StageWatch) => Promise<T>, { report, activity }: ScanReporting): Promise<T> => {
   report({ stage, state: 'running' });
   try {
-    const result = await task();
+    const result = await task(activity.begin(stage));
     report({ stage, state: 'complete' });
     return result;
   } catch (error: unknown) {
     report({ stage, state: 'failed' });
     throw error;
+  } finally {
+    activity.end(stage);
   }
 };
 
@@ -106,7 +115,10 @@ export class ReviewService {
     try {
       const output = await this.provider.callStructured({
         ...call,
-        onText: logged.text,
+        onText: (text) => {
+          logged.text(text);
+          call.onText?.(text);
+        },
         onUsage: (reported) => {
           usage = reported;
         },
@@ -198,13 +210,23 @@ export class ReviewService {
    * map or gap call is reported as a warning so the documented rules are still saved.
    */
   public async scanStandards(report: (progress: ScanProgress) => void = () => undefined): Promise<StandardsScan> {
+    const activity = trackScanActivity(report);
+    try {
+      return await this.runScan({ report, activity });
+    } finally {
+      activity.stop();
+    }
+  }
+
+  private async runScan(reporting: ScanReporting): Promise<StandardsScan> {
+    const { report } = reporting;
     const root = this.config.workspaceRoot;
     report({ stage: 'sources', state: 'running' });
     const [sources, code] = await Promise.all([collectStandardsSources(root), collectCodeSources(root)]);
     report({ stage: 'sources', state: 'complete' });
     const [documented, mapped] = await Promise.allSettled([
-      scanStage('standards', async () => await this.extractRules(sources), report),
-      scanStage('architecture', async () => await this.mapCode(code,sources), report),
+      scanStage('standards', async (watch) => await this.extractRules(sources, watch), reporting),
+      scanStage('architecture', async (watch) => await this.mapCode(code, sources, watch), reporting),
     ]);
     if (documented.status === 'rejected') {
       throw new Error(describeError(documented.reason));
@@ -220,7 +242,7 @@ export class ReviewService {
       return scan;
     }
     try {
-      const { inferred, gaps } = await scanStage('gaps', async () => await this.findGaps(documented.value, documents, mapped.value), report);
+      const { inferred, gaps } = await scanStage('gaps', async (watch) => await this.findGaps({ documented: documented.value, documents, modules: mapped.value }, watch), reporting);
       return { ...scan, rules: [...documented.value, ...inferred], gaps, modules: mapped.value };
     } catch (error: unknown) {
       return { ...scan, modules: mapped.value, warnings: [`Gap analysis failed: ${describeError(error)}`] };
@@ -247,7 +269,7 @@ export class ReviewService {
     return ground(answer, redacted.source);
   }
 
-  private async extractRules(sources: readonly SourceFile[]): Promise<readonly Rule[]> {
+  private async extractRules(sources: readonly SourceFile[], watch: StageWatch): Promise<readonly Rule[]> {
     if (sources.length === 0) {
       return [];
     }
@@ -256,6 +278,7 @@ export class ReviewService {
       userPrompt: buildStandardsUserPrompt(sources, createNonce()),
       schema: RULES_SCHEMA,
       ...this.config.profiles.standards,
+      ...watch,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
     const rules = isRecord(output) ? parseRules(output['rules']) : undefined;
@@ -266,7 +289,7 @@ export class ReviewService {
   }
 
   /** Maps each source file to a purpose and its exports; the extension saves the result as the architecture map. */
-  private async mapCode(sources: readonly SourceFile[], guidance: readonly SourceFile[]): Promise<readonly ArchitectureModule[]> {
+  private async mapCode(sources: readonly SourceFile[], guidance: readonly SourceFile[], watch: StageWatch): Promise<readonly ArchitectureModule[]> {
     if (sources.length === 0) {
       return [];
     }
@@ -275,6 +298,7 @@ export class ReviewService {
       userPrompt: buildArchitectureUserPrompt(sources, createNonce(), guidance),
       schema: ARCHITECTURE_SCHEMA,
       ...this.config.profiles.standards,
+      ...watch,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
     const modules = isRecord(output) ? parseModules(output['modules']) : undefined;
@@ -286,15 +310,15 @@ export class ReviewService {
 
   /** Inferred rules never shadow baseline or documented ones, and MALT marks their source as inferred. */
   private async findGaps(
-    documented: readonly Rule[],
-    documents: readonly string[],
-    modules: readonly ArchitectureModule[],
+    { documented, documents, modules }: { readonly documented: readonly Rule[]; readonly documents: readonly string[]; readonly modules: readonly ArchitectureModule[] },
+    watch: StageWatch,
   ): Promise<{ readonly inferred: readonly Rule[]; readonly gaps: readonly Finding[] }> {
     const output = await this.ask('Gap analysis', {
       systemPrompt: GAPS_SYSTEM_PROMPT,
       userPrompt: buildGapsUserPrompt(documented, documents, modules, createNonce()),
       schema: GAPS_SCHEMA,
       ...this.config.profiles.standards,
+      ...watch,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
     const rules = isRecord(output) ? parseRules(output['rules']) : undefined;
