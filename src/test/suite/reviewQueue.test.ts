@@ -5,7 +5,7 @@ import { HunkStore } from '../../review/hunkStore';
 import type { TrackedHunk } from '../../review/hunkStore';
 import { ReviewQueue } from '../../review/reviewQueue';
 import type { HunkReviewer } from '../../review/reviewQueue';
-import { ruleRows } from '../../review/reviewProgress';
+import { ruleRows, verdictOf } from '../../review/reviewProgress';
 import { ReviewerHttpError } from '../../review/reviewerClient';
 import type { CheckRequest, OverviewResponse, ReviewRequest, RuleCheck } from '../../shared/protocol';
 import { MemoryStorage, deferred, testCheck, testReview, testRule, waitFor } from './testUtils';
@@ -145,6 +145,41 @@ export const tests: readonly TestCase[] = [
       assert.equal(store.state(block.id).error, undefined, 'a stale rule is not reported as an error');
       assert.equal(reviewer.requests.length, 1, 'one fresh overview, not one per stale rule');
       assert.deepEqual(store.state(block.id).review?.rules.map((rule) => rule.id), RULES.map((rule) => rule.id), 'the current rule list replaces the saved one');
+      store.dispose();
+    },
+  },
+  {
+    name: 'review queue: a check still in flight when its block restarts never lands in the new review',
+    run: async (): Promise<void> => {
+      const store = new HunkStore(new MemoryStorage());
+      const held = deferred<undefined>();
+      const kept = testRule('a');
+      const checks: string[] = [];
+      let overviews = 0;
+      const reviewer: HunkReviewer = {
+        // The current standards no longer make any rule applicable to this block.
+        review: async (): Promise<OverviewResponse> => { overviews += 1; return await Promise.resolve({ overview: testReview(RULES, []).overview, rules: RULES }); },
+        check: async (request: CheckRequest): Promise<RuleCheck> => {
+          checks.push(request.ruleId);
+          if (request.ruleId === 'gone') { throw new ReviewerHttpError(409, 'Unknown rule: gone'); }
+          await held.promise;
+          return testCheck(kept, 'fail');
+        },
+      };
+      const queue = new ReviewQueue({ store, client: (): HunkReviewer => reviewer, concurrency: (): number => 2 });
+      const block = trackedHunk('restart-race', 'a.ts');
+      store.setFileHunks(block.uri, [block]);
+      store.setState(block.id, { status: 'pending', review: testReview([kept, testRule('gone')], ['a', 'gone']) });
+      queue.enqueue(block);
+      await waitFor(() => overviews === 1 && store.state(block.id).review !== undefined, 'restarted overview stored');
+      held.resolve(undefined);
+      await waitFor(() => store.state(block.id).status === 'reviewed', 'block reviewed');
+      const { review, error } = store.state(block.id);
+      assert.deepEqual(checks.sort(), ['a', 'gone'], 'the old check was in flight during the restart');
+      assert.equal(error, undefined);
+      assert.ok(review !== undefined);
+      assert.equal(verdictOf(review), 'pass', 'a review with no applicable rules is not failed by a stale result');
+      assert.equal(review.checks.length, 0, 'the failure from the old generation is dropped');
       store.dispose();
     },
   },

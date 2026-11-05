@@ -26,6 +26,7 @@ A VS Code extension for teams who ship with AI and still care what lands in `mai
 [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-22c55e)](SECURITY.md#supply-chain-policy)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A524-5FA04E?logo=nodedotjs&logoColor=white)](.nvmrc)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-ff69b4.svg)](CONTRIBUTING.md)
+[![Discord](https://img.shields.io/badge/Discord-join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/DwSpsGjvFY)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 
 [**Why MALT**](#-why-malt) ·
@@ -157,6 +158,20 @@ A tool that keeps slop out of other repos has to keep it out of its own first. T
 - **Tiny, frozen toolchain.** A fixed allowlist of dev tools, exact versions, a committed lockfile, install scripts disabled, and CI that fails if anything else appears. See [Supply-chain policy](SECURITY.md#supply-chain-policy).
 - **Protected, signed history.** Every change reaches `dev` through a reviewed pull request whose commits are all signed, with every check green and no new CodeQL alerts; `main` only takes releases from `dev`. Nobody can bypass that, maintainers included. See [repository settings](docs/repository-settings.md).
 - **AI-assisted contributions welcome — with disclosure and ownership.** See [CONTRIBUTING.md](CONTRIBUTING.md#ai-assisted-contributions).
+
+## 💬 Community
+
+The [**MALT Discord**](https://discord.gg/DwSpsGjvFY) is where people building with MALT talk. It stays focused on building: reviewing AI-assisted changes, architecture and the tools around them.
+
+- 👋 **#introductions**: say what you're building
+- 🗺️ **#architecture-maps**: share a diagram you exported with **Finalize and export** ([how](docs/architecture-views.md#publish-a-checked-standalone-artifact))
+- 🚀 **#showcase**: show something you shipped with MALT
+- ❓ **#help** and **#faq**: setup and usage questions
+- 🎯 **#wrong-verdicts**: talk through a review MALT got wrong (then [file it](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=review_quality.yml) so it's tracked)
+- ✨ **#ideas** and 🛠️ **#dev-chat**: shape features and work on MALT itself
+- 📦 **#releases** and **#shipped**: every release and merged pull request
+
+New members can chat straight away. Posting links and files unlocks after a little activity, which keeps spam out. Anything that needs a record (bugs, decisions) becomes a GitHub issue, and security reports never go to Discord ([SECURITY.md](SECURITY.md)).
 
 ## 🤝 Contributing
 

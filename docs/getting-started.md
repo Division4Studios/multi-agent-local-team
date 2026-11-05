@@ -43,3 +43,7 @@ Set `malt.changes.autoOpen` to `false` to choose when to open changed files. Aut
 Set `malt.changes.autoReview` to `false` to review on demand with **MALT: Review All Unreviewed Changes**. Set `malt.reviewer.autoStart` to `false` to start the reviewer manually as well. Disable both to make a new workspace fully manual.
 
 See [all settings and commands](configuration.md), [standards and exclusions](standards.md), and [troubleshooting](troubleshooting.md).
+
+## Join the community
+
+Stuck, or want to show what MALT found? Join the [MALT Discord](https://discord.gg/DwSpsGjvFY): ask in **#help**, share exported diagrams in **#architecture-maps**, and talk through a wrong verdict in **#wrong-verdicts**.

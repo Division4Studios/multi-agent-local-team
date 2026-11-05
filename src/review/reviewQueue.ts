@@ -23,10 +23,14 @@ export interface QueueOptions {
   readonly concurrency: () => number;
 }
 
-/** An overview call for a block, or (with `rule`) one rule check. */
+/**
+ * An overview call for a block, or (with `rule`) one rule check. `generation` is the block's review generation when
+ * the task was queued: a restart starts a new one, and work from an earlier generation is dropped.
+ */
 interface Task {
   readonly tracked: TrackedHunk;
   readonly rule?: Rule;
+  readonly generation: number;
 }
 
 export const requestFor = (tracked: TrackedHunk): ReviewRequest => ({
@@ -41,6 +45,8 @@ const withoutError = ({ status, review }: HunkState): HunkState => (review === u
 export class ReviewQueue {
   private readonly waiting: Task[] = [];
   private readonly busy = new Map<string, number>();
+  /** Each block's current review generation (0 until its first restart). */
+  private readonly generations = new Map<string, number>();
   private inFlight = 0;
   private stopped = false;
   private readonly idleWaiters: (() => void)[] = [];
@@ -65,12 +71,13 @@ export class ReviewQueue {
       return;
     }
     const missing = force || state.review === undefined ? [] : missingRules(state.review);
+    const generation = this.generation(tracked.id);
     if (missing.length > 0 && state.review !== undefined) {
       store.setState(tracked.id, { status: 'reviewing', review: state.review });
-      this.push(missing.map((rule) => ({ tracked, rule })));
+      this.push(missing.map((rule) => ({ tracked, rule, generation })));
     } else {
       store.setState(tracked.id, { status: 'queued' });
-      this.push([{ tracked }]);
+      this.push([{ tracked, generation }]);
     }
     this.pump();
   }
@@ -140,42 +147,52 @@ export class ReviewQueue {
     }
   }
 
+  /** Whether a task still belongs to its block's current review (no restart since it was queued). */
+  private isCurrent(task: Task): boolean {
+    return !this.stopped && task.generation === this.generation(task.tracked.id);
+  }
+
+  private generation(id: string): number {
+    return this.generations.get(id) ?? 0;
+  }
+
   private async run(task: Task): Promise<void> {
     const client = this.options.client();
     const { id } = task.tracked;
-    // The reviewer went away, or the block vanished while waiting: `finish` leaves it reviewable later.
-    if (client === undefined || this.options.store.get(id) === undefined) {
+    // The reviewer went away, or the block vanished while waiting: `finish` leaves it reviewable later. A task from
+    // before a restart is dropped: the restarted review queues its own work.
+    if (client === undefined || this.options.store.get(id) === undefined || !this.isCurrent(task)) {
       return;
     }
     try {
-      await (task.rule === undefined ? this.runOverview(client, task.tracked) : this.runCheck(client, task.tracked, task.rule));
+      await (task.rule === undefined ? this.runOverview(client, task) : this.runCheck(client, task, task.rule));
     } catch (error: unknown) {
-      this.update(id, (state) => ({ ...state, error: error instanceof Error ? error.message : String(error) }));
+      if (this.isCurrent(task)) {
+        this.update(id, (state) => ({ ...state, error: error instanceof Error ? error.message : String(error) }));
+      }
     }
   }
 
-  private async runOverview(client: HunkReviewer, tracked: TrackedHunk): Promise<void> {
+  private async runOverview(client: HunkReviewer, task: Task): Promise<void> {
+    const { tracked, generation } = task;
     this.options.store.setState(tracked.id, { status: 'reviewing' });
     const response = await client.review(requestFor(tracked));
-    if (this.stopped) {
+    if (!this.isCurrent(task)) {
       return;
     }
     const review = { ...response, checks: [] };
     this.options.store.setState(tracked.id, { status: 'reviewing', review });
-    this.push(missingRules(review).map((rule) => ({ tracked, rule })), true);
+    this.push(missingRules(review).map((rule) => ({ tracked, rule, generation })), true);
   }
 
-  private async runCheck(client: HunkReviewer, tracked: TrackedHunk, rule: Rule): Promise<void> {
-    const owed = this.options.store.state(tracked.id).review;
-    // The block restarted from its overview after this check was queued: the check belongs to the old rule list.
-    if (owed === undefined || !missingRules(owed).some((other) => other.id === rule.id)) {
-      return;
-    }
+  private async runCheck(client: HunkReviewer, task: Task, rule: Rule): Promise<void> {
+    const { tracked } = task;
     const running = (state: HunkState): readonly string[] => (state.running ?? []).filter((ruleId) => ruleId !== rule.id);
     this.update(tracked.id, (state) => ({ ...state, running: [...running(state), rule.id] }));
     try {
       const check = await client.check({ ...requestFor(tracked), ruleId: rule.id });
-      this.update(tracked.id, (state) => (this.stopped || state.review === undefined ? state : {
+      // A check that finishes after a restart answered for the old review: it must not land in the new one.
+      this.update(tracked.id, (state) => (!this.isCurrent(task) || state.review === undefined ? state : {
         ...state,
         review: { ...state.review, checks: [...state.review.checks.filter((other) => other.ruleId !== rule.id), check] },
       }));
@@ -183,21 +200,25 @@ export class ReviewQueue {
       if (!(error instanceof ReviewerHttpError && error.status === 409)) {
         throw error;
       }
-      this.restart(tracked, rule);
+      this.restart(task);
     } finally {
       this.update(tracked.id, (state) => ({ ...state, running: running(state) }));
     }
   }
 
-  /** The saved review names a rule the reviewer no longer has (standards were rescanned): start over from the overview. */
-  private restart(tracked: TrackedHunk, rule: Rule): void {
-    // Already restarted (by another stale check), or the new overview no longer lists the rule.
-    const review = this.options.store.state(tracked.id).review;
-    if (this.stopped || review?.rules.some((other) => other.id === rule.id) !== true) {
+  /**
+   * The saved review names a rule the reviewer no longer has (standards were rescanned): start a new generation from
+   * the overview. Only the first stale check of a generation restarts; checks of the old generation still in flight
+   * are dropped when they finish.
+   */
+  private restart(task: Task): void {
+    if (!this.isCurrent(task)) {
       return;
     }
-    this.options.store.setState(tracked.id, { status: 'reviewing' });
-    this.push([{ tracked }], true);
+    const generation = task.generation + 1;
+    this.generations.set(task.tracked.id, generation);
+    this.options.store.setState(task.tracked.id, { status: 'reviewing' });
+    this.push([{ tracked: task.tracked, generation }], true);
   }
 
   private update(id: string, change: (state: HunkState) => HunkState): void {
