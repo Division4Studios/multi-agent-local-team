@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { REVIEW_TYPES, REVIEW_TYPE_INFO, describeProfile, isModelName, profileFrom, profilesFromEnv, profilesToEnv } from '../../shared/reviewProfiles';
 import type { ReviewProfiles } from '../../shared/reviewProfiles';
-import { claudeArgs, usageFrom } from '../../reviewer/providers/claudeCode';
+import { addUsage, claudeArgs, isFormatFailure, usageFrom } from '../../reviewer/providers/claudeCode';
 import { parseCallUsage, parseConversationEvent } from '../../shared/conversation';
 import type { TestCase } from './harness';
 
@@ -73,6 +73,21 @@ export const tests: readonly TestCase[] = [
       const end = { kind: 'end', callId: 'a1b2c3d4e5f60718', at: 1, ok: true, error: '' };
       assert.equal(parseConversationEvent({ ...end, usage: { inputTokens: 'lots' } }), undefined, 'present but invalid usage rejects the event');
       assert.deepEqual(parseConversationEvent(end), end, 'usage is optional');
+    },
+  },
+  {
+    name: 'cli: only a schema-format failure is retried, and usage adds up across attempts',
+    run: (): void => {
+      assert.equal(isFormatFailure({ type: 'result', subtype: 'error_max_structured_output_retries', is_error: true }), true);
+      for (const other of [{ subtype: 'success' }, { subtype: 'error_max_turns' }, { result: 'Invalid API key', is_error: true }, undefined, 'error_max_structured_output_retries']) {
+        assert.equal(isFormatFailure(other), false, JSON.stringify(other));
+      }
+      const first = { inputTokens: 100, outputTokens: 40, cachedTokens: 3000, costUsd: 0.01 };
+      const second = { inputTokens: 90, outputTokens: 60, cachedTokens: 3000, costUsd: 0.02 };
+      assert.deepEqual(addUsage(first, second), { inputTokens: 190, outputTokens: 100, cachedTokens: 6000, costUsd: 0.03 });
+      assert.equal(addUsage(first, undefined), first);
+      assert.equal(addUsage(undefined, second), second);
+      assert.equal(addUsage(undefined, undefined), undefined);
     },
   },
 ];

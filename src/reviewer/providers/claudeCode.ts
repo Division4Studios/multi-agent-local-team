@@ -155,6 +155,23 @@ const extractStructuredOutput = ({ code, result, stderr }: ProcessResult): unkno
   return result['structured_output'];
 };
 
+/**
+ * The CLI gave up after the model's answers repeatedly failed the schema. Seen live: the model slips into another
+ * tool-call syntax inside a long text field, swallowing the fields after it. It is a formatting failure, not an
+ * answer, so the call is retried once as a fresh, isolated call. Any other error fails at once.
+ */
+export const isFormatFailure = (result: unknown): boolean =>
+  isRecord(result) && result['subtype'] === 'error_max_structured_output_retries';
+
+/** Usage across attempts: a failed attempt still used tokens, and the live log should show what the call cost. */
+export const addUsage = (total: CallUsage | undefined, next: CallUsage | undefined): CallUsage | undefined =>
+  total === undefined || next === undefined ? total ?? next : {
+    inputTokens: total.inputTokens + next.inputTokens,
+    outputTokens: total.outputTokens + next.outputTokens,
+    cachedTokens: total.cachedTokens + next.cachedTokens,
+    costUsd: total.costUsd + next.costUsd,
+  };
+
 export class ClaudeCodeProvider implements ReviewProvider {
   public readonly name = 'claude';
 
@@ -165,6 +182,19 @@ export class ClaudeCodeProvider implements ReviewProvider {
   }
 
   public async callStructured(call: StructuredCall): Promise<unknown> {
+    let result = await this.attempt(call);
+    let usage = usageFrom(result.result);
+    if (isFormatFailure(result.result)) {
+      result = await this.attempt(call);
+      usage = addUsage(usage, usageFrom(result.result));
+    }
+    if (usage !== undefined) {
+      call.onUsage?.(usage);
+    }
+    return extractStructuredOutput(result);
+  }
+
+  private async attempt(call: StructuredCall): Promise<ProcessResult> {
     // A private (0700), unpredictably named, empty working directory per call: nothing from the reviewed repo is
     // in scope, and no other local user can pre-create or read it. MALT writes no files into it.
     const workDir = await mkdtemp(join(tmpdir(), 'malt-reviewer-'));
@@ -177,12 +207,7 @@ export class ClaudeCodeProvider implements ReviewProvider {
       }
     };
     try {
-      const result = await runProcess(this.claudePath, args, { input: call.userPrompt, timeoutMs: call.timeoutMs, cwd: workDir, onEvent });
-      const usage = usageFrom(result.result);
-      if (usage !== undefined) {
-        call.onUsage?.(usage);
-      }
-      return extractStructuredOutput(result);
+      return await runProcess(this.claudePath, args, { input: call.userPrompt, timeoutMs: call.timeoutMs, cwd: workDir, onEvent });
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }
