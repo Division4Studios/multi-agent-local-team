@@ -9,7 +9,7 @@ import { buildGraph } from '../../architecture/graph';
 import { parseDiagram } from '../../shared/diagram';
 import { infrastructure } from '../../shared/infrastructure';
 import { publishGuidance, readGuidance, shareHandoff, guidanceFeed } from '../../architecture/guidance';
-import { feedVerifier } from '../../architecture/feedSignature';
+import { feedVerifier } from '../../shared/feedSignature';
 import { catalog, related } from '../../architecture/catalog';
 import { publication } from '../../architecture/publication';
 import { isRecord } from '../../shared/guards';

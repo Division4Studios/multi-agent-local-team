@@ -61,11 +61,14 @@ export class ReviewerManager implements vscode.Disposable {
   private readonly extensionRoot: string;
   private readonly credentials: Credentials;
   private readonly output: vscode.LogOutputChannel;
+  /** Public key the reviewer uses to verify the signed branch map (`feedVerifier` of the note key). */
+  private readonly mapVerifier: string;
 
-  public constructor(extensionRoot: string, credentials: Credentials, output: vscode.LogOutputChannel) {
+  public constructor(extensionRoot: string, credentials: Credentials, output: vscode.LogOutputChannel, mapVerifier: string) {
     this.extensionRoot = extensionRoot;
     this.credentials = credentials;
     this.output = output;
+    this.mapVerifier = mapVerifier;
   }
 
   public get status(): ReviewerStatus {
@@ -88,6 +91,7 @@ export class ReviewerManager implements vscode.Disposable {
       const settings = readSettings();
       const env = {
         ...profilesToEnv(settings.profiles),
+        MALT_MAP_VERIFIER: this.mapVerifier,
         ...(await this.credentials.env()),
       };
       await backend.start({ workspaceRoot, port: endpoint.port, token: endpoint.token, env });

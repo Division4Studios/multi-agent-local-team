@@ -6,6 +6,7 @@ import { allowedPaths, bounded, eligible, headOf, readFacts, relativePath, snaps
 import { reviewerMap, withUnderstanding } from './knowledge';
 import { publishGuidance } from './guidance';
 import { saveMapFile, saveSnapshot } from './storage';
+import { signMap } from '../shared/feedSignature';
 
 /** One serial writer per folder. A checkout invalidates even an in-flight scan of the old branch. */
 export class MapTracker implements vscode.Disposable {
@@ -130,7 +131,9 @@ export class MapTracker implements vscode.Disposable {
     const total = this.full ? allowed.length : this.total;
     const snapshot = await withUnderstanding(this.folder.uri.fsPath, this.noteKey, snapshotOf(next, head, total));
     await saveSnapshot(this.folder.uri.fsPath, 'branch', snapshot, current);
-    await saveMapFile(this.folder.uri.fsPath, 'reviewer.json', reviewerMap(snapshot), current);
+    // Signed so the reviewer can tell MALT's map from one a repository planted (see signMap).
+    const map = reviewerMap(snapshot);
+    await saveMapFile(this.folder.uri.fsPath, 'reviewer.json', { data: map, signature: signMap(this.noteKey, map) }, current);
     await publishGuidance(this.folder.uri.fsPath,snapshot,this.noteKey,current);
     if (current()) {
       this.total = total;

@@ -4,6 +4,7 @@ import type { GitApi } from '../git/gitApi';
 import { workspaceFile } from '../editor/findingHighlight';
 import { isRecord, isString } from '../shared/guards';
 import { loadArchitecture } from '../reviewer/workspace';
+import { feedVerifier } from '../shared/feedSignature';
 import { architecturePage } from '../standards/standardsPages';
 import { showListPage } from '../views/detailPanel';
 import { compareGraphs } from './graph';
@@ -112,7 +113,7 @@ class MapPanel {
       case 'compare': await this.compare(); break;
       case 'live': this.sequence++; this.comparison = undefined; this.atlas.compare(); this.render(); break;
       case 'refresh': this.tracker.refresh(); break;
-      case 'summaries': showListPage(architecturePage(await loadArchitecture(this.tracker.folder.uri.fsPath))); break;
+      case 'summaries': showListPage(architecturePage(await loadArchitecture(this.tracker.folder.uri.fsPath, feedVerifier(this.tracker.noteKey)))); break;
       case 'clarify': this.clarify(message['id']); break;
       case 'source': if (isString(message['id'])) { await this.openSource(message['id']); } break;
       default: await handleView(this.atlas,message,{

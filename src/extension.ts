@@ -15,6 +15,7 @@ import type { NewHunksEvent } from './review/changeTracker';
 import { getGitApi } from './git/gitApi';
 import { registerArchitecture } from './architecture/explorer';
 import { loadNoteKey } from './architecture/knowledge';
+import { feedVerifier } from './shared/feedSignature';
 import { HunkDecorations } from './editor/decorations';
 import { ReviewHoverProvider } from './editor/reviewMarkdown';
 import { ChangesTreeProvider } from './views/changesView';
@@ -86,10 +87,10 @@ const reviewBacklog = async (deps: CommandDeps): Promise<void> => {
   }
 };
 
-const startTracking = async (context: vscode.ExtensionContext, deps: CommandDeps): Promise<void> => {
+const startTracking = async (context: vscode.ExtensionContext, deps: CommandDeps, noteKey: Buffer): Promise<void> => {
   const folder = vscode.workspace.workspaceFolders?.[0];
   const git = await getGitApi();
-  context.subscriptions.push(registerArchitecture(context.extensionUri, { git, noteKey: await loadNoteKey(context.secrets) }, () => { deps.attention.noteUserActivity(); }, async () => {
+  context.subscriptions.push(registerArchitecture(context.extensionUri, { git, noteKey }, () => { deps.attention.noteUserActivity(); }, async () => {
     if (deps.manager.client === undefined) {
       await startReviewer(deps);
     }
@@ -118,18 +119,31 @@ const createPullRequests = (deps: CommandDeps): { readonly controller: PullReque
   return { controller, disposable: vscode.Disposable.from(controller, commands) };
 };
 
+/** Restarts the reviewer when its settings change, and reviews the backlog once it is running (if enabled). */
+const reviewerTriggers = (deps: CommandDeps): vscode.Disposable[] => [
+  watchReviewSettings(() => deps.manager.status.state === 'running', async () => {
+    await startReviewer(deps);
+  }),
+  deps.manager.onDidChangeStatus((status) => {
+    if (status.state === 'running' && readSettings().autoReview) {
+      void reviewBacklog(deps);
+    }
+  }),
+];
+
 export const activate = async (context: vscode.ExtensionContext): Promise<void> => {
   const output = vscode.window.createOutputChannel('MALT Reviewer', { log: true });
   const store = new HunkStore(context.workspaceState);
   const credentials = new Credentials(context.secrets);
-  const manager = new ReviewerManager(context.extensionUri.fsPath, credentials, output);
+  const noteKey = await loadNoteKey(context.secrets);
+  const manager = new ReviewerManager(context.extensionUri.fsPath, credentials, output, feedVerifier(noteKey));
   const queue = new ReviewQueue({
     store,
     client: (): HunkReviewer | undefined => manager.client,
     concurrency: (): number => readSettings().maxConcurrentReviews,
   });
   const consolidation = new ConsolidationCheck(store, () => manager.client);
-  const standards = new StandardsModel(vscode.workspace.workspaceFolders?.[0]);
+  const standards = new StandardsModel(vscode.workspace.workspaceFolders?.[0], feedVerifier(noteKey));
   const highlight = new FindingHighlight();
   const attention = new AttentionGuard(() => readSettings().autoOpenPauseSeconds * 1000);
   // Late-bound: the controller needs deps, and deps exposes the controller's active review.
@@ -165,17 +179,10 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
     createStatusBar(manager, store),
     registerCommands(deps),
     pullRequestFeature.disposable,
-    watchReviewSettings(() => manager.status.state === 'running', async () => {
-      await startReviewer(deps);
-    }),
-    manager.onDidChangeStatus((status) => {
-      if (status.state === 'running' && readSettings().autoReview) {
-        void reviewBacklog(deps);
-      }
-    }),
+    ...reviewerTriggers(deps),
   );
   await vscode.commands.executeCommand('setContext', 'malt.reviewerState', 'stopped');
-  await startTracking(context, deps);
+  await startTracking(context, deps, noteKey);
 
   if (vscode.workspace.workspaceFolders !== undefined && readSettings().autoStart) {
     void startReviewer(deps);

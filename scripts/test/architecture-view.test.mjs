@@ -23,6 +23,7 @@ test('architecture view drills down, traces one diff side, opens evidence and se
   };
   host.origin = 'vscode-webview://architecture-test';
   host.acquireVsCodeApi = () => ({ postMessage: msg => messages.push(msg) });
+  host.startMaltViews = () => () => undefined;
   const document = { getElementById: element, createElement: () => new Element(), createElementNS: () => new Element(),
     createTextNode: text => Object.assign(new Element(), { textContent: text }) };
   globalThis.window = host;
@@ -47,6 +48,10 @@ test('architecture view drills down, traces one diff side, opens evidence and se
   assert.equal(element('map').children.length, 0);
   render(false);
   for (const label of ['ui', 'widget.tsx', 'Widget']) { select(label); }
+  assert.deepEqual(messages.at(-1), { action: 'graphFocus', id: 'w' });
+  element('back').click();
+  assert.deepEqual(messages.at(-1), { action: 'graphFocus', id: file.id }, 'Back tells the extension which layer is now selected');
+  select('Widget');
   element('traceStart').click();
   select('draw');
   element('traceEnd').click();
