@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Before Commit: Explain and Inspect Changes** (Changes view title bar): a page that reviews all saved local changes before you commit. It shows a file map, changed import connections, recorded failures and consolidation candidates, with links to the verified source. You can ask questions on demand. Test results you record are kept separate from AI review as developer-reported. Opening the page makes no model call. [Before commit](docs/before-commit-review.md)
 - Architecture, consolidation, reuse, abstraction, boundary and dead-code checks receive complete relevant implementations from a repository-wide inventory, and a check may request up to two rounds of additional evidence. A check whose evidence is still missing is left incomplete rather than passed. [Standards](docs/standards.md)
+- The README, contributing guide and docs point to the [MALT Discord](https://discord.gg/DwSpsGjvFY) community and what each channel is for.
 - Architecture views explain what you are looking at, answer questions for a product or developer audience, and play back flows step by step. The standards scan shows its progress by stage.
 
 - Ten interactive architecture views, cross-view navigation in the sidebar and editor, repository-specific agent classifications, standalone MALT HTML publications with delivery receipts and a signed guidance feed for connected local agents. [Walkthrough](docs/architecture-views.md)
@@ -29,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Rule checks after a standards rescan: a saved review that names a renamed or removed rule is reviewed again with the current rules, instead of failing on every retry with "Unknown rule".
 - Rule checks and consolidation are no longer rejected by the API ("input_schema.type: Field required").
 - A code example in a changed Markdown file no longer stops consolidation of the source files beside it.
+- A rule check still running when its block restarts after a rescan can no longer fail or overwrite the restarted review.
+- Connection labels in long or crowded diagrams stay inside the drawing, in the editor and in exported views.
 - Questions about changes and architecture views keep MALT's rules (context is unverified, never claim tests ran) in the static system prompt, and a recorded test result is passed as the developer's own words.
 
 - A failed reviewer request redacts secrets in the error it returns and logs (a Claude CLI error could quote a key), and a thrown value that isn't an `Error` is reported only as "Internal reviewer error", never echoed. Fixes CodeQL `js/stack-trace-exposure`.
