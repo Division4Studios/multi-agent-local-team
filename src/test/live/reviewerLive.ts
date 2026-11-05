@@ -8,7 +8,7 @@
  * MALT_LIVE_MODEL (default `haiku`) at low effort, so a run costs a few cents.
  */
 import { randomBytes } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -17,7 +17,7 @@ import { defaultDockerSocket } from '../../backend/dockerApi';
 import { ReviewerClient } from '../../review/reviewerClient';
 import { gapId } from '../../shared/investigation';
 import { ARCHITECTURE_FILE, PROTOCOL_VERSION, STANDARDS_FILE } from '../../shared/protocol';
-import type { ReviewRequest, StandardsScan } from '../../shared/protocol';
+import type { Finding, ReviewRequest } from '../../shared/protocol';
 import { profileFrom, profilesToEnv } from '../../shared/reviewProfiles';
 import type { ScanProgress } from '../../shared/scanProgress';
 
@@ -25,8 +25,11 @@ const out = (line: string): void => {
   process.stdout.write(`${line}\n`);
 };
 
-/** Outcomes that prove the round trip worked although the model reached no verdict; anything else fails the run. */
-const INCONCLUSIVE = /remains incomplete|still needs evidence|names no mapped source files/u;
+/**
+ * Outcomes reached only after the model answered (it asked for evidence MALT could not give): the round trip worked
+ * without a verdict. Anything else fails the run, including every error raised before a model call.
+ */
+const INCONCLUSIVE = /remains incomplete|still needs evidence/u;
 
 const FILES: Readonly<Record<string, string>> = {
   'CLAUDE.md': '# Rules\n\n- Format money with `formatPrice` from `src/format.ts`; never add another formatter.\n- Keep functions small.\n',
@@ -71,21 +74,39 @@ const liveProfilesEnv = (): Record<string, string> => {
   return profilesToEnv({ overview: profile, check: profile, consolidation: profile, standards: profile, investigation: profile });
 };
 
-const fixture = async (): Promise<string> => {
-  const root = await mkdtemp(join(tmpdir(), 'malt-live-'));
-  for (const [path, text] of Object.entries(FILES)) {
-    await mkdir(dirname(join(root, path)), { recursive: true });
-    await writeFile(join(root, path), text);
+/**
+ * Writes the fixture readable by the container's non-root user. mkdtemp creates the folder 0700 for the host user,
+ * and on a Linux host (unlike Docker Desktop) that user's UID need not match the container's.
+ */
+const writeFixture = async (root: string, files: Readonly<Record<string, string>>): Promise<void> => {
+  await chmod(root, 0o755);
+  for (const [path, text] of Object.entries(files)) {
+    const folder = dirname(join(root, path));
+    await mkdir(folder, { recursive: true, mode: 0o755 });
+    await chmod(folder, 0o755);
+    await writeFile(join(root, path), text, { mode: 0o644 });
   }
-  return root;
 };
 
-/** Saves a scan the way the extension does, so the reviewer can investigate one of its gaps. */
-const saveScan = async (root: string, scan: StandardsScan): Promise<void> => {
+/** A known gap over two mapped files, so gap investigation always reaches the model, whatever the scan found. */
+const SEEDED_GAP: Finding = {
+  title: 'Two money formatters',
+  files: ['src/format.ts', 'src/cart.ts'],
+  note: 'formatCents in src/cart.ts repeats formatPrice in src/format.ts.',
+  detail: 'Decide whether cart code must reuse formatPrice.',
+  anchors: [{ file: 'src/format.ts', symbol: 'formatPrice' }, { file: 'src/cart.ts', symbol: 'formatCents' }],
+};
+/** Saves standards and a map the way the extension does, so the reviewer can look the gap up by id. */
+const seedGap = async (root: string): Promise<void> => {
   const generatedAt = new Date().toISOString();
-  await mkdir(join(root, '.malt'), { recursive: true });
-  await writeFile(join(root, STANDARDS_FILE), JSON.stringify({ version: 1, generatedAt, rules: scan.rules, gaps: scan.gaps }));
-  await writeFile(join(root, ARCHITECTURE_FILE), JSON.stringify({ version: 1, generatedAt, modules: scan.modules }));
+  const modules = [
+    { path: 'src/format.ts', purpose: 'Money formatting', exports: ['formatPrice'] },
+    { path: 'src/cart.ts', purpose: 'Cart totals', exports: ['cartTotal', 'formatCents'] },
+  ];
+  await writeFixture(root, {
+    [STANDARDS_FILE]: JSON.stringify({ version: 1, generatedAt, rules: [], gaps: [SEEDED_GAP] }),
+    [ARCHITECTURE_FILE]: JSON.stringify({ version: 1, generatedAt, modules }),
+  });
 };
 
 interface Run {
@@ -147,25 +168,20 @@ const reviewCalls = async (run: Run, client: ReviewerClient): Promise<void> => {
 };
 
 const scanCalls = async (run: Run, client: ReviewerClient, root: string): Promise<void> => {
-  let scan: StandardsScan | undefined;
   await run.step('standards scan (streamed)', async () => {
     const events: ScanProgress[] = [];
-    scan = await client.scanStandards((event) => { events.push(event); });
+    const scan = await client.scanStandards((event) => { events.push(event); });
     if (scan.warnings.length > 0) { throw new Error(`a scan stage failed: ${scan.warnings.join('; ')}`); }
     return `${String(scan.rules.length)} rules, ${String(scan.modules.length)} files mapped, ${String(scan.gaps.length)} gaps, ${String(events.length)} progress events`;
   });
-  const gap = scan?.gaps[0];
-  if (scan === undefined || gap === undefined) {
-    out('skip    gap investigation: the scan found no gap to investigate');
-    return;
-  }
-  await saveScan(root, scan);
-  await run.step('gap investigation', async () => (await client.investigateGap(gapId(gap))).verdict);
+  await seedGap(root);
+  await run.step('gap investigation', async () => (await client.investigateGap(gapId(SEEDED_GAP))).verdict);
 };
 
 const main = async (): Promise<void> => {
   const env = { ...liveProfilesEnv(), ...credentials() };
-  const root = await fixture();
+  const root = await mkdtemp(join(tmpdir(), 'malt-live-'));
+  await writeFixture(root, FILES);
   const backend = new DockerBackend(process.env['MALT_DOCKER_SOCKET'] ?? defaultDockerSocket(), resolve(__dirname, '../../..'), out);
   const run = runner();
   try {
