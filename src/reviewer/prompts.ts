@@ -13,7 +13,7 @@ import type { FileWindow } from './workspace';
 import type { SourceFile } from './standardsSources';
 import type { ComponentContext } from './reviewContext';
 import type { EvidenceScope } from './evidenceReview';
-import { REQUEST_EVIDENCE, EVIDENCE_REQUEST_SCHEMA, evidenceBlock } from './reviewEvidencePrompt';
+import { REQUEST_EVIDENCE, NEEDS_CONTEXT_PROPERTY, evidenceBlock } from './reviewEvidencePrompt';
 import { MANIPULATION_RULE_ID, dataBlock } from './trust';
 
 /** Always-on rules, defined by MALT (trusted). Their categories are the groups a scan should reuse. */
@@ -357,17 +357,21 @@ export const OVERVIEW_SCHEMA = {
   additionalProperties: false,
 };
 
-/** The API requires `type: 'object'` at the top of a tool input schema, even around `anyOf`. */
-export const CHECK_SCHEMA = { type: 'object', anyOf: [EVIDENCE_REQUEST_SCHEMA, {
+/**
+ * A verdict, or (with `needsContext` and status `needs-context`) an evidence request. The API requires a plain object
+ * at the top of a tool schema: `type: 'object'` and no top-level `anyOf`/`oneOf`/`allOf`.
+ */
+export const CHECK_SCHEMA = {
   type: 'object',
   properties: {
-    status: { type: 'string', enum: ['pass', 'fail', 'not-applicable'] },
+    status: { type: 'string', enum: ['pass', 'fail', 'not-applicable', 'needs-context'] },
     note: { type: 'string' },
     detail: { type: 'string' },
+    needsContext: NEEDS_CONTEXT_PROPERTY,
   },
   required: ['status', 'note', 'detail'],
   additionalProperties: false,
-}] };
+};
 
 const RULE_SCHEMA = {
   type: 'object',
@@ -439,9 +443,10 @@ export const GAPS_SCHEMA = {
   additionalProperties: false,
 };
 
-export const CONSOLIDATION_SCHEMA = { type: 'object', anyOf: [EVIDENCE_REQUEST_SCHEMA, {
+/** Findings, or (with `needsContext` and no findings) an evidence request; a plain object, like `CHECK_SCHEMA`. */
+export const CONSOLIDATION_SCHEMA = {
   type: 'object',
-  properties: { findings: { type: 'array', items: FINDING_SCHEMA } },
+  properties: { findings: { type: 'array', items: FINDING_SCHEMA }, needsContext: NEEDS_CONTEXT_PROPERTY },
   required: ['findings'],
   additionalProperties: false,
-}] };
+};
