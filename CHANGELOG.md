@@ -28,7 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - Rule checks after a standards rescan: a saved review that names a renamed or removed rule is reviewed again with the current rules, instead of failing on every retry with "Unknown rule".
-- Rule checks and consolidation are no longer rejected by the API ("input_schema.type: Field required").
+- Rule checks and consolidation are no longer rejected by the API ("input_schema.type: Field required", "input_schema does not support oneOf, allOf, or anyOf at the top level"). An evidence request is now a `needsContext` field of the answer; an answer that contains one is never counted as a verdict.
+- **Explain what I'm seeing** and **Ask about this view** no longer fail with "Invalid architecture discussion response": the model is told each answer field's length limit, so long answers are neither rejected nor cut mid-sentence.
 - A code example in a changed Markdown file no longer stops consolidation of the source files beside it.
 - A rule check still running when its block restarts after a rescan can no longer fail or overwrite the restarted review.
 - Connection labels in long or crowded diagrams stay inside the drawing, in the editor and in exported views.

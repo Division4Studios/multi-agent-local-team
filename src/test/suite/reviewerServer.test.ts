@@ -64,6 +64,7 @@ const createFakeProvider = (calls: StructuredCall[]): ReviewProvider => ({
   callStructured: async (call: StructuredCall): Promise<unknown> => {
     calls.push(call);
     assert.equal(call.schema['type'], 'object', 'the API rejects a tool input schema without a top-level object type');
+    assert.ok(['anyOf', 'oneOf', 'allOf'].every((key) => !Object.hasOwn(call.schema, key)), 'the API rejects anyOf, oneOf or allOf at the top of a tool input schema');
     call.onText?.('{"streamed":\n');
     call.onUsage?.({ inputTokens: 1200, outputTokens: 80, cachedTokens: 3000, costUsd: 0.0021 });
     const rule = { id: 'r1', title: 'Rule', check: 'Ok?', category: 'style', source: 'CLAUDE.md' };
