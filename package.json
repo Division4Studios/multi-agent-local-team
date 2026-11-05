@@ -220,9 +220,15 @@
       },
       {
         "command": "malt.configureReviewType",
-        "title": "Change Review Model and Effort",
+        "title": "Change Review Provider, Model and Effort",
         "category": "MALT",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "malt.detectProviders",
+        "title": "Detect Review Providers",
+        "category": "MALT",
+        "icon": "$(search)"
       },
       {
         "command": "malt.investigateGap",
@@ -353,6 +359,11 @@
       ],
       "view/item/context": [
         {
+          "command": "malt.detectProviders",
+          "when": "view == malt.reviewer && viewItem == reviewModels",
+          "group": "inline"
+        },
+        {
           "command": "malt.reviewAgain",
           "when": "(view == malt.changes || view == malt.pullRequest) && viewItem == malt.hunk",
           "group": "inline"
@@ -476,6 +487,14 @@
           "default": true,
           "description": "Start the reviewer automatically when a workspace opens."
         },
+        "malt.reviewer.triageProvider": {
+          "type": "string",
+          "enum": ["claude", "copilot"],
+          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)"],
+          "default": "claude",
+          "scope": "machine",
+          "markdownDescription": "Who answers **block overviews**. Machine-scoped, so a repository's settings can never choose which service receives its code. Choose a model for the provider too (**Models & effort** in the MALT Reviewer view lists each provider's models). Applies when the reviewer restarts."
+        },
         "malt.reviewer.triageModel": {
           "type": "string",
           "default": "sonnet",
@@ -501,6 +520,14 @@
           ],
           "default": "low",
           "markdownDescription": "Reasoning effort for **block overviews**. Lower uses less. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
+        },
+        "malt.reviewer.reviewProvider": {
+          "type": "string",
+          "enum": ["claude", "copilot"],
+          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)"],
+          "default": "claude",
+          "scope": "machine",
+          "markdownDescription": "Who answers **rule checks**. Machine-scoped, so a repository's settings can never choose which service receives its code. Choose a model for the provider too (**Models & effort** in the MALT Reviewer view lists each provider's models). Applies when the reviewer restarts."
         },
         "malt.reviewer.reviewModel": {
           "type": "string",
@@ -528,6 +555,14 @@
           "default": "low",
           "markdownDescription": "Reasoning effort for **rule checks**. Lower uses less. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
         },
+        "malt.reviewer.consolidationProvider": {
+          "type": "string",
+          "enum": ["claude", "copilot"],
+          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)"],
+          "default": "claude",
+          "scope": "machine",
+          "markdownDescription": "Who answers **the consolidation check**. Machine-scoped, so a repository's settings can never choose which service receives its code. Choose a model for the provider too (**Models & effort** in the MALT Reviewer view lists each provider's models). Applies when the reviewer restarts."
+        },
         "malt.reviewer.consolidationModel": {
           "type": "string",
           "default": "sonnet",
@@ -554,6 +589,14 @@
           "default": "low",
           "markdownDescription": "Reasoning effort for **the consolidation check**. Lower uses less. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
         },
+        "malt.reviewer.standardsProvider": {
+          "type": "string",
+          "enum": ["claude", "copilot"],
+          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)"],
+          "default": "claude",
+          "scope": "machine",
+          "markdownDescription": "Who answers **the standards scan**. Machine-scoped, so a repository's settings can never choose which service receives its code. Choose a model for the provider too (**Models & effort** in the MALT Reviewer view lists each provider's models). Applies when the reviewer restarts."
+        },
         "malt.reviewer.standardsModel": {
           "type": "string",
           "default": "opus",
@@ -579,6 +622,14 @@
           ],
           "default": "medium",
           "markdownDescription": "Reasoning effort for **Scan Project Standards**. Lower uses less. Also editable from **Models & effort** in the MALT Reviewer view. Applies when the reviewer restarts."
+        },
+        "malt.reviewer.investigationProvider": {
+          "type": "string",
+          "enum": ["claude", "copilot"],
+          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)"],
+          "default": "claude",
+          "scope": "machine",
+          "markdownDescription": "Who answers **gap investigations and architecture discussions**. Machine-scoped, so a repository's settings can never choose which service receives its code. Choose a model for the provider too (**Models & effort** in the MALT Reviewer view lists each provider's models). Applies when the reviewer restarts."
         },
         "malt.reviewer.investigationModel": {
           "type": "string",

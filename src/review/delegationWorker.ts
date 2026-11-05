@@ -1,0 +1,98 @@
+/**
+ * Runs the reviewer's delegated calls (`src/reviewer/delegation.ts`) while it is running: long-polls for calls, runs
+ * each on its provider (GitHub Copilot through VS Code's Language Model API), streams the answer text for the live
+ * log, and posts the answer back. The reviewer built the prompt and validates the answer; this only runs the call.
+ */
+import type * as vscode from 'vscode';
+import type { DelegatedCall, DelegatedResult } from '../shared/delegation';
+import { PROVIDER_LABELS } from '../shared/reviewProfiles';
+import type { ProviderId } from '../shared/reviewProfiles';
+import type { ReviewerClient } from './reviewerClient';
+
+/** Runs one call and returns its JSON answer. `onText` receives the answer as it streams (display only). */
+export type CallRunner = (call: DelegatedCall, onText: (text: string) => void) => Promise<unknown>;
+
+/** Wait after a failed poll (reviewer restarting, network hiccup) before asking again. */
+const RETRY_MS = 2_000;
+/** Streamed text is sent in batches at most this often, not one request per token. */
+const TEXT_FLUSH_MS = 500;
+
+const delay = async (ms: number): Promise<void> => {
+  await new Promise((resolve) => { setTimeout(resolve, ms); });
+};
+
+/** Collects streamed text and sends it in batches; `flush` sends what is left. Send failures are display-only. */
+const textBatcher = (send: (text: string) => Promise<void>): { readonly add: (text: string) => void; readonly flush: () => Promise<void> } => {
+  let buffered = '';
+  let timer: NodeJS.Timeout | undefined;
+  const flush = async (): Promise<void> => {
+    clearTimeout(timer);
+    timer = undefined;
+    const text = buffered;
+    buffered = '';
+    if (text !== '') {
+      await send(text).catch(() => undefined);
+    }
+  };
+  return {
+    add: (text): void => {
+      buffered += text;
+      timer ??= setTimeout(() => { void flush(); }, TEXT_FLUSH_MS);
+    },
+    flush,
+  };
+};
+
+export class DelegationWorker implements vscode.Disposable {
+  private readonly client: () => ReviewerClient | undefined;
+  private readonly runners: Partial<Record<ProviderId, CallRunner>>;
+  private polling = false;
+  private disposed = false;
+
+  public constructor(client: () => ReviewerClient | undefined, runners: Partial<Record<ProviderId, CallRunner>>) {
+    this.client = client;
+    this.runners = runners;
+  }
+
+  /** Starts polling if it isn't already; it stops by itself when the reviewer is no longer running. */
+  public start(): void {
+    if (this.polling || this.disposed) {
+      return;
+    }
+    this.polling = true;
+    void this.poll().finally(() => { this.polling = false; });
+  }
+
+  public dispose(): void {
+    this.disposed = true;
+  }
+
+  private async poll(): Promise<void> {
+    for (let client = this.client(); client !== undefined && !this.disposed; client = this.client()) {
+      try {
+        for (const call of await client.takeModelCalls()) {
+          void this.run(client, call);
+        }
+      } catch {
+        await delay(RETRY_MS);
+      }
+    }
+  }
+
+  private async run(client: ReviewerClient, call: DelegatedCall): Promise<void> {
+    const text = textBatcher(async (chunk) => { await client.streamModelText({ id: call.id, text: chunk }); });
+    let result: DelegatedResult;
+    try {
+      const runner = this.runners[call.provider];
+      if (runner === undefined) {
+        throw new Error(`${PROVIDER_LABELS[call.provider]} is not available in this VS Code window`);
+      }
+      result = { id: call.id, output: await runner(call, text.add) };
+    } catch (error: unknown) {
+      result = { id: call.id, error: error instanceof Error ? error.message : String(error) };
+    }
+    await text.flush();
+    // A late answer (the call already timed out) or a stopped reviewer is not an error worth showing.
+    await client.answerModelCall(result).catch(() => undefined);
+  }
+}

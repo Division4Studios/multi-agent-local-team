@@ -8,7 +8,7 @@ export type BackendSetting = 'auto' | 'docker' | 'host';
 export interface MaltSettings {
   readonly backend: BackendSetting;
   readonly autoStart: boolean;
-  /** Model and effort for each kind of model call. */
+  /** Provider, model and effort for each kind of model call. */
   readonly profiles: ReviewProfiles;
   readonly maxConcurrentReviews: number;
   readonly claudePath: string;
@@ -22,7 +22,7 @@ export interface MaltSettings {
 
 const readProfile = (config: vscode.WorkspaceConfiguration, type: ReviewType): CallProfile => {
   const info = REVIEW_TYPE_INFO[type];
-  return profileFrom(type, config.get<unknown>(info.modelSetting), config.get<unknown>(info.effortSetting));
+  return profileFrom(type, config.get<unknown>(info.modelSetting), config.get<unknown>(info.effortSetting), config.get<unknown>(info.providerSetting, 'claude'));
 };
 
 /** Invalid values (e.g. a hand-edited setting) fall back to that type's default. */

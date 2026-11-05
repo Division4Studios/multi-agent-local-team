@@ -246,7 +246,8 @@ const modelsItem = (): vscode.TreeItem => {
   const { check } = readSettings().profiles;
   const result = item('Models & effort', { description: `rule checks: ${describeProfile(check)}`, icon: new vscode.ThemeIcon('settings-gear'), collapsed: true });
   result.id = 'review-models';
-  result.tooltip = 'Which model and how much reasoning effort each kind of review call uses. Expand and select one to change it.';
+  result.contextValue = 'reviewModels';
+  result.tooltip = 'Which provider, model and reasoning effort each kind of review call uses. Expand and select one to change it; the search icon shows which providers this machine can use.';
   return result;
 };
 
@@ -255,10 +256,10 @@ const reviewTypeItem = (type: ReviewType): vscode.TreeItem => {
   const result = item(info.label, {
     description: describeProfile(readSettings().profiles[type]),
     icon: new vscode.ThemeIcon('symbol-method'),
-    command: { command: 'malt.configureReviewType', title: 'Change model and effort', arguments: [type] },
+    command: { command: 'malt.configureReviewType', title: 'Change provider, model and effort', arguments: [type] },
   });
   result.id = JSON.stringify(['review-type', type]);
-  result.tooltip = `${info.detail} Select to change the model and effort; applies when the reviewer restarts.`;
+  result.tooltip = `${info.detail} Select to change the provider, model and effort; applies when the reviewer restarts.`;
   return result;
 };
 

@@ -13,7 +13,7 @@ import type {
   RuleCheck,
   StandardsScan,
 } from '../shared/protocol';
-import type { ReviewProvider, StructuredCall } from './providers/provider';
+import type { ProviderSet, ReviewProvider, StructuredCall } from './providers/provider';
 import { ConversationLog } from './conversations';
 import type { ReviewProfiles } from '../shared/reviewProfiles';
 import type { CallUsage } from '../shared/conversation';
@@ -91,7 +91,7 @@ export class UnknownRuleError extends Error {}
 
 export interface ServiceConfig {
   readonly workspaceRoot: string;
-  /** Model and effort per kind of call: overview, rule check, consolidation, standards scan. */
+  /** Provider, model and effort per kind of call: overview, rule check, consolidation, standards scan, investigation. */
   readonly profiles: ReviewProfiles;
   /** Public key that verifies the extension-signed branch map; without it, developer confirmations are ignored. */
   readonly mapVerifier?: string;
@@ -99,12 +99,13 @@ export interface ServiceConfig {
 
 export class ReviewService {
   private readonly config: ServiceConfig;
-  private readonly provider: ReviewProvider;
+  private readonly providers: ProviderSet;
   private readonly conversations: ConversationLog;
 
-  public constructor(config: ServiceConfig, provider: ReviewProvider, conversations = new ConversationLog()) {
+  /** One provider answers every call (tests), or each provider id has its own. */
+  public constructor(config: ServiceConfig, providers: ReviewProvider | ProviderSet, conversations = new ConversationLog()) {
     this.config = config;
-    this.provider = provider;
+    this.providers = 'callStructured' in providers ? { claude: providers, copilot: providers } : providers;
     this.conversations = conversations;
   }
 
@@ -113,7 +114,7 @@ export class ReviewService {
     const logged = this.conversations.begin(label, call, call.userPrompt);
     let usage: CallUsage | undefined;
     try {
-      const output = await this.provider.callStructured({
+      const output = await this.providers[call.provider ?? 'claude'].callStructured({
         ...call,
         onText: (text) => {
           logged.text(text);
@@ -132,7 +133,7 @@ export class ReviewService {
   }
 
   public get providerName(): string {
-    return this.provider.name;
+    return this.providers.claude.name;
   }
 
   /** Project rules from `.malt/standards.json`, sanitized; never shadow or replace the baseline rules. */
