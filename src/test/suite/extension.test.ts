@@ -8,6 +8,7 @@ const COMMANDS = [
   'malt.stopReviewer',
   'malt.scanStandards',
   'malt.reviewAll',
+  'malt.beforeCommit',
   'malt.reviewAgain',
   'malt.revealHunk',
   'malt.showReviewerLogs',

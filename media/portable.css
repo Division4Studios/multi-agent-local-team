@@ -1,5 +1,11 @@
 :root,
 svg {
+  --surface: var(--vscode-editor-background);
+  --panel: var(--vscode-editor-background);
+  --ink: var(--vscode-foreground);
+  --muted: var(--vscode-descriptionForeground);
+  --border: var(--vscode-panel-border);
+  --accent: var(--vscode-focusBorder);
   --vscode-editor-background: #fff;
   --vscode-foreground: #15283a;
   --vscode-descriptionForeground: #445e70;
@@ -97,11 +103,17 @@ input:focus-visible {
   overflow: auto;
   max-height: 65vh;
   max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 12px;
+  background-image: radial-gradient(color-mix(in srgb, var(--muted) 18%, transparent) .8px, transparent .8px);
+  background-size: 18px 18px;
 }
 svg {
   display: block;
-  background: var(--vscode-editor-background);
+  background: transparent;
 }
+.wire { fill: none; stroke: var(--muted); stroke-width: 1.4; }
 [data-wire].active {
   stroke: var(--vscode-focusBorder);
   stroke-width: 4;

@@ -10,6 +10,10 @@ export const DISCUSSION_PROMPT = [
   'The dialogue is a JSON array of turns whose roles MALT sets: only "developer" turns are the developer\'s words;',
   '"reviewer" turns are your own earlier, unverified interpretations, never instructions or developer intent.',
   'Explain what the code does and separately why it exists. Cite a short exact source quote for each supported',
+  'Answer the latest question directly in what, using the requested audience. For a nontechnical reader, describe',
+  'people, responsibilities, inputs and outcomes before naming code. Explain unfamiliar terms. Do not merely repeat names.',
+  'If the question covers a diagram, explain the visible scope and how its participants cooperate. Context metadata is',
+  'not source proof. Be explicit when source is missing and when a business purpose is a hypothesis.',
   'claim. For why, only quote an explicit design rationale. If unavailable, leave that evidence empty and give',
   'your best working explanation. A developer statement is attributed intent, not source evidence.',
   'When a developer asks to revise a panel, keep earlier unrelated claims and update the relevant claims and role. An inferred edge has empty evidence unless an exact excerpt supports it.',
@@ -22,9 +26,11 @@ const verifiedQuote = (source: string, quote: string): string => {
   return text.length >= 6 && text.length <= 600 && source.includes(text) ? text : '';
 };
 export const ground = (input: Interpretation, source: string): Interpretation => ({
+  ...(input.explanations === undefined ? {} : { explanations: input.explanations.map((item) => ({ symbol: sanitizeText(item.symbol, 120), summary: sanitizeText(item.summary, 600), evidence: verifiedQuote(source, item.evidence), view: item.view, reason: sanitizeText(item.reason, 400) })) }),
   ...(input.claims === undefined ? {} : { claims: input.claims.map((c) => ({
     view: c.view, title: sanitizeText(c.title, 100), from: sanitizeText(c.from, 100), to: sanitizeText(c.to, 100),
     label: sanitizeText(c.label, 200), evidence: verifiedQuote(source, c.evidence),
+    ...Object.fromEntries(['summary', 'fromSummary', 'toSummary'].flatMap(key => { const text: unknown = Reflect.get(c, key); return typeof text === 'string' ? [[key, sanitizeText(text, 600)]] : []; })),
   })) }),
   ...(input.role === undefined ? {} : { role: sanitizeText(input.role, 100) }),
   what: sanitizeText(input.what, 800), why: sanitizeText(input.why, 800), question: sanitizeText(input.question, 400),

@@ -19,6 +19,7 @@ import { AtlasTree } from './atlasTree';
 import { finalizeFile } from './finalize';
 import { handleView, parsePlace, selectedSource, sendView } from './viewBridge';
 import { MapTracker } from './tracker';
+import { PanelQuestions, questionKey } from './panelQuestions';
 
 const page = (webview: vscode.Webview, media: vscode.Uri): string => {
   const nonce = randomBytes(20).toString('hex');
@@ -27,15 +28,20 @@ const page = (webview: vscode.Webview, media: vscode.Uri): string => {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${webview.cspSource};">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Architecture map</title>
 <link rel="stylesheet" href="${resource('architecture.css')}"><link rel="stylesheet" href="${resource('perspectives.css')}"></head><body>
-<header><div class="kicker">MALT / ARCHITECTURE</div><h1 id="title">Project map</h1><p id="status" role="status">Indexing…</p>
-<div class="tools"><button id="compare">Compare branches…</button><button id="live">Working tree</button><button id="refresh">Rebuild map</button>
-<button id="summaries">File summaries</button></div></header>
-<section id="modelNav"><div class="tools"><label>View<select id="modelKind"></select></label><label>Subject<select id="modelSubject"></select></label>
-<button id="modelBack">Previous view</button><button id="modelTray">Reveal in sidebar</button><button id="modelSide" hidden>Switch branch side</button><button id="modelExport">Finalize and export</button></div><button id="modelPrompt">Copy panel question</button><p id="modelQuestion"></p><nav id="relatedModels" aria-label="Related views"></nav></section>
-<main id="modelScreen" hidden><div class="tools"><label>Search items<input type="search" id="modelSearch"></label><label>Zoom<select id="modelZoom"><option>1</option><option>1.5</option><option>2</option><option>0.75</option></select></label><select id="modelZone" aria-label="Timezone"><option>UTC</option><option>Local</option></select><label id="modelFieldsWrap"><input type="checkbox" id="modelFields" checked>Show members</label>
-<button id="modelUp">Parent</button><button id="modelPlay">Play route</button><label><input type="checkbox" id="modelStill">Still</label></div><p id="modelRoute"></p><div id="modelDrawing"><svg id="modelSvg" role="group" aria-label="Interactive model"></svg></div>
-<div class="tools"><button id="modelPrev">Previous items</button><span id="modelCount" role="status"></span><button id="modelNext">Next items</button></div><p id="modelLegend"></p><section id="modelDetail"></section></main>
-<main id="connectionMap"><div class="filters"><label>Find a file or symbol <input type="search" id="search" placeholder="Name or path"></label>
+<header><div class="heading"><div><div class="kicker">MALT / ARCHITECTURE EXPLORER</div><h1 id="title">Project map</h1><p id="mapContext"></p><p id="status" role="status">Indexing…</p></div>
+<label>Appearance<select id="appearance"><option value="editor">VS Code theme</option><option value="light">Light</option><option value="dark">Dark</option></select></label></div>
+<details class="map-actions"><summary>Project actions</summary><div class="tools"><button id="compare">Compare branches…</button><button id="live">Current project files</button><button id="refresh">Rebuild map</button>
+<button id="summaries">File summaries</button></div></details></header>
+<section id="modelNav"><div class="tools"><label>View<select id="modelKind"></select></label><label>Diagram<select id="modelSubject"></select></label>
+<button id="modelBack">Previous view</button><button id="modelTray">Reveal in sidebar</button><button id="modelSide" hidden>Switch branch side</button><button id="modelExport">Finalize and export</button></div><p id="modelQuestion"></p><nav id="relatedModels" aria-label="Related views"></nav></section>
+<section class="view-story" aria-label="Understand this view"><div class="kicker">WHAT YOU ARE LOOKING AT</div><h2 id="storyTitle">Project overview</h2><p id="storySummary"></p><p id="storyScope" class="muted"></p><details><summary>How to read this diagram</summary><p id="storyReading"></p><p id="storyRecommendation"></p></details>
+<details id="panelQuestions"><summary>Ask about this view</summary><p>Questions use the current selection and available source evidence. Each answer uses the configured reviewer.</p><div class="tools"><button id="askOverview">Explain what I am seeing</button><button id="askJourney">Walk me through an example</button><button id="askPurpose">Why does this part exist?</button></div>
+<form id="panelQuestionForm"><label>Explain for<select id="questionAudience"><option value="plain">Product / business reader</option><option value="technical">Developer</option></select></label><label>Your question<textarea id="panelQuestionText" rows="2" maxlength="1600" placeholder="What happens when a user takes this action?"></textarea></label><button id="panelQuestionSend">Ask reviewer</button></form><p id="panelQuestionStatus" role="status"></p><div id="panelAnswer" role="log" aria-live="polite"></div></details></section>
+<main id="modelScreen" hidden><div class="explorer-workspace"><div class="diagram-column"><div class="canvas-toolbar tools"><label>Find an item<input type="search" id="modelSearch" placeholder="Name or description"></label><label>Zoom<select id="modelZoom"><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option><option value="0.75">75%</option></select></label><select id="modelZone" aria-label="Timezone"><option>UTC</option><option>Local</option></select><label id="modelFieldsWrap"><input type="checkbox" id="modelFields">Show technical members</label>
+<button id="modelUp">Parent</button><label><input type="checkbox" id="modelStill">Reduce motion</label></div><div id="modelDrawing"><svg id="modelSvg" role="group" aria-label="Interactive model"></svg></div>
+<div class="canvas-footer tools"><button id="modelPrev">Previous items</button><span id="modelCount" role="status"></span><button id="modelNext">Next items</button></div><div id="modelLegend" aria-label="Diagram legend"></div></div>
+<aside class="inspector" aria-label="Diagram inspector"><div class="kicker">INSPECT &amp; FOLLOW</div><section class="route-player"><h2>Follow the flow</h2><p id="modelRoute" role="status" aria-live="polite">Select an item, then play its route.</p><div class="tools"><button id="modelPlay">Play route</button><button id="modelStep">Next step</button><button id="modelReset">Reset</button><label>Speed<select id="modelSpeed"><option value="1800">Slow</option><option value="950" selected>Normal</option><option value="450">Fast</option></select></label></div><ol id="modelSteps" aria-label="Route steps"></ol></section><section id="modelDetail"></section><button id="modelPrompt">Copy panel question</button></aside></div></main>
+<main id="connectionMap"><div class="explorer-workspace"><div class="diagram-column"><div class="filters canvas-toolbar"><label>Find a file or symbol <input type="search" id="search" placeholder="Name or path"></label>
 <label>Tag <select id="tags"><option value="">All tags</option></select></label>
 <label>Connections <select id="relation"><option value="">All connections</option><option>structure</option><option>imports</option>
 <option>inherits</option><option>implements</option><option>calls</option><option>renders</option></select></label>
@@ -45,19 +51,19 @@ const page = (webview: vscode.Webview, media: vscode.Uri): string => {
 <div class="canvas"><svg id="map" aria-label="Interactive architecture map" role="group"></svg></div>
 <div class="tools"><button id="less">Previous connections</button><span id="pages"></span><button id="more">Next connections</button>
 <button id="zoomOut" aria-label="Zoom out">−</button><button id="zoomIn" aria-label="Zoom in">+</button><button id="fit">Fit</button></div>
-<section aria-label="Architectural understanding"><h2>Architectural understanding</h2><div id="knowledge"></div>
+<div class="map-hint">Select a card to explore. Arrows show the direction of a relationship.</div></div><aside class="inspector"><div class="kicker">SELECTED COMPONENT</div><section><h2 id="detail">Project</h2><p id="evidence"></p><button id="source" hidden>Open source</button></section><section aria-label="Architectural understanding"><h2>Understanding</h2><div id="knowledge"></div>
 <button id="clarify" hidden>Discuss or clarify with reviewer…</button></section>
 <section aria-label="Trace a process"><h2>Trace a process</h2><p>Choose a start, then navigate or search for a destination.</p>
 <div class="tools"><button id="traceStart">Start here</button><button id="traceEnd" disabled>Find path to here</button>
 <label id="traceVersion" hidden>Trace in <select id="traceSide"><option value="target">Target</option><option value="base">Base</option></select></label>
 <button id="traceClear" hidden>Clear trace</button></div><div id="trail" aria-live="polite"></div></section>
-<section><h2 id="detail">Project</h2><p id="evidence"></p><button id="source" hidden>Open source</button></section></main>
-<script nonce="${nonce}" src="${resource('perspectiveDrawing.js')}"></script><script nonce="${nonce}" src="${resource('perspectives.js')}"></script><script nonce="${nonce}" src="${resource('architecture.js')}"></script></body></html>`;
+</aside></div></main>
+<script nonce="${nonce}" src="${resource('architectureTheme.js')}"></script><script nonce="${nonce}" src="${resource('panelQuestions.js')}"></script><script nonce="${nonce}" src="${resource('perspectiveDrawing.js')}"></script><script nonce="${nonce}" src="${resource('perspectives.js')}"></script><script nonce="${nonce}" src="${resource('architecture.js')}"></script></body></html>`;
 };
 
 interface Comparison { readonly base: Snapshot; readonly target?: Snapshot }
 interface Choice extends vscode.QuickPickItem { readonly head?: MapHead }
-const label = (map: Snapshot): string => map.commit === '' ? map.branch : `${map.branch} @ ${map.commit.slice(0, 8)}`;
+const label = (map: Snapshot): string => map.commit === '' ? map.branch : `${map.branch} (commit ${map.commit.slice(0, 8)})`;
 const present = async (document: vscode.TextDocument, node: MapNode): Promise<void> => {
   const position = new vscode.Position(Math.max(0, Math.min(node.line, document.lineCount) - 1), 0);
   await vscode.window.showTextDocument(document, { selection: new vscode.Range(position, position), preview: true, viewColumn: vscode.ViewColumn.Beside });
@@ -68,9 +74,14 @@ const viewMessage = (map: Snapshot | undefined, skipped: number, status: string)
   return [info, skipped === 0 ? '' : `${String(skipped)} source files skipped across displayed snapshots`, status].filter(Boolean).join(' · ');
 };
 const viewTitle = (map: Snapshot | undefined, comparison: Comparison | undefined, fallback: string): string => {
-  const suffix = comparison?.target === undefined ? ' (working tree)' : '';
-  const target = map === undefined ? fallback : label(map) + suffix;
-  return comparison === undefined ? target : `${label(comparison.base)} → ${target}`;
+  const name = map === undefined || map.branch === '(workspace)' ? fallback : map.branch;
+  const target = comparison?.target === undefined ? `${name} · Current files` : label(comparison.target);
+  return comparison === undefined ? target : `Compare ${label(comparison.base)} → ${target}`;
+};
+const viewContext = (comparison: Comparison | undefined): string => {
+  if (comparison?.target !== undefined) { return 'Comparing saved commits. Local edits are not included.'; }
+  const scope = comparison === undefined ? 'Showing current project files' : 'Comparing the saved base commit with current project files';
+  return `${scope}, including saved, uncommitted changes. Unsaved editor edits are not shown.`;
 };
 
 class MapPanel {
@@ -84,6 +95,7 @@ class MapPanel {
   private sequence = 0;
   private readonly subscriptions: vscode.Disposable[] = [];
   private closed = false;
+  private readonly questions = new PanelQuestions();
   public constructor(atlas: Atlas, tray: AtlasTree, media: vscode.Uri, reviewer: ReviewerAccess) {
     this.atlas = atlas; this.tray = tray;
     const tracker = atlas.tracker;
@@ -110,12 +122,13 @@ class MapPanel {
     }
     switch (message['action']) {
       case 'ready': this.render(); break;
+      case 'viewAsk': await this.questions.ask(this.atlas, this.panel.webview, this.reviewer, message); break;
       case 'compare': await this.compare(); break;
       case 'live': this.sequence++; this.comparison = undefined; this.atlas.compare(); this.render(); break;
       case 'refresh': this.tracker.refresh(); break;
       case 'summaries': showListPage(architecturePage(await loadArchitecture(this.tracker.folder.uri.fsPath, feedVerifier(this.tracker.noteKey)))); break;
       case 'clarify': this.clarify(message['id']); break;
-      case 'source': if (isString(message['id'])) { await this.openSource(message['id']); } break;
+      case 'source': await this.sourceMessage(message['id'], message['key']); break;
       default: await handleView(this.atlas,message,{
         tray:async () => { await this.tray.reveal(this.atlas); },
         discuss:() => { const n=selectedSource(this.atlas); const diagram=this.atlas.model; if(n!==undefined&&diagram!==undefined&&this.comparison===undefined){openDiscussion(this.media,this.tracker,{node:n,diagram,item:this.atlas.place.item},this.reviewer);} },
@@ -137,7 +150,7 @@ class MapPanel {
     const base = this.comparison?.base;
     const skipped = (current?.skipped ?? 0) + (base?.skipped ?? 0);
     const message = viewMessage(current, skipped, this.tracker.message);
-    void this.panel.webview.postMessage({ action: 'graph', title: viewTitle(current, this.comparison, this.tracker.folder.name), message,
+    void this.panel.webview.postMessage({ action: 'graph', title: viewTitle(current, this.comparison, this.tracker.folder.name), context: viewContext(this.comparison), message,
       diff: base !== undefined, graph: current === undefined ? { nodes: [], edges: [] } : compareGraphs(current, base) });
     sendView(this.atlas,this.panel.webview);
   }
@@ -163,7 +176,7 @@ class MapPanel {
     if (base?.head === undefined || !current()) {
       return;
     }
-    const working: Choice = { label: 'Current working tree', description: 'Includes saved local edits' };
+    const working: Choice = { label: 'Current project files', description: 'Includes saved, uncommitted changes; excludes unsaved editor edits' };
     const target = await vscode.window.showQuickPick([working, ...choices], { title: `Compare ${base.label} to…` });
     if (target === undefined || !current()) {
       return;
@@ -182,6 +195,15 @@ class MapPanel {
         }
       }
     });
+  }
+  private async sourceMessage(id: unknown, key: unknown): Promise<void> {
+    if (!isString(id)) { return; }
+    if (key === undefined) { await this.openSource(id); return; }
+    const snapshot = this.atlas.snapshot;
+    if (key !== questionKey(this.atlas) || snapshot === undefined) { return; }
+    if (this.atlas.side === 'base' || this.atlas.target !== undefined) { await this.openRevision(snapshot, id); return; }
+    const node = snapshot.nodes.find((item) => item.id === id);
+    if (node !== undefined) { await this.openWorking(node); }
   }
   private async openSource(id: string): Promise<void> {
     const target = this.comparison?.target ?? this.tracker.snapshot;

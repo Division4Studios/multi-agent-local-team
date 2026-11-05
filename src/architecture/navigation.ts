@@ -90,7 +90,7 @@ export class Atlas implements vscode.Disposable {
   public visit(p: Place): void {
     const ref = this.item?.ref;
     const carried =
-      p.key === '' && ref !== undefined
+      p.key === '' && p.item === '' && ref !== undefined
         ? this.models
             .filter((d) => d.kind === p.kind)
             .flatMap((d) => {

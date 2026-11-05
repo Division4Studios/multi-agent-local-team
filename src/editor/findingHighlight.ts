@@ -12,6 +12,7 @@ import { realRelativeInside } from '../shared/realPath';
 import { findQuoteSpan } from '../shared/quoteMatch';
 import type { Edge } from './decorations';
 import type { Finding, FindingAnchor } from '../shared/protocol';
+import { appendReference, findingLinks, findingMarkdown } from './findingMarkdown';
 
 const COLOR = new vscode.ThemeColor('malt.finding');
 
@@ -91,6 +92,7 @@ const locate = async (document: vscode.TextDocument, anchor: { readonly symbol: 
 };
 
 interface Focus {
+  readonly markdown: vscode.MarkdownString;
   readonly uri: vscode.Uri;
   readonly range: vscode.Range;
   readonly finding: Finding;
@@ -140,7 +142,16 @@ export class FindingHighlight implements vscode.Disposable, vscode.HoverProvider
     }
     const document = await vscode.workspace.openTextDocument(uri);
     const range = (await locate(document, anchor)) ?? document.lineAt(0).range;
-    this.focus = { uri, range, finding, kind, anchor };
+    const links = await findingLinks(finding, async (path) => await workspaceFile(folder, path));
+    const markdown = new vscode.MarkdownString();
+    markdown.appendMarkdown('**MALT · ');
+    markdown.appendText(kind);
+    markdown.appendMarkdown('** — ');
+    markdown.appendText(finding.title);
+    markdown.appendMarkdown(`\n\n${findingMarkdown(finding, links).value}`);
+    markdown.appendMarkdown('\n\n---\n\n**Declaration**\n\n');
+    appendReference(markdown, anchor.symbol === '' ? anchor.file : anchor.symbol, uri.with({ fragment: `L${String(range.start.line + 1)}` }));
+    this.focus = { uri, range, finding, kind, anchor, markdown };
     const editor = await vscode.window.showTextDocument(document, { preview: true, selection: new vscode.Range(range.start, range.start) });
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
     this.render();
@@ -152,16 +163,7 @@ export class FindingHighlight implements vscode.Disposable, vscode.HoverProvider
     if (focus?.uri.toString() !== document.uri.toString() || position.line < focus.range.start.line || position.line > focus.range.end.line) {
       return undefined;
     }
-    const markdown = new vscode.MarkdownString();
-    markdown.appendMarkdown(`**MALT · ${focus.kind}** — `);
-    markdown.appendText(focus.finding.title);
-    markdown.appendMarkdown('\n\n');
-    markdown.appendText(focus.finding.note);
-    markdown.appendMarkdown('\n\n---\n\n');
-    markdown.appendText(focus.finding.detail);
-    markdown.appendMarkdown(focus.anchor.symbol === '' ? '\n\n---\n\n*File:* ' : '\n\n---\n\n*Declaration:* ');
-    markdown.appendText(focus.anchor.symbol === '' ? focus.anchor.file : `${focus.anchor.symbol} · ${focus.anchor.file}`);
-    return new vscode.Hover(markdown, focus.range);
+    return new vscode.Hover(focus.markdown, focus.range);
   }
 
   public dispose(): void {

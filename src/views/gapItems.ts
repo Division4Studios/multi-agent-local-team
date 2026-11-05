@@ -52,7 +52,6 @@ const gapItem = (gap: Finding, index: number, investigation: GapInvestigation | 
   if (investigation === undefined) {
     item.description = first === undefined ? `${gap.files.join(', ')} · not investigated` : `${first.symbol} · not investigated`;
     item.iconPath = new vscode.ThemeIcon(first === undefined ? 'circle-large-outline' : 'go-to-file');
-    item.tooltip = tooltip(`${gap.note}\n\n${gap.detail}\n\nUse the search icon to investigate: MALT reads the real code and decides whether this is an actual gap.`);
   } else {
     item.description = `${VERDICT_LABELS[investigation.verdict]} · ${investigation.confidence} confidence`;
     item.iconPath = VERDICT_ICONS[investigation.verdict];

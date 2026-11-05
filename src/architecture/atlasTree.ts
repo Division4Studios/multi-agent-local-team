@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { home, location, related } from './catalog';
 import type { Place } from './catalog';
 import { diagramKey, views, isView } from '../shared/diagram';
-import type { Diagram, Part, ViewKind } from '../shared/diagram';
+import type { Diagram, Part, ViewKind, Wire } from '../shared/diagram';
 import type { Atlas } from './navigation';
 
 type RowType = 'folder' | 'view' | 'model' | 'item' | 'jump' | 'page';
@@ -18,12 +18,32 @@ const row = (type: RowType, container: Atlas | AtlasRow, place: Place, label: st
   'atlas' in container ? { type, atlas: container.atlas, place, label, parent: container } : { type, atlas: container, place, label };
 const nested = (d: Diagram): boolean => d.kind === 'tree' || d.kind === 'architecture' || d.kind === 'waterfall';
 const limit = 80;
+const viewIcons: Readonly<Record<ViewKind, string>> = {
+  architecture: 'organization', workflow: 'git-merge', sequence: 'arrow-swap', dataflow: 'symbol-event',
+  lifecycle: 'sync', er: 'database', classes: 'symbol-class', tree: 'list-tree', timeline: 'history', waterfall: 'graph',
+};
+const rowIcon = (r: AtlasRow): vscode.ThemeIcon => {
+  switch (r.type) {
+    case 'folder': return new vscode.ThemeIcon('folder');
+    case 'jump': return new vscode.ThemeIcon('references');
+    case 'page': return new vscode.ThemeIcon('ellipsis');
+    case 'item': return new vscode.ThemeIcon('symbol-field');
+    case 'model':
+    case 'view': return new vscode.ThemeIcon(viewIcons[r.place.kind]);
+  }
+};
+
+/** State direction in words as well as visually; a return or self-loop must not look like an outgoing call. */
+export const relationshipLabel = (wire: Wire, selected: string, peer: Part): string => {
+  if (wire.from === wire.to) { return `Self · ${wire.label}`; }
+  return `${wire.from === selected ? 'To' : 'From'} ${peer.label} · ${wire.label}`;
+};
 const children = (d: Diagram, id: string): Part[] =>
   nested(d) ? d.items.filter((i) => (i.parent ?? '') === id) : id === '' ? d.items : [];
 const paginate = (items: AtlasRow[], parent: AtlasRow, offset = 0): AtlasRow[] => {
   const page = items.slice(offset, offset + limit);
   if (offset + limit < items.length) {
-    page.push({ ...row('page', parent, parent.place, 'More…'), offset: offset + limit });
+    page.push({ ...row('page', parent, parent.place, 'More items…'), offset: offset + limit });
   }
   return page;
 };
@@ -53,21 +73,19 @@ export class AtlasTree implements vscode.TreeDataProvider<AtlasRow>, vscode.Disp
     return r.parent;
   }
   public getTreeItem(r: AtlasRow): vscode.TreeItem {
-    const leaf = r.type === 'jump';
+    const leaf = this.getChildren(r).length === 0;
     const t = new vscode.TreeItem(r.label, leaf ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Collapsed);
     t.id = JSON.stringify(this.trail(r));
+    t.iconPath = rowIcon(r);
     if (r.type !== 'folder' && r.type !== 'page') {
       t.command = {
         command: 'malt.openArchitectureView',
-        title: 'Open view',
+        title: 'Open interactive view',
         arguments: [r.atlas.tracker.folder.uri.toString(), r.place],
       };
     }
     if (r.type === 'view') {
       t.description = views[r.place.kind][1] ?? r.place.kind;
-    }
-    if (r.type === 'jump') {
-      t.iconPath = new vscode.ThemeIcon('go-to-file');
     }
     return t;
   }
@@ -118,7 +136,7 @@ export class AtlasTree implements vscode.TreeDataProvider<AtlasRow>, vscode.Disp
       for (const w of d.links.filter((l) => l.from === item.id || l.to === item.id)) {
         const peer = d.items.find((i) => i.id === (w.from === item.id ? w.to : w.from));
         if (peer !== undefined) {
-          parts.push(row('jump', r, location(d, peer.id), `${w.label} → ${peer.label}`));
+          parts.push(row('jump', r, location(d, peer.id), relationshipLabel(w, item.id, peer)));
         }
       }
       for (const x of related(a.models, d, item)) {

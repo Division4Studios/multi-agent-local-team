@@ -6,6 +6,7 @@ import type { TrackedHunk } from '../../review/hunkStore';
 import { ReviewQueue } from '../../review/reviewQueue';
 import type { HunkReviewer } from '../../review/reviewQueue';
 import { ruleRows } from '../../review/reviewProgress';
+import { ReviewerHttpError } from '../../review/reviewerClient';
 import type { CheckRequest, OverviewResponse, ReviewRequest, RuleCheck } from '../../shared/protocol';
 import { MemoryStorage, deferred, testCheck, testReview, testRule, waitFor } from './testUtils';
 import type { Deferred } from './testUtils';
@@ -39,7 +40,10 @@ class GatedReviewer implements HunkReviewer {
   public async check(request: CheckRequest): Promise<RuleCheck> {
     this.checks.push(request);
     const rule = RULES.find((candidate) => candidate.id === request.ruleId);
-    if (rule === undefined || rule.id === this.failRule) {
+    if (rule === undefined) {
+      throw new ReviewerHttpError(409, `Unknown rule: ${request.ruleId}`);
+    }
+    if (rule.id === this.failRule) {
       throw new Error('check failed');
     }
     return await Promise.resolve(testCheck(rule, rule.id === 'a' ? 'fail' : 'pass'));
@@ -125,6 +129,22 @@ export const tests: readonly TestCase[] = [
       await waitFor(() => store.state(block.id).status === 'reviewed', 'block reviewed');
       assert.equal(reviewer.requests.length, 1, 'no second overview');
       assert.deepEqual(reviewer.checks.map((request) => request.ruleId), ['a', 'b', 'b']);
+      store.dispose();
+    },
+  },
+  {
+    name: 'review queue: a saved review naming a rule the reviewer no longer has starts over from the overview',
+    run: async (): Promise<void> => {
+      const { store, reviewer, queue } = setup(2);
+      const block = trackedHunk('stale', 'a.ts');
+      store.setFileHunks(block.uri, [block]);
+      reviewer.gate.resolve(undefined);
+      store.setState(block.id, { status: 'pending', review: testReview([...RULES, testRule('renamed'), testRule('gone')], ['a', 'renamed', 'gone']) });
+      queue.enqueue(block);
+      await waitFor(() => store.state(block.id).status === 'reviewed', 'block reviewed');
+      assert.equal(store.state(block.id).error, undefined, 'a stale rule is not reported as an error');
+      assert.equal(reviewer.requests.length, 1, 'one fresh overview, not one per stale rule');
+      assert.deepEqual(store.state(block.id).review?.rules.map((rule) => rule.id), RULES.map((rule) => rule.id), 'the current rule list replaces the saved one');
       store.dispose();
     },
   },

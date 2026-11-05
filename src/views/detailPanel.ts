@@ -9,6 +9,10 @@ import type { HunkStore } from '../review/hunkStore';
 import type { Finding } from '../shared/protocol';
 import { isNonNegativeInteger, isString } from '../shared/guards';
 import { RUN_LABELS } from '../editor/visuals';
+import { findingSections } from '../shared/findingText';
+import { findingLinks } from '../editor/findingMarkdown';
+import type { FindingLinks } from '../editor/findingMarkdown';
+import { workspaceFile } from '../editor/findingHighlight';
 
 interface Section {
   readonly title: string;
@@ -60,7 +64,7 @@ let panel: vscode.WebviewPanel | undefined;
 
 const showHtml = (title: string, html: string): void => {
   if (panel === undefined) {
-    panel = vscode.window.createWebviewPanel('malt.detail', '', vscode.ViewColumn.Beside, { enableScripts: false });
+    panel = vscode.window.createWebviewPanel('malt.detail', '', vscode.ViewColumn.Beside, { enableScripts: false, enableCommandUris: ['malt.openFindingReference'] });
     panel.onDidDispose(() => {
       panel = undefined;
     });
@@ -148,16 +152,29 @@ export const showRuleCheck = (store: HunkStore, id: unknown, startLine: unknown,
 };
 
 /** All gaps from a standards scan on one page. */
-export const showGaps = (gaps: readonly Finding[]): void => {
-  showPage({
-    title: 'Standards gaps',
-    status: { label: `${String(gaps.length)} to decide`, className: 'fail' },
-    meta: ['Missing or contradictory standards found by the last scan'],
-    sections: gaps.map((gap) => ({
-      title: gap.title,
-      text: [gap.note, gap.detail, ...(gap.files.length > 0 ? [`Files: ${gap.files.join(', ')}`] : [])].join('\n\n'),
-    })),
-  });
+const referenceHtml = (label: string, uri: vscode.Uri): string => {
+  const command = `command:malt.openFindingReference?${encodeURIComponent(JSON.stringify([uri.toString()]))}`;
+  return `<a href="${escapeHtml(command)}">${escapeHtml(label)}</a>`;
+};
+const gapInline = (text: string, links: FindingLinks): string => text.split('`').map((part, index) => {
+  if (index % 2 === 0) { return escapeHtml(part); }
+  const uri = links.get(part);
+  return uri === undefined ? `<code>${escapeHtml(part)}</code>` : referenceHtml(part, uri);
+}).join('');
+
+export const showGaps = async (gaps: readonly Finding[], folder?: vscode.WorkspaceFolder): Promise<void> => {
+  const cards = await Promise.all(gaps.map(async (gap) => {
+    const links = folder === undefined ? new Map<string, vscode.Uri>() : await findingLinks(gap, async (path) => await workspaceFile(folder, path));
+    const sections = findingSections(gap.detail).map((section) => `<h3>${escapeHtml(section.title)}</h3><ul>${section.lines.map((line) => `<li>${gapInline(line, links)}</li>`).join('')}</ul>`);
+    const references = gap.files.map((file) => { const uri = links.get(file); return `<li>${uri === undefined ? escapeHtml(file) : referenceHtml(file, uri)}</li>`; });
+    return `<article class="card"><h2>${escapeHtml(gap.title)}</h2><p>${escapeHtml(gap.note)}</p>${sections.join('')}<details><summary>References (${String(references.length)})</summary><ul>${references.join('')}</ul></details></article>`;
+  }));
+  const nonce = randomBytes(16).toString('hex');
+  showHtml('Standards gaps', `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}';"><style nonce="${nonce}">${STYLE}
+.card { padding: 1.25rem; margin: 1rem 0; overflow-wrap: anywhere; } .card h2 { margin: 0 0 .75rem; border: 0; } .card h3 { margin-top: 1.25rem; }
+li { margin: .5rem 0; overflow-wrap: anywhere; } summary { cursor: pointer; margin-top: 1rem; } a:focus-visible { outline: 2px solid var(--vscode-focusBorder); }
+</style><title>Standards gaps</title></head><body><h1>Standards gaps</h1><p class="meta">${String(gaps.length)} questions for the team · Findings from the last scan</p>${cards.join('')}</body></html>`);
 };
 
 /** `index` comes from a tree node; it is checked against the current findings. */
