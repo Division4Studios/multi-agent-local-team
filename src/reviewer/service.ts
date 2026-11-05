@@ -343,9 +343,12 @@ export class ReviewService {
     return investigation;
   }
 
-  /** One call over the whole change. A change without new declarations needs no call. */
+  /**
+   * One call over the whole change. A change without new declarations in source files needs no call: a declaration in
+   * a documentation example has no implementation to supply, so no finding about it could be kept.
+   */
   public async consolidation(request: ConsolidationRequest): Promise<readonly Finding[]> {
-    const declarations = newDeclarations(request.blocks);
+    const declarations = newDeclarations(request.blocks.filter((block) => isSourceCodePath(block.filePath)));
     if (declarations.length === 0) {
       return [];
     }

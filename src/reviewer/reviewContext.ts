@@ -4,7 +4,7 @@ import { architectureSlice } from './architecture';
 import { importCandidates, relativeImports } from './investigation';
 import { redactSecrets } from './redact';
 import { reviewInventory } from './reviewInventory';
-import { isSourceCodePath } from './standardsSources';
+import { isCodeFileName, isSourceCodePath } from './standardsSources';
 import { readWorkspaceFile } from './workspace';
 
 const MAX_SEARCH_CHARS = 16_000_000;
@@ -127,7 +127,9 @@ export const collectComponentContext = async (
   if (requestedPaths.some((path) => !known.has(path) || !isSourceCodePath(path))) {
     throw new Error('Additional evidence must name eligible source files from the current repository inventory');
   }
-  const primary = blocks.map((block) => block.filePath);
+  // Documentation and data files are never source evidence, so a changed README must not block the review. A code
+  // file stays required even when it is unsafe or excluded (outside the workspace, hidden), so that still fails closed.
+  const primary = blocks.map((block) => block.filePath).filter(isCodeFileName);
   const paths = [...new Set([...primary.filter(isSourceCodePath), ...requestedPaths, ...inventory.paths])];
   const sources = await searchSources(root, paths);
   const priority = prioritize(blocks, modules, sources);

@@ -213,6 +213,11 @@ export const tests: readonly TestCase[] = [
         const callsBefore = calls.length;
         assert.deepEqual(await client.consolidation({ blocks: [{ ...request, patch: '@@\n+x + 1' }] }), [], 'no declarations, no call');
         assert.equal(calls.length, callsBefore);
+        const readme = { ...request, filePath: 'README.md', patch: '@@\n+const example = 42;' };
+        assert.deepEqual(await client.consolidation({ blocks: [readme] }), [], 'a declaration in a documentation example needs no call');
+        assert.equal(calls.length, callsBefore);
+        await client.consolidation({ blocks: [request, readme] });
+        assert.equal(calls.length, callsBefore + 1, 'a documentation example does not stop consolidation of the source beside it');
       });
     },
   },

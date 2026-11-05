@@ -67,6 +67,19 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
+    name: 'a changed documentation file never blocks the component review of the source files beside it',
+    run: async (): Promise<void> => {
+      const root = await fixture();
+      await writeFile(join(root, 'README.md'), '```ts\nconst example = 42;\n```\n');
+      const readme: ReviewRequest = { filePath: 'README.md', startLine: 1, endLine: 1, patch: '+const example = 42;' };
+      const context = await collectComponentContext(root, [BLOCK, readme], MODULES);
+      assert.ok(context.files.some((file) => file.path === BLOCK.filePath), 'the source file is still reviewed');
+      assert.ok(!context.files.some((file) => file.path === 'README.md'), 'documentation is not supplied as source');
+      await assert.rejects(collectComponentContext(root, [readme, { ...BLOCK, filePath: '.hidden/changed.ts' }], MODULES), /complete source files/u,
+        'an excluded code file still fails closed');
+    },
+  },
+  {
     name: 'component prompts preserve rule isolation, full map context and source redaction',
     run: async (): Promise<void> => {
       const root = await fixture();
