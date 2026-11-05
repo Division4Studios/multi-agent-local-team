@@ -64,8 +64,8 @@ body:
     id: malt-version
     attributes:
       label: MALT version
-      description: Extensions view → MALT, or the commit you built from.
-      placeholder: 0.0.1
+      description: Extensions view → MALT (the release version), or the commit you built from.
+      placeholder: 1.0.0
     validations:
       required: true
   - type: input

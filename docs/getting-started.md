@@ -1,8 +1,12 @@
 # Your first MALT review
 
-MALT reviews saved changes in a local Git repository inside VS Code. It does not create a pull request or commit changes for you. This is an early preview, currently installed from source or a locally built VSIX.
+MALT reviews saved changes in a local Git repository inside VS Code. It does not create a pull request or commit changes for you.
 
-## Install and launch
+## Install a release
+
+Download `malt-X.Y.Z.vsix` from the [latest release](https://github.com/Division4Studios/multi-agent-local-team/releases/latest), run **Extensions: Install from VSIX…** in VS Code 1.144 or newer, and select the file. Reload when prompted, then continue with [Connect a reviewer](#connect-a-reviewer). To check where a download came from, see [Install and verify a release](releasing.md#install-and-verify-a-release).
+
+## Run from source
 
 1. Install Node.js 24 or newer, VS Code 1.144 or newer, and Docker with a running Linux engine. TypeScript 7 compilation requires Docker; see the [toolchain guide](toolchain.md).
 2. Clone this repository, run `npm ci`, and open its folder in VS Code.
