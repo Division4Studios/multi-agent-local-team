@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- On Linux with native Docker, the reviewer runs as your own user, so it can read a workspace in a private home folder even when your user ID isn't 1000. It never runs as root. ([#34](https://github.com/Division4Studios/multi-agent-local-team/issues/34))
 - A standards scan shows what each running stage is doing (waiting for the model, thinking, writing with a character count, or possibly stalled after 2 minutes of silence) and how long it has run, instead of only a count of finished stages.
 - Rule checks after a standards rescan: a saved review that names a renamed or removed rule is reviewed again with the current rules, instead of failing on every retry with "Unknown rule".
 - Rule checks and consolidation are no longer rejected by the API ("input_schema.type: Field required", "input_schema does not support oneOf, allOf, or anyOf at the top level"). An evidence request is now a `needsContext` field of the answer; an answer that contains one is never counted as a verdict.

@@ -36,9 +36,51 @@ const buildContext = async (extensionRoot: string): Promise<Buffer> => {
 
 const shortHash = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex').slice(0, 12);
 
-const containerSpec = (image: string, options: StartOptions): Record<string, unknown> => ({
+/** What decides the container identity: the host's platform, user and groups, and the engine's `/info`. */
+export interface UserContext {
+  readonly platform: NodeJS.Platform;
+  readonly uid: number | undefined;
+  readonly gid: number | undefined;
+  /** The developer's supplementary groups (`process.getgroups()`); shared workspaces are often reached through them. */
+  readonly groups: readonly number[];
+  readonly engine: unknown;
+}
+
+/** The container's `User` and its extra groups (Docker's `GroupAdd`). */
+export interface ContainerIdentity {
+  readonly user: string;
+  readonly groups: readonly string[];
+}
+const NODE_IDENTITY: ContainerIdentity = { user: 'node', groups: [] };
+
+/**
+ * The container identity (#34). A native, rootful Linux engine checks bind-mounted files against the container's own
+ * UID and groups, so there the reviewer runs as the developer's UID:GID with their supplementary groups and reads
+ * exactly what they can, no more: a workspace shared through a group stays readable. Everywhere else it keeps the
+ * image's unprivileged `node` user: Docker Desktop (any OS) maps file ownership itself, rootless Docker maps container
+ * IDs to other host IDs, and the reviewer never runs as root or in the root group, even when VS Code does. An
+ * unreadable `/info` also keeps `node`, the previous behavior.
+ */
+export const containerIdentity = ({ platform, uid, gid, groups, engine }: UserContext): ContainerIdentity =>
+  platform === 'linux' && uid !== undefined && gid !== undefined && uid !== 0 && gid !== 0 && isNativeRootfulEngine(engine)
+    ? { user: `${String(uid)}:${String(gid)}`, groups: [...new Set(groups.filter((group) => group !== 0 && group !== gid))].map(String) }
+    : NODE_IDENTITY;
+
+/** A Linux engine that is neither Docker Desktop nor rootless, judged from `/info`; anything unreadable is neither. */
+const isNativeRootfulEngine = (engine: unknown): boolean => {
+  if (!isRecord(engine)) {
+    return false;
+  }
+  const system = engine['OperatingSystem'];
+  const security = engine['SecurityOptions'];
+  return typeof system === 'string' && !system.includes('Docker Desktop')
+    && Array.isArray(security) && security.every((option) => typeof option === 'string' && !option.includes('name=rootless'));
+};
+
+/** Mode 1777: the reviewer's home and temp folders are writable whichever unprivileged user it runs as. */
+export const containerSpec = (image: string, options: StartOptions, identity: ContainerIdentity): Record<string, unknown> => ({
   Image: image,
-  User: 'node',
+  User: identity.user,
   Env: [
     `MALT_PORT=${String(CONTAINER_PORT)}`,
     'MALT_HOST=0.0.0.0',
@@ -50,9 +92,10 @@ const containerSpec = (image: string, options: StartOptions): Record<string, unk
   Labels: { 'dev.malt.role': 'reviewer', 'dev.malt.workspace': options.workspaceRoot },
   HostConfig: {
     Mounts: [{ Type: 'bind', Source: options.workspaceRoot, Target: '/workspace', ReadOnly: true }],
+    ...(identity.groups.length === 0 ? {} : { GroupAdd: identity.groups }),
     PortBindings: { [`${String(CONTAINER_PORT)}/tcp`]: [{ HostIp: '127.0.0.1', HostPort: String(options.port) }] },
     ReadonlyRootfs: true,
-    Tmpfs: { '/tmp': 'rw,nosuid,size=128m', '/home/node': 'rw,nosuid,size=256m' },
+    Tmpfs: { '/tmp': 'rw,nosuid,size=128m,mode=1777', '/home/node': 'rw,nosuid,size=256m,mode=1777' },
     CapDrop: ['ALL'],
     SecurityOpt: ['no-new-privileges'],
     Memory: 1_073_741_824,
@@ -82,7 +125,10 @@ export class DockerBackend implements ReviewerBackend {
     const name = `malt-reviewer-${shortHash(options.workspaceRoot)}`;
     this.containerName = name;
     await this.remove(name);
-    const created = await this.client.sendJson('POST', `/containers/create?name=${name}`, containerSpec(image, options));
+    const identity = containerIdentity({
+      platform: process.platform, uid: process.getuid?.(), gid: process.getgid?.(), groups: process.getgroups?.() ?? [], engine: await this.client.info(),
+    });
+    const created = await this.client.sendJson('POST', `/containers/create?name=${name}`, containerSpec(image, options, identity));
     if (created.status !== 201) {
       throw new Error(dockerErrorMessage(created));
     }
@@ -90,7 +136,7 @@ export class DockerBackend implements ReviewerBackend {
     if (started.status !== 204 && started.status !== 304) {
       throw new Error(dockerErrorMessage(started));
     }
-    this.log(`Started container ${name} from ${image}`);
+    this.log(`Started container ${name} from ${image} as user ${identity.user}${identity.groups.length === 0 ? '' : ` (groups ${identity.groups.join(', ')})`}`);
   }
 
   public async stop(): Promise<void> {

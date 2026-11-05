@@ -8,7 +8,7 @@
  * MALT_LIVE_MODEL (default `haiku`) at low effort, so a run costs a few cents.
  */
 import { randomBytes } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -75,16 +75,14 @@ const liveProfilesEnv = (): Record<string, string> => {
 };
 
 /**
- * Writes the fixture readable by the container's non-root user. mkdtemp creates the folder 0700 for the host user,
- * and on a Linux host (unlike Docker Desktop) that user's UID need not match the container's.
+ * Writes fixture files. The root stays as mkdtemp makes it, 0700 and private to the host user, like a workspace in
+ * a private home folder: on a native Linux engine the reviewer must run as that user to read it (#34), so the CI run
+ * on GitHub's Linux runner (UID 1001) is the regression test.
  */
 const writeFixture = async (root: string, files: Readonly<Record<string, string>>): Promise<void> => {
-  await chmod(root, 0o755);
   for (const [path, text] of Object.entries(files)) {
-    const folder = dirname(join(root, path));
-    await mkdir(folder, { recursive: true, mode: 0o755 });
-    await chmod(folder, 0o755);
-    await writeFile(join(root, path), text, { mode: 0o644 });
+    await mkdir(dirname(join(root, path)), { recursive: true });
+    await writeFile(join(root, path), text);
   }
 };
 
