@@ -14,7 +14,7 @@ import { saveMapFile } from '../../architecture/storage';
 import { ground, groundModules } from '../../reviewer/understanding';
 import { loadArchitecture } from '../../reviewer/workspace';
 import { feedVerifier, signMap } from '../../shared/feedSignature';
-import { parseDiscussion } from '../../shared/understanding';
+import { INTERPRETATION_LIMITS, interpretationSchema, parseDiscussion, parseInterpretation } from '../../shared/understanding';
 import type { TestCase } from './harness';
 
 const source = 'export function enqueue() { return buffer.push(1); }';
@@ -213,6 +213,36 @@ export const tests: readonly TestCase[] = [
       } finally {
         await rm(root, { recursive: true, force: true });
       }
+    },
+  },
+  {
+    name: 'understanding: every answer the discussion schema allows is accepted and kept whole',
+    run: (): void => {
+      // Every string the model writes has a maxLength, so the CLI keeps it within what MALT accepts.
+      const unbounded: string[] = [];
+      const walk = (node: unknown, at: string): void => {
+        if (Array.isArray(node)) { node.forEach((item, index) => { walk(item, `${at}[${String(index)}]`); }); return; }
+        if (typeof node !== 'object' || node === null) { return; }
+        const entries = Object.entries(node);
+        if (!at.endsWith('.view') && entries.some(([name, value]) => name === 'type' && value === 'string') && !entries.some(([name]) => name === 'maxLength')) {
+          unbounded.push(at);
+        }
+        for (const [name, value] of entries) { walk(value, `${at}.${name}`); }
+      };
+      walk(interpretationSchema, 'schema');
+      assert.deepEqual(unbounded, [], 'every field but the view kind (checked against the MALT view list) has a maxLength');
+      const L = INTERPRETATION_LIMITS;
+      const quote = 'q'.repeat(L.quote);
+      const longest = {
+        what: 'w'.repeat(L.text), whatEvidence: quote, why: 'y'.repeat(L.text), whyEvidence: quote, question: 'k'.repeat(L.question), role: 'r'.repeat(L.role),
+        explanations: [{ symbol: 's'.repeat(L.symbol), summary: 'm'.repeat(L.summary), evidence: quote, view: 'architecture', reason: 'n'.repeat(L.reason) }],
+        claims: [{ view: 'sequence', title: 't'.repeat(L.name), from: 'f'.repeat(L.name), to: 'o'.repeat(L.name), label: 'l'.repeat(L.label), evidence: quote, summary: 'm'.repeat(L.summary) }],
+      };
+      const parsed = parseInterpretation(longest);
+      assert.ok(parsed !== undefined, 'the reviewer accepts the longest schema-valid answer');
+      const grounded = ground(parsed, quote);
+      assert.deepEqual(grounded, longest, 'grounding keeps every field whole: nothing is cut mid-sentence');
+      assert.deepEqual(parseInterpretation(JSON.parse(JSON.stringify(grounded))), longest, 'and the extension accepts what the reviewer returns');
     },
   },
 ];
