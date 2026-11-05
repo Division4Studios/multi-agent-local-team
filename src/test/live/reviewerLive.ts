@@ -4,8 +4,9 @@
  * cannot complete these calls (an API-rejected schema, an unparsable answer, a broken image) must not be released.
  *
  * Run by `.github/workflows/reviewer-live.yml` (required before a release is drafted) and locally with
- * `npm run test:live`. Needs ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN in the environment. Every call uses
- * MALT_LIVE_MODEL (default `haiku`) at low effort, so a run costs a few cents.
+ * `npm run test:live`. Needs ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN in the environment. Each call type uses
+ * the model and effort MALT ships as its default, so the gate proves the configuration users get; MALT_LIVE_MODEL
+ * runs every call on one model at low effort instead (for example `haiku`, for a cheaper local check).
  */
 import { randomBytes } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -18,7 +19,7 @@ import { ReviewerClient } from '../../review/reviewerClient';
 import { gapId } from '../../shared/investigation';
 import { ARCHITECTURE_FILE, PROTOCOL_VERSION, STANDARDS_FILE } from '../../shared/protocol';
 import type { Finding, ReviewRequest } from '../../shared/protocol';
-import { profileFrom, profilesToEnv } from '../../shared/reviewProfiles';
+import { profileFrom, profilesFromEnv, profilesToEnv } from '../../shared/reviewProfiles';
 import type { ScanProgress } from '../../shared/scanProgress';
 
 const out = (line: string): void => {
@@ -69,8 +70,13 @@ const credentials = (): Record<string, string> => {
   return env;
 };
 
+/** The shipped defaults, or every call on MALT_LIVE_MODEL at low effort. */
 const liveProfilesEnv = (): Record<string, string> => {
-  const profile = profileFrom('check', process.env['MALT_LIVE_MODEL'] ?? 'haiku', 'low');
+  const model = process.env['MALT_LIVE_MODEL'];
+  if (model === undefined || model === '') {
+    return profilesToEnv(profilesFromEnv({}));
+  }
+  const profile = profileFrom('check', model, 'low');
   return profilesToEnv({ overview: profile, check: profile, consolidation: profile, standards: profile, investigation: profile });
 };
 
@@ -118,7 +124,8 @@ const runner = (): Run => {
       const started = Date.now();
       const seconds = (): string => `${((Date.now() - started) / 1000).toFixed(1)}s`;
       try {
-        out(`ok      ${name} (${seconds()}): ${await call()}`);
+        const result = await call();
+        out(`ok      ${name} (${seconds()}): ${result}`);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         if (INCONCLUSIVE.test(message)) {

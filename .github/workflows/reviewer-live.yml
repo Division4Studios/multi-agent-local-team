@@ -12,7 +12,8 @@ name: Live reviewer
 #   which only dev, main and v* tags may use, so pull request and fork code never sees it.
 # - The token is read-only, and the checkout does not persist credentials.
 # - The credential reaches only the test process, which passes it to the reviewer container as the extension does.
-# - Every call uses Haiku at low effort, so a run costs a few cents. Without a credential the run fails; it never skips.
+# - Each call type uses the model and effort MALT ships as its default (Opus for the standards scan), so the gate
+#   proves what users run. Without a credential the run fails; it never skips.
 on:
   push:
     branches: [dev]
