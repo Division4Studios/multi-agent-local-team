@@ -96,9 +96,15 @@ Code under review can try to talk to the reviewer, so repository text only ever 
 
 ## 🚀 Getting started
 
-> MALT is not published to the VS Code Marketplace yet. To try the development build:
+**Install a release** (VS Code 1.144+):
 
-**Prerequisites:** [Node.js 24+](https://nodejs.org/), [VS Code 1.144+](https://code.visualstudio.com/), and Docker with a running Linux engine. See the [TypeScript 7 toolchain guide](docs/toolchain.md).
+1. Download `malt-X.Y.Z.vsix` from the [latest release](https://github.com/Division4Studios/multi-agent-local-team/releases/latest). MALT is not on the VS Code Marketplace.
+2. In VS Code, run **Extensions: Install from VSIX…** and select the file.
+3. Open a git repository and click the **MALT** icon in the activity bar.
+
+Every release is built by GitHub Actions from a signed tag, with a checksum and a provenance attestation you can check with `gh attestation verify`. See [Install and verify a release](docs/releasing.md#install-and-verify-a-release).
+
+**Run from source** instead, to develop MALT. Prerequisites: [Node.js 24+](https://nodejs.org/), [VS Code 1.144+](https://code.visualstudio.com/), and Docker with a running Linux engine. See the [TypeScript 7 toolchain guide](docs/toolchain.md).
 
 ```sh
 git clone https://github.com/Division4Studios/multi-agent-local-team.git
@@ -145,6 +151,7 @@ Then open the folder in VS Code and press <kbd>F5</kbd>. A new **Extension Devel
 | `npm test` | Compile, then run the tests inside a real VS Code instance |
 | `npm run verify` | Everything CI runs: deps → types → lint → tests |
 | `npm run vsix` | Package the extension as a `.vsix` |
+| `npm run release:bump -- <major\|minor\|patch>` | Start a release: set the next version and date its changelog section ([Releasing](docs/releasing.md)) |
 
 ## 🏗️ How we build MALT
 
@@ -156,6 +163,7 @@ A tool that keeps slop out of other repos has to keep it out of its own first. T
 - **Isolated native builds.** TypeScript 7 runs in Docker without external network access, with read-only inputs and host writes restricted to `out/`. ESLint uses Microsoft's TypeScript 6 compatibility API and retains Node permission restrictions. Those restrictions are safeguards, not a boundary against malicious code. See the [toolchain guide](docs/toolchain.md).
 - **Tiny, frozen toolchain.** A fixed allowlist of dev tools, exact versions, a committed lockfile, install scripts disabled, and CI that fails if anything else appears. See [Supply-chain policy](SECURITY.md#supply-chain-policy).
 - **Protected, signed history.** Every change reaches `dev` through a reviewed pull request whose commits are all signed, with every check green and no new CodeQL alerts; `main` only takes releases from `dev`. Nobody can bypass that, maintainers included. See [repository settings](docs/repository-settings.md).
+- **Verifiable releases.** Each release is built by GitHub Actions from a signed tag on `main`, after the full CI matrix, from JavaScript byte-identical to what CI tested, with a SHA-256 checksum and a signed provenance attestation. See [Releasing](docs/releasing.md).
 - **AI-assisted contributions welcome — with disclosure and ownership.** See [CONTRIBUTING.md](CONTRIBUTING.md#ai-assisted-contributions).
 
 ## 🤝 Contributing
