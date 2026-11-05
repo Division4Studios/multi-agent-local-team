@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { ArchitectureModule } from '../shared/protocol';
+import { INTERPRETATION_LIMITS as L } from '../shared/understanding';
 import type { Interpretation } from '../shared/understanding';
 import { sanitizeText } from './trust';
 import type { SourceFile } from './standardsSources';
@@ -28,17 +29,17 @@ export const DISCUSSION_PROMPT = [
 
 const verifiedQuote = (source: string, quote: string): string => {
   const text = quote.trim();
-  return text.length >= 6 && text.length <= 600 && source.includes(text) ? text : '';
+  return text.length >= 6 && text.length <= L.quote && source.includes(text) ? text : '';
 };
 export const ground = (input: Interpretation, source: string): Interpretation => ({
-  ...(input.explanations === undefined ? {} : { explanations: input.explanations.map((item) => ({ symbol: sanitizeText(item.symbol, 120), summary: sanitizeText(item.summary, 600), evidence: verifiedQuote(source, item.evidence), view: item.view, reason: sanitizeText(item.reason, 400) })) }),
+  ...(input.explanations === undefined ? {} : { explanations: input.explanations.map((item) => ({ symbol: sanitizeText(item.symbol, L.symbol), summary: sanitizeText(item.summary, L.summary), evidence: verifiedQuote(source, item.evidence), view: item.view, reason: sanitizeText(item.reason, L.reason) })) }),
   ...(input.claims === undefined ? {} : { claims: input.claims.map((c) => ({
-    view: c.view, title: sanitizeText(c.title, 100), from: sanitizeText(c.from, 100), to: sanitizeText(c.to, 100),
-    label: sanitizeText(c.label, 200), evidence: verifiedQuote(source, c.evidence),
-    ...Object.fromEntries(['summary', 'fromSummary', 'toSummary'].flatMap(key => { const text: unknown = Reflect.get(c, key); return typeof text === 'string' ? [[key, sanitizeText(text, 600)]] : []; })),
+    view: c.view, title: sanitizeText(c.title, L.name), from: sanitizeText(c.from, L.name), to: sanitizeText(c.to, L.name),
+    label: sanitizeText(c.label, L.label), evidence: verifiedQuote(source, c.evidence),
+    ...Object.fromEntries(['summary', 'fromSummary', 'toSummary'].flatMap(key => { const text: unknown = Reflect.get(c, key); return typeof text === 'string' ? [[key, sanitizeText(text, L.summary)]] : []; })),
   })) }),
-  ...(input.role === undefined ? {} : { role: sanitizeText(input.role, 100) }),
-  what: sanitizeText(input.what, 800), why: sanitizeText(input.why, 800), question: sanitizeText(input.question, 400),
+  ...(input.role === undefined ? {} : { role: sanitizeText(input.role, L.role) }),
+  what: sanitizeText(input.what, L.text), why: sanitizeText(input.why, L.text), question: sanitizeText(input.question, L.question),
   whatEvidence: verifiedQuote(source, input.whatEvidence), whyEvidence: verifiedQuote(source, input.whyEvidence),
 });
 

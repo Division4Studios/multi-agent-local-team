@@ -90,3 +90,21 @@ test('paths do not masquerade as explanations and unannotated participants get s
   const explained = texts(cards(draw(diagram))[0]).filter((line) => line.getAttribute('class') === 'card-summary').map((line) => line.textContent).join(' ');
   assert.equal(explained, diagram.items[0].detail);
 });
+
+test('connection labels stay inside the drawing for long chains and crowded fan-outs', () => {
+  const node = (id) => ({ id, label: 'Node ' + id, summary: 'Handles step ' + id });
+  const chainItems = Array.from({ length: 21 }, (_, i) => node('c' + String(i)));
+  const chain = { id: 'chain', kind: 'dataflow', title: 'Chain', path: 'src/a.ts', items: chainItems,
+    links: chainItems.slice(1).map((item, i) => ({ from: chainItems[i].id, to: item.id, label: 'passes data ' + String(i), kind: 'dependency' })) };
+  const sinks = Array.from({ length: 30 }, (_, i) => node('s' + String(i)));
+  const fan = { id: 'fan', kind: 'dataflow', title: 'Fan-out', path: 'src/a.ts', items: [node('hub'), ...sinks],
+    links: sinks.map((item, i) => ({ from: 'hub', to: item.id, label: 'feeds ' + String(i), kind: 'dependency' })) };
+  for (const diagram of [chain, fan]) {
+    const svg = draw(diagram);
+    const [, , , height] = svg.getAttribute('viewBox').split(' ').map(Number);
+    const labels = svg.children.filter((child) => child.getAttribute('class') === 'edge-label');
+    assert.equal(labels.length, diagram.links.length, diagram.id + ': every connection is labelled');
+    assert.ok(labels.every((label) => Number(label.getAttribute('y')) >= 11 && Number(label.getAttribute('y')) <= height), diagram.id + ': no label leaves the viewBox');
+    assert.doesNotThrow(() => renderDiagram(diagram), diagram.id + ': portable geometry accepts it');
+  }
+});

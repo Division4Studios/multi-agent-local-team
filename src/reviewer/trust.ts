@@ -10,6 +10,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import type { ArchitectureModule, BlockOverview, Finding, FindingAnchor, Rule, RuleCheck } from '../shared/protocol';
+import { INTERPRETATION_LIMITS } from '../shared/understanding';
 import type { Understanding } from '../shared/understanding';
 
 const RULE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
@@ -18,7 +19,7 @@ const FIELD_LIMITS = { title: 120, check: 300, category: 32, source: 200 };
 const NOTE_LIMIT = 500;
 const DETAIL_LIMIT = 6_000;
 const MODULE_LIMITS = { purpose: 200, exportName: 80, exports: 30 };
-const UNDERSTANDING_LIMITS = { text: 800, question: 400, evidence: 600, confirmed: 1_600 };
+const UNDERSTANDING_LIMITS = { text: INTERPRETATION_LIMITS.text, question: INTERPRETATION_LIMITS.question, evidence: INTERPRETATION_LIMITS.quote, confirmed: 1_600 };
 const MAX_FINDINGS = 20;
 
 /** The baseline rule that catches prompt injection; it is checked on every block, whatever the sorting says. */
@@ -100,9 +101,9 @@ const sanitizeQuote = (value: string): string =>
   value.replace(/[\p{Cf}]|[^\P{Cc}\n\r\t]/gu, ' ').slice(0, UNDERSTANDING_LIMITS.evidence);
 
 const sanitizeUnderstanding = (value: Understanding): Understanding => ({
-  ...(value.explanations === undefined ? {} : { explanations: value.explanations.map((item) => ({ symbol: sanitizeText(item.symbol, 120), summary: sanitizeText(item.summary, 600), evidence: sanitizeQuote(item.evidence), view: item.view, reason: sanitizeText(item.reason, 400) })) }),
-  ...(value.claims===undefined ? {} : {claims:value.claims.map(c=>({view:c.view,title:sanitizeText(c.title,100),from:sanitizeText(c.from,100),to:sanitizeText(c.to,100),label:sanitizeText(c.label,200),evidence:sanitizeQuote(c.evidence), ...Object.fromEntries(['summary', 'fromSummary', 'toSummary'].flatMap(key => { const text: unknown = Reflect.get(c, key); return typeof text === 'string' ? [[key, sanitizeText(text, 600)]] : []; }))}))}),
-  ...(value.role === undefined ? {} : { role: sanitizeText(value.role, 100) }),
+  ...(value.explanations === undefined ? {} : { explanations: value.explanations.map((item) => ({ symbol: sanitizeText(item.symbol, INTERPRETATION_LIMITS.symbol), summary: sanitizeText(item.summary, INTERPRETATION_LIMITS.summary), evidence: sanitizeQuote(item.evidence), view: item.view, reason: sanitizeText(item.reason, INTERPRETATION_LIMITS.reason) })) }),
+  ...(value.claims===undefined ? {} : {claims:value.claims.map(c=>({view:c.view,title:sanitizeText(c.title,INTERPRETATION_LIMITS.name),from:sanitizeText(c.from,INTERPRETATION_LIMITS.name),to:sanitizeText(c.to,INTERPRETATION_LIMITS.name),label:sanitizeText(c.label,INTERPRETATION_LIMITS.label),evidence:sanitizeQuote(c.evidence), ...Object.fromEntries(['summary', 'fromSummary', 'toSummary'].flatMap(key => { const text: unknown = Reflect.get(c, key); return typeof text === 'string' ? [[key, sanitizeText(text, INTERPRETATION_LIMITS.summary)]] : []; }))}))}),
+  ...(value.role === undefined ? {} : { role: sanitizeText(value.role, INTERPRETATION_LIMITS.role) }),
   what: sanitizeText(value.what, UNDERSTANDING_LIMITS.text),
   whatEvidence: sanitizeQuote(value.whatEvidence),
   why: sanitizeText(value.why, UNDERSTANDING_LIMITS.text),

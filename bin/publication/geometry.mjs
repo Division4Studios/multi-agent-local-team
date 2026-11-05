@@ -93,7 +93,7 @@ function geometry(svg, d) {
     .map((c) => ({ link: d.links[Number(c.attrs['data-wire'])], parts: segments(c) }));
   const labels = svg.children
     .filter((c) => c.attrs.class === 'edge-label')
-    .map((c) => ({ x: number(c.attrs, 'x'), y: number(c.attrs, 'y') - 10, w: 6 * c.textContent.length, h: 11 }));
+    .map((c) => ({ x: number(c.attrs, 'x'), y: number(c.attrs, 'y') - 10, w: 6 * c.textContent.length, h: 11, text: c.textContent }));
   requireValue(
     cards.every((c) => [c.x, c.y, c.w, c.h].every(Number.isFinite)) &&
       [svg.attrs.width, svg.attrs.height].every((v) => Number.isFinite(Number(v))),
@@ -111,6 +111,10 @@ function geometry(svg, d) {
         requireValue(shared || !b.parts.some((p) => corridor(part, p)), 'Overlapping independent route corridors: ' + a.link.label);
       }
     }
+  }
+  const [, , viewWidth, viewHeight] = String(svg.attrs.viewBox).split(' ').map(Number);
+  for (const l of labels) {
+    requireValue(l.x >= 0 && l.y >= 0 && l.x + l.w <= viewWidth && l.y + l.h <= viewHeight, 'Relationship label outside the drawing: ' + l.text);
   }
   for (const [i, l] of labels.entries()) {
     requireValue(

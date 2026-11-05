@@ -1,0 +1,139 @@
+name: Release
+
+# Builds a MALT release when a maintainer pushes a signed vMAJOR.MINOR.PATCH tag. See docs/releasing.md.
+#
+# 1. check: the tag must be an annotated tag with a signature GitHub verifies, on a commit in main's first-parent
+#    history (a release pull request's merge commit), and match the version in package.json, package-lock.json
+#    and a dated CHANGELOG.md section (scripts/release.mts check).
+# 2. verify: the full CI matrix (ci.yml) on the tagged commit.
+# 3. publish: rebuilds the .vsix, fails unless the compiled JavaScript is byte-identical to what CI tested, records a
+#    signed build provenance attestation, and creates a DRAFT release with the .vsix and its SHA-256 checksum.
+#    A maintainer reviews the draft and publishes it. Publishing makes the release immutable (repository setting)
+#    and, because a person does it, triggers the Discord feeds (events made with GITHUB_TOKEN trigger no workflows).
+#
+# Security:
+# - Only the repository admin can create v* tags, and nobody can move or delete them (the `release tags` ruleset).
+# - The token has no permissions by default; only the publish job can write releases and sign attestations.
+#   Checkouts don't persist credentials, and only the steps that call GitHub receive a token.
+# - The tag name reaches scripts as data (env), and is checked against vMAJOR.MINOR.PATCH before use.
+# - Releases never use the npm cache, so a poisoned cache entry from another workflow can't reach a release.
+# - `gh release create` refuses if a release for the tag already exists, so a re-run never replaces one.
+on:
+  push:
+    tags: ['v*']
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Tag is vMAJOR.MINOR.PATCH, signed, annotated and on main
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Release tags are vMAJOR.MINOR.PATCH; got $TAG"; exit 1
+          fi
+          read -r type object < <(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha')
+          if [ "$type" != "tag" ]; then
+            echo "::error::$TAG is a lightweight tag. Create it with: git tag -s $TAG -m \"MALT ${TAG#v}\""; exit 1
+          fi
+          read -r verified target < <(gh api "repos/$GH_REPO/git/tags/$object" --jq '(.verification.verified | tostring) + " " + .object.sha')
+          if [ "$verified" != "true" ]; then
+            echo "::error::GitHub could not verify the signature on $TAG. Sign it with a key on your GitHub account (git tag -s)."; exit 1
+          fi
+          if [ "$target" != "$GITHUB_SHA" ]; then
+            echo "::error::$TAG points to $target, not the commit this run checked out ($GITHUB_SHA)"; exit 1
+          fi
+          if ! git rev-list --first-parent origin/main | grep -qx "$GITHUB_SHA"; then
+            echo "::error::$TAG must point to a commit on main (the release pull request's merge commit)"; exit 1
+          fi
+
+      - name: Tag matches package.json, package-lock.json and CHANGELOG.md
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node scripts/release.mts check "$TAG" "$RUNNER_TEMP/release-notes.md"
+
+  verify:
+    needs: check
+    name: CI
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: verify
+    name: Build and draft release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # create the draft release and upload its assets
+      id-token: write # sign the build provenance attestation (Sigstore)
+      attestations: write # store the attestation on this repository
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install (lockfile only, no install scripts) and enforce dependency policy
+        run: npm ci && npm run check-deps
+
+      - name: Download the JavaScript CI tested
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: typescript7-output
+          path: ${{ runner.temp }}/tested-out
+
+      - name: Package the extension (compiles with TypeScript 7 in the isolated container)
+        env:
+          TAG: ${{ github.ref_name }}
+        run: npx --no-install vsce package --no-dependencies --out "malt-${TAG#v}.vsix"
+
+      - name: Shipped JavaScript is byte-identical to what CI tested
+        run: diff -r "$RUNNER_TEMP/tested-out" out
+
+      - name: Checksum
+        env:
+          TAG: ${{ github.ref_name }}
+        run: sha256sum "malt-${TAG#v}.vsix" | tee SHA256SUMS.txt
+
+      - name: Build provenance attestation
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: malt-*.vsix
+
+      - name: Draft the release
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          node scripts/release.mts check "$TAG" "$RUNNER_TEMP/release-notes.md"
+          gh release create "$TAG" --draft --verify-tag --title "MALT ${TAG#v}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" "malt-${TAG#v}.vsix" SHA256SUMS.txt
+          echo "Draft release created. Review it, then publish: https://github.com/$GH_REPO/releases" >> "$GITHUB_STEP_SUMMARY"
