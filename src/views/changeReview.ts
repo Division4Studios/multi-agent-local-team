@@ -9,8 +9,10 @@ import { isRecord, isString } from '../shared/guards';
 import { workspaceFile } from '../editor/findingHighlight';
 import { getGitApi } from '../git/gitApi';
 import type { GitRepository } from '../git/gitApi';
-import { changeDiscussion, changePacket } from './changeReviewModel';
-import type { ChangePacket } from './changeReviewModel';
+import { changeDialogue, changeDiscussion, changePacket } from './changeReviewModel';
+import type { ChangePacket, Verification } from './changeReviewModel';
+import { reviewerTurn } from '../architecture/discussion';
+import type { Turn } from '../architecture/discussion';
 import { changeReviewState, ensureChangeReviewer } from './changeReviewState';
 
 interface Deps {
@@ -58,8 +60,8 @@ class ChangeReview implements vscode.Disposable {
   private generation = 0;
   private busy = false;
   private closed = false;
-  private turns: { role: string; text: string }[] = [];
-  private verification: { outcome: string; note: string } | undefined;
+  private turns: Turn[] = [];
+  private verification: Verification | undefined;
   public constructor(deps: Deps, folder: vscode.WorkspaceFolder, repository: GitRepository | undefined) {
     this.deps = deps; this.folder = folder; this.repository = repository;
     this.panel = vscode.window.createWebviewPanel('malt.changeReview', 'Before commit', vscode.ViewColumn.Active,
@@ -156,14 +158,14 @@ class ChangeReview implements vscode.Disposable {
     try {
       const client = await this.reviewer();
       const evidence = changeDiscussion(this.deps.store, packet);
-      const turns = [...this.turns.slice(-6), { role: 'developer', text: question.trim() }];
-      const context = `${evidence.context}\nDeveloper-reported verification (not independently verified): ${JSON.stringify(this.verification ?? null)}`;
-      const answer = await client.discuss({ path: 'Before commit', source: evidence.source, context, dialogue: JSON.stringify(turns) });
+      const history = this.turns.slice(-6), asked: Turn = { role: 'developer', text: question.trim() };
+      const dialogue = changeDialogue(history, this.verification, asked.text);
+      const answer = await client.discuss({ path: 'Before commit', source: evidence.source, context: evidence.context, dialogue });
       if (generation !== this.generation || identity !== this.identity(this.packet())) {
         this.post({ type: 'notice', text: 'The changes or recorded reviews changed while the answer was being prepared. Ask again for the current evidence.' });
         return;
       }
-      this.turns = [...turns, { role: 'reviewer', text: `${answer.what}\n${answer.why}\n${answer.question}` }];
+      this.turns = [...history, asked, reviewerTurn(answer)];
       this.post({ type: 'answer', question, answer, supplied: evidence.supplied, omitted: evidence.omitted });
     } finally { this.busy = false; this.post({ type: 'idle' }); }
   }

@@ -6,6 +6,8 @@ import { verdictOf } from '../review/reviewProgress';
 import type { ArchitectureModule, Finding } from '../shared/protocol';
 import { importCandidates, relativeImports } from '../reviewer/investigation';
 import { redactSecrets } from '../reviewer/redact';
+import { dialogueOf } from '../architecture/discussion';
+import type { Turn } from '../architecture/discussion';
 
 export interface ChangeBlock {
   readonly id: string;
@@ -121,4 +123,19 @@ const boundedContext = (context: string, packet: ChangePacket, omitted: number):
   });
   while (fallback().length > 10_000) { kept.pop(); }
   return fallback();
+};
+
+/** A test result the developer recorded on the page. MALT did not run or check it. */
+export interface Verification { readonly outcome: string; readonly note: string }
+
+/**
+ * The discussion dialogue: earlier turns, then the developer's recorded test result (their own words, so a developer
+ * turn, never MALT-asserted context), then the question. `dialogueOf` keeps it valid, bounded JSON whose roles only
+ * MALT sets, and drops the oldest turns first, so the result and the question are the last to go.
+ */
+export const changeDialogue = (history: readonly Turn[], verification: Verification | undefined, question: string): string => {
+  const reported: Turn[] = verification === undefined ? [] : [{
+    role: 'developer', text: `Developer-reported test result (not run or checked by MALT): ${verification.outcome}. ${verification.note}`,
+  }];
+  return dialogueOf([...history, ...reported, { role: 'developer', text: question }]);
 };
