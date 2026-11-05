@@ -1,8 +1,12 @@
 # Your first MALT review
 
-MALT reviews saved changes in a local Git repository inside VS Code. It does not create a pull request or commit changes for you. This is an early preview, currently installed from source or a locally built VSIX.
+MALT reviews saved changes in a local Git repository inside VS Code. It does not create a pull request or commit changes for you.
 
-## Install and launch
+## Install a release
+
+Download `malt-X.Y.Z.vsix` from the [latest release](https://github.com/Division4Studios/multi-agent-local-team/releases/latest), run **Extensions: Install from VSIX…** in VS Code 1.144 or newer, and select the file. Reload when prompted, then continue with [Connect a reviewer](#connect-a-reviewer). To check where a download came from, see [Install and verify a release](releasing.md#install-and-verify-a-release).
+
+## Run from source
 
 1. Install Node.js 24 or newer, VS Code 1.144 or newer, and Docker with a running Linux engine. TypeScript 7 compilation requires Docker; see the [toolchain guide](toolchain.md).
 2. Clone this repository, run `npm ci`, and open its folder in VS Code.
@@ -43,3 +47,7 @@ Set `malt.changes.autoOpen` to `false` to choose when to open changed files. Aut
 Set `malt.changes.autoReview` to `false` to review on demand with **MALT: Review All Unreviewed Changes**. Set `malt.reviewer.autoStart` to `false` to start the reviewer manually as well. Disable both to make a new workspace fully manual.
 
 See [all settings and commands](configuration.md), [standards and exclusions](standards.md), and [troubleshooting](troubleshooting.md).
+
+## Join the community
+
+Stuck, or want to show what MALT found? Join the [MALT Discord](https://discord.gg/DwSpsGjvFY): ask in **#help**, share exported diagrams in **#architecture-maps**, and talk through a wrong verdict in **#wrong-verdicts**.

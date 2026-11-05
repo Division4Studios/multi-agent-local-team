@@ -56,6 +56,8 @@ Choose **Finalize and export** in the editor to share the selected view. MALT fr
 
 Open the HTML directly, choose a component or related view, and inspect its fields and source. Connected links appear in ordered journeys that stop at the last relationship. Choose Live or Still, a theme and a display language. Export SVG, PNG, JPEG, WebP, WebM or clipboard from the same diagram. Raster output supports 1× to 4×. Clipboard and WebM require compatible browser APIs. Source cards can quote evidence and link to GitHub or GitLab at a full commit. MALT omits commit links for dirty working-tree evidence.
 
+To share a diagram with other builders, post the exported image or HTML in **#architecture-maps** on the [MALT Discord](https://discord.gg/DwSpsGjvFY). Check that it shows nothing private first: exports can include file names, summaries and quoted source.
+
 ### Use the publisher directly
 
 ```sh

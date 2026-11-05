@@ -9,6 +9,8 @@ body:
 
         Review quality is MALT's whole job, so these reports matter. The most useful report has a **small, self-contained snippet** that reproduces the verdict on **Review Again**.
 
+        Not sure it's wrong? Talk it through in **#wrong-verdicts** on the [MALT Discord](https://discord.gg/DwSpsGjvFY) first.
+
         If the code made the reviewer ignore or rewrite its own rules, that's a security issue: please use [private vulnerability reporting](https://github.com/Division4Studios/multi-agent-local-team/security/advisories/new) instead.
   - type: dropdown
     id: kind
