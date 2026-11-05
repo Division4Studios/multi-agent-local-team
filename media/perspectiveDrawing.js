@@ -129,7 +129,18 @@ globalThis.drawMaltPerspective = function (svg, d, visible, select, settings) {
     shape.setAttribute('data-change', w.change || '');
     return shape;
   };
-  const labelRows = [];
+  /**
+   * Relationship labels already placed, as boxes. A new label moves by `step` until no earlier label overlaps it both
+   * vertically and horizontally, so labels in different columns never push each other.
+   */
+  const labelBoxes = [];
+  function freeRow(x, w, y, step) {
+    const clashes = (row) => labelBoxes.some((box) => Math.abs(box.y - row) < 18 && box.x < x + w && x < box.x + box.w);
+    let row = y;
+    while (clashes(row)) row += step;
+    labelBoxes.push({ x, w, y: row });
+    return row;
+  }
   function route(w, i) {
     const a = places.get(w.from),
       b = places.get(w.to);
@@ -165,10 +176,8 @@ globalThis.drawMaltPerspective = function (svg, d, visible, select, settings) {
       text(end + 2, bend - 3, '◀');
     }
     const gutter = Math.max(...[...places.values()].map((p) => p.x + p.w)) + 52 + Math.min(d.links.length, 12) * 14;
-    let row = (y + bend) / 2 - 3;
-    while (labelRows.some((previous) => Math.abs(previous - row) < 18)) row += 18;
-    labelRows.push(row);
     const caption = String(i + 1) + '. ' + linkLabel(w).slice(0, 42);
+    const row = freeRow(gutter, caption.length * 9, (y + bend) / 2 - 3, 18);
     const label = text(gutter, row, caption, 'edge-label');
     label.setAttribute('data-wire-label', String(i));
     width = Math.max(width, gutter + caption.length * 9 + 20);
@@ -222,26 +231,42 @@ globalThis.drawMaltPerspective = function (svg, d, visible, select, settings) {
       width = Math.max(width, x + 320);
       height = Math.max(height, y + rowHeight);
     });
-    for (const [i, w] of edges.entries()) {
+    // Forward connections are labelled above their cards; a crowded gap stacks its labels upwards.
+    const forward = new Map();
+    for (const w of edges) {
       const a = places.get(w.from),
         b = places.get(w.to);
       if (a.x < b.x) {
-        const x1 = a.x + a.w,
-          y1 = a.y + a.h / 2,
-          y2 = b.y + b.h / 2,
-          mid = (x1 + b.x) / 2;
-        identify(
-          element('path', { class: 'wire', fill: 'none', d: 'M ' + x1 + ' ' + y1 + ' H ' + mid + ' V ' + y2 + ' H ' + b.x }),
-          w,
-        );
-        text(b.x - 14, y2 - 2, '›');
-        let labelY = Math.min(a.y, b.y) - 12;
-        while (labelRows.some((previous) => Math.abs(previous - labelY) < 18)) { labelY -= 18; }
-        labelRows.push(labelY);
-        text(x1 + 3, labelY, w.label.slice(0, 24), 'edge-label');
-      } else {
-        route(w, i);
+        const x = a.x + a.w + 3,
+          label = w.label.slice(0, 24);
+        forward.set(w, { a, b, label, y: freeRow(x, label.length * 7, Math.min(a.y, b.y) - 12, -18) });
       }
+    }
+    // Labels stacked above the reserved margin would leave the viewBox: move the whole drawing down by that much.
+    const overflow = Math.max(0, 14 - Math.min(...[...forward.values()].map((f) => f.y)));
+    if (overflow > 0) {
+      for (const place of places.values()) place.y += overflow;
+      for (const box of labelBoxes) box.y += overflow;
+      for (const f of forward.values()) f.y += overflow;
+      height += overflow;
+    }
+    for (const [i, w] of edges.entries()) {
+      const f = forward.get(w);
+      if (f === undefined) {
+        route(w, i);
+        continue;
+      }
+      const { a, b } = f,
+        x1 = a.x + a.w,
+        y1 = a.y + a.h / 2,
+        y2 = b.y + b.h / 2,
+        mid = (x1 + b.x) / 2;
+      identify(
+        element('path', { class: 'wire', fill: 'none', d: 'M ' + x1 + ' ' + y1 + ' H ' + mid + ' V ' + y2 + ' H ' + b.x }),
+        w,
+      );
+      text(b.x - 14, y2 - 2, '›');
+      text(x1 + 3, f.y, f.label, 'edge-label');
     }
     visible.forEach((p) => {
       const a = places.get(p.id);
