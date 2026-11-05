@@ -26,12 +26,6 @@ const out = (line: string): void => {
   process.stdout.write(`${line}\n`);
 };
 
-/**
- * Outcomes reached only after the model answered (it asked for evidence MALT could not give): the round trip worked
- * without a verdict. Anything else fails the run, including every error raised before a model call.
- */
-const INCONCLUSIVE = /remains incomplete|still needs evidence/u;
-
 const FILES: Readonly<Record<string, string>> = {
   'CLAUDE.md': '# Rules\n\n- Format money with `formatPrice` from `src/format.ts`; never add another formatter.\n- Keep functions small.\n',
   'src/format.ts': 'export const formatPrice = (cents: number): string => `$${(cents / 100).toFixed(2)}`;\n',
@@ -127,13 +121,10 @@ const runner = (): Run => {
         const result = await call();
         out(`ok      ${name} (${seconds()}): ${result}`);
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (INCONCLUSIVE.test(message)) {
-          out(`ok      ${name} (${seconds()}): reached the model and back, no verdict: ${message}`);
-          return;
-        }
+        // Every error fails the gate. Error text can carry model output, so it is never read as a pass; on this small,
+        // complete fixture a working reviewer always reaches a verdict.
         run.failures += 1;
-        out(`FAILED  ${name} (${seconds()}): ${message}`);
+        out(`FAILED  ${name} (${seconds()}): ${error instanceof Error ? error.message : String(error)}`);
       }
     },
   };
