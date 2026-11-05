@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  Source for design/pipeline.png (1600×820): how MALT reviews a change. Render with design/render.mjs.
+  Source for design/pipeline.png (1600×820): how MALT reviews a change. Render as design/README.md describes.
   Keep it true to docs/architecture.md and CLAUDE.md "Feature architecture" when either changes.
 -->
 <html lang="en">
@@ -46,8 +46,8 @@
   <h2>How MALT reviews a change <span>· one block at a time</span></h2>
   <div class="sub">Every changed block gets an overview, then rule checks. Two shared reviewer agents by default; add capacity explicitly.</div>
 
-  <div class="zone" style="left:568px;top:160px;width:294px;height:390px;border-color:rgba(167,139,250,.7)"><em style="color:var(--violet)">Reviewer sandbox</em></div>
-  <div class="tag" style="left:576px;top:560px;width:300px;line-height:1.5">Shared agents: health, cancel, logs<br>Docker: read-only, localhost-only</div>
+  <div class="zone" style="left:568px;top:160px;width:294px;height:390px;border-color:rgba(167,139,250,.7)"><em style="color:var(--violet)">Reviewer service</em></div>
+  <div class="tag" style="left:576px;top:560px;width:300px;line-height:1.5">Shared agents: health, cancel, logs<br>Docker: read-only, localhost-only<br>No Docker: host process, not sandboxed</div>
 
   <div class="node ws" style="left:60px;top:200px"><i>✎</i><b>You or your agent</b><span>edit files in the workspace</span></div>
   <div class="node ext" style="left:60px;top:370px"><i>⎇</i><b>Change tracking</b><span>VS Code's Git extension<br>diff with HEAD</span></div>

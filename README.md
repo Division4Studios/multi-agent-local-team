@@ -81,7 +81,7 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 
 ## 🔁 How it works
 
-<p align="center"><img src="design/pipeline.png" alt="How MALT reviews a change: an edit becomes git blocks; each block gets an overview call and one isolated call per applicable rule in the reviewer sandbox; verdicts appear in the editor and the Changes view; consolidation compares new declarations across the change." width="960" /></p>
+<p align="center"><img src="design/pipeline.png" alt="How MALT reviews a change: an edit becomes git blocks; each block gets an overview call and one isolated call per applicable rule in the reviewer service (sandboxed in Docker, or a host process when Docker is unavailable); verdicts appear in the editor and the Changes view; consolidation compares new declarations across the change." width="960" /></p>
 
 Code under review can try to talk to the reviewer, so repository text only ever reaches the model as fenced data, and every answer is checked before you see it. See [the trust boundary](SECURITY.md#the-trust-boundary).
 
