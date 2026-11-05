@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { readWorkspaceFile } from '../reviewer/workspace';
 import { isRecord, readStrings } from '../shared/guards';
-import { signFeed, verifyFeed } from './feedSignature';
+import { signFeed, verifyFeed } from '../shared/feedSignature';
 import { digest } from './extract';
 import { mapDirectory, saveMapFile } from './storage';
 import type { Snapshot } from './graph';

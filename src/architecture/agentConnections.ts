@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { feedVerifier } from './feedSignature';
+import { feedVerifier } from '../shared/feedSignature';
 export const agentConnections = (extension: vscode.Uri, key: Buffer): vscode.Disposable => {
   const args = (f: vscode.WorkspaceFolder): string[] => [
     vscode.Uri.joinPath(extension, 'out', 'architecture', 'agentBridge.js').fsPath,
