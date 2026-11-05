@@ -68,13 +68,27 @@ export const parseDiscussion = (v: unknown): DiscussionRequest | undefined => {
   }
   return fields;
 };
+/**
+ * The longest text MALT keeps in each field of an interpretation (`ground`, `sanitizeModules`). The schema states
+ * them as maxLength, so the model writes within them instead of producing text that is cut off or rejected.
+ */
+export const INTERPRETATION_LIMITS = {
+  text: 800, question: 400, quote: 600, role: 100, symbol: 120, summary: 600, reason: 400, name: 100, label: 200,
+} as const;
+const text = (maxLength: number): { readonly type: 'string'; readonly maxLength: number } => ({ type: 'string', maxLength });
+const L = INTERPRETATION_LIMITS;
 export const interpretationSchema = {
   type: 'object',
   properties: {
-    explanations: { type: 'array', maxItems: 30, items: { type: 'object', properties: Object.fromEntries(explanationFields.map((key) => [key, { type: 'string' }])), required: explanationFields, additionalProperties: false } },
-    claims: { type:'array', maxItems:12, items:{type:'object',properties:Object.fromEntries([...claimFields, 'summary', 'fromSummary', 'toSummary'].map(k=>[k,{type:'string'}])),required:claimFields,additionalProperties:false} },
-    role: { type: 'string' }, what: { type: 'string' }, whatEvidence: { type: 'string' }, why: { type: 'string' },
-    whyEvidence: { type: 'string' }, question: { type: 'string' },
+    explanations: { type: 'array', maxItems: 30, items: { type: 'object', properties: {
+      symbol: text(L.symbol), summary: text(L.summary), evidence: text(L.quote), view: { type: 'string' }, reason: text(L.reason),
+    }, required: explanationFields, additionalProperties: false } },
+    claims: { type: 'array', maxItems: 12, items: { type: 'object', properties: {
+      view: { type: 'string' }, title: text(L.name), from: text(L.name), to: text(L.name), label: text(L.label), evidence: text(L.quote),
+      summary: text(L.summary), fromSummary: text(L.summary), toSummary: text(L.summary),
+    }, required: claimFields, additionalProperties: false } },
+    role: text(L.role), what: text(L.text), whatEvidence: text(L.quote), why: text(L.text),
+    whyEvidence: text(L.quote), question: text(L.question),
   },
   required: ['what', 'whatEvidence', 'why', 'whyEvidence', 'question'],
   additionalProperties: false,
