@@ -5,7 +5,8 @@ name: Release
 # 1. check: the tag must be an annotated tag with a signature GitHub verifies, on a commit in main's first-parent
 #    history (a release pull request's merge commit), and match the version in package.json, package-lock.json
 #    and a dated CHANGELOG.md section (scripts/release.mts check).
-# 2. verify: the full CI matrix (ci.yml) on the tagged commit.
+# 2. verify: the full CI matrix (ci.yml) on the tagged commit, and live: real Claude calls of every kind against the
+#    reviewer image built from it (reviewer-live.yml). A build whose reviewer does not work is never released.
 # 3. publish: rebuilds the .vsix, fails unless the compiled JavaScript is byte-identical to what CI tested, records a
 #    signed build provenance attestation, and creates a DRAFT release with the .vsix and its SHA-256 checksum.
 #    A maintainer reviews the draft and publishes it. Publishing makes the release immutable (repository setting)
@@ -79,8 +80,15 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci.yml
 
+  live:
+    needs: check
+    name: Live reviewer
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reviewer-live.yml
+
   publish:
-    needs: verify
+    needs: [verify, live]
     name: Build and draft release
     runs-on: ubuntu-latest
     timeout-minutes: 20

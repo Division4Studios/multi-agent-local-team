@@ -1,0 +1,61 @@
+name: Live reviewer
+
+# Builds the reviewer image exactly as the extension does and makes one real Claude call of every kind (overview,
+# rule checks, consolidation, discussion, standards scan, gap investigation) through the extension's own client and
+# protocol parsers: src/test/live/reviewerLive.ts. Mocked tests cannot catch the API rejecting a schema; this can.
+#
+# - release.yml requires it before a release is drafted.
+# - It also runs after pushes to dev that change the reviewer, and on demand (Actions tab).
+#
+# Security:
+# - The credential (ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN) is a secret of the `reviewer-live` environment,
+#   which only dev, main and v* tags may use, so pull request and fork code never sees it.
+# - The token is read-only, and the checkout does not persist credentials.
+# - The credential reaches only the test process, which passes it to the reviewer container as the extension does.
+# - Every call uses Haiku at low effort, so a run costs a few cents. Without a credential the run fails; it never skips.
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'src/reviewer/**'
+      - 'src/shared/**'
+      - 'src/backend/**'
+      - 'src/review/reviewerClient.ts'
+      - 'src/review/scanStream.ts'
+      - 'src/test/live/**'
+      - 'docker/**'
+      - '.github/workflows/reviewer-live.yml'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Live reviewer (real Claude calls)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: reviewer-live
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install (lockfile only, no install scripts)
+        run: npm ci
+
+      - name: Compile with TypeScript 7 (isolated container)
+        run: npm run compile
+
+      - name: One real call of every kind
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: node out/test/live/reviewerLive.js

@@ -38,6 +38,7 @@ Only the repository admin can create release tags. The steps follow the usual br
 4. **The Release workflow** (`.github/workflows/release.yml`) then:
    - refuses unless the tag is `vMAJOR.MINOR.PATCH`, its signature verifies on GitHub, it points to a merge commit on `main`, and `package.json`, `package-lock.json` and `CHANGELOG.md` all have that version (`node scripts/release.mts check`);
    - runs the full CI matrix (Linux, Windows and macOS) on the tagged commit;
+   - runs the **live reviewer test**: builds the reviewer image from that commit and makes a real Claude call of every kind (overview, rule checks, consolidation, discussion, standards scan, gap investigation). A release whose reviewer can't complete them is never drafted. It needs a credential in the `reviewer-live` environment ([repository settings](repository-settings.md#releases)); run it locally with `npm run test:live`;
    - packages the `.vsix`, and stops unless its compiled JavaScript is byte-identical to what CI just tested;
    - records the provenance attestation and creates a **draft** release with the `.vsix`, `SHA256SUMS.txt` and the changelog section as notes.
 

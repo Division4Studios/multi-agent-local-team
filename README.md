@@ -148,6 +148,7 @@ Then open the folder in VS Code and press <kbd>F5</kbd>. A new **Extension Devel
 | `npm run check-deps` | Enforce the dependency allowlist and exact pinning |
 | `npm run audit` | Fail on low and higher advisories, including development tools; verify registry signatures |
 | `npm run test:toolchain` | Verify dependency policy, compiler aliases and ESLint/VSCE file selection |
+| `npm run test:live` | Build the Docker reviewer and make a real Claude call of every kind (needs `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`; a few cents) |
 | `npm run test:compiler-sandbox` | Actively verify the native compiler container restrictions |
 | `npm test` | Compile, then run the tests inside a real VS Code instance |
 | `npm run verify` | Everything CI runs: deps → types → lint → tests |
