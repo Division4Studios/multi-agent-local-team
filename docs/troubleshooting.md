@@ -11,6 +11,7 @@
 | An agent cannot read a clarification | Confirm the workspace is trusted and indexed. Recopy its MCP configuration if the verifier changed. Read the new revision before posting a handoff. |
 | Publication reports a failed gate | Read the finalization receipt and task terminal. Check the reported layout diagnostics, Node executable and Chrome availability. An artifact can have been delivered before a later check failed. |
 | Reviewer won't start | Open **MALT: Show Reviewer Logs**. For host mode, verify the configured Claude CLI is installed and authenticated. For Docker, check the engine and stored credentials. |
+| Docker reviewer on Linux fails with `EACCES` reading your files | The reviewer runs as your own user ID on a native, rootful Linux Docker engine, so it can read whatever you can. With rootless Docker or Docker Desktop for Linux it runs as the image's `node` user (UID 1000) and can't read a private (`0700`/`0750`) folder; make the workspace readable to that user or use the host backend (`malt.reviewer.backend: host`). The Reviewer log shows which user the container started as. |
 | Docker was expected, but sidebar says Host daemon | `auto` can fall back to host. Select `malt.reviewer.backend: docker` to require Docker. |
 | Files keep appearing in the editor | Turn off `malt.changes.autoOpen`. You can still select blocks in the sidebar. |
 | Blocks stay waiting | Start the reviewer and check `malt.changes.autoReview`. Use **Review All Unreviewed Changes** for a pending backlog. |

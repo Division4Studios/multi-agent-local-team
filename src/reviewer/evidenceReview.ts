@@ -26,10 +26,11 @@ interface EvidenceResult { readonly output: unknown; readonly scope: EvidenceSco
 const MAX_EXPANSIONS = 2;
 const isReason = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '' && value.length <= 1600;
 
+/** An answer with `needsContext` is an evidence request, whatever else it contains: its verdict or findings are ignored. */
 const requestedEvidence = (output: unknown): EvidenceRequest | undefined => {
   if (!isRecord(output) || !Object.hasOwn(output, 'needsContext')) { return undefined; }
   const request = output['needsContext'];
-  if (!isRecord(request) || Object.keys(output).length !== 1 || Object.keys(request).length !== 2) {
+  if (!isRecord(request) || Object.keys(request).length !== 2) {
     throw new Error('Reviewer returned an invalid evidence request');
   }
   const files = parseArray(request['files'], (path) => typeof path === 'string' && path.length <= 4096 ? path : undefined);
