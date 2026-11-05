@@ -17,6 +17,10 @@ import type { ReviewProvider, StructuredCall } from './providers/provider';
 import { ConversationLog } from './conversations';
 import type { ReviewProfiles } from '../shared/reviewProfiles';
 import type { CallUsage } from '../shared/conversation';
+import { ground, groundModules, DISCUSSION_PROMPT } from './understanding';
+import { interpretationSchema, parseInterpretation } from '../shared/understanding';
+import type { DiscussionRequest, Interpretation } from '../shared/understanding';
+import { dataBlock } from './trust';
 import { architectureSlice, newDeclarations } from './architecture';
 import {
   ARCHITECTURE_SCHEMA,
@@ -42,6 +46,7 @@ import {
 import { collectCodeSources, collectStandardsSources, isSourceCodePath } from './standardsSources';
 import type { SourceFile } from './standardsSources';
 import { describeError } from './log';
+import { redactSecrets } from './redact';
 import { createNonce, enforceAnchors, enforceCheckPolicy, enforceFindingPolicy, enforceOverviewPolicy, sanitizeModules, sanitizeProjectRules } from './trust';
 import { INVESTIGATION_SCHEMA, INVESTIGATION_SYSTEM_PROMPT, buildInvestigationUserPrompt, collectGapCode, enforceInvestigation } from './investigation';
 import { gapId } from '../shared/investigation';
@@ -177,7 +182,7 @@ export class ReviewService {
   public async scanStandards(): Promise<StandardsScan> {
     const root = this.config.workspaceRoot;
     const [sources, code] = await Promise.all([collectStandardsSources(root), collectCodeSources(root)]);
-    const [documented, mapped] = await Promise.allSettled([this.extractRules(sources), this.mapCode(code)]);
+    const [documented, mapped] = await Promise.allSettled([this.extractRules(sources), this.mapCode(code,sources)]);
     if (documented.status === 'rejected') {
       throw new Error(describeError(documented.reason));
     }
@@ -195,6 +200,26 @@ export class ReviewService {
     } catch (error: unknown) {
       return { ...scan, modules: mapped.value, warnings: [`Gap analysis failed: ${describeError(error)}`] };
     }
+  }
+
+  /**
+   * Every field is redacted before the model sees it: the excerpt is raw source, and the developer may paste a
+   * credential into the dialogue. Evidence is grounded in the redacted excerpt, the text the model actually saw.
+   */
+  public async discuss(request: DiscussionRequest): Promise<Interpretation> {
+    const redacted: DiscussionRequest = {
+      path: request.path, source: redactSecrets(request.source), context: redactSecrets(request.context), dialogue: redactSecrets(request.dialogue),
+    };
+    const output = await this.ask('Architecture discussion', {
+      systemPrompt: DISCUSSION_PROMPT,
+      userPrompt: dataBlock(createNonce(), 'architecture discussion (untrusted json)', JSON.stringify(redacted)),
+      schema: interpretationSchema, ...this.config.profiles.investigation, timeoutMs: REVIEW_TIMEOUT_MS,
+    });
+    const answer = parseInterpretation(output);
+    if (answer === undefined) {
+      throw new Error('Invalid architecture discussion response');
+    }
+    return ground(answer, redacted.source);
   }
 
   private async extractRules(sources: readonly SourceFile[]): Promise<readonly Rule[]> {
@@ -216,13 +241,13 @@ export class ReviewService {
   }
 
   /** Maps each source file to a purpose and its exports; the extension saves the result as the architecture map. */
-  private async mapCode(sources: readonly SourceFile[]): Promise<readonly ArchitectureModule[]> {
+  private async mapCode(sources: readonly SourceFile[], guidance: readonly SourceFile[]): Promise<readonly ArchitectureModule[]> {
     if (sources.length === 0) {
       return [];
     }
     const output = await this.ask(`Architecture map · ${String(sources.length)} source file(s)`, {
       systemPrompt: ARCHITECTURE_SYSTEM_PROMPT,
-      userPrompt: buildArchitectureUserPrompt(sources, createNonce()),
+      userPrompt: buildArchitectureUserPrompt(sources, createNonce(), guidance),
       schema: ARCHITECTURE_SCHEMA,
       ...this.config.profiles.standards,
       timeoutMs: SCAN_TIMEOUT_MS,
@@ -231,7 +256,7 @@ export class ReviewService {
     if (modules === undefined) {
       throw new Error('Provider returned an architecture map that does not match the protocol');
     }
-    return sanitizeModules(modules, new Set(sources.map((source) => source.path)));
+    return groundModules(sanitizeModules(modules, new Set(sources.map((source) => source.path))), sources);
   }
 
   /** Inferred rules never shadow baseline or documented ones, and MALT marks their source as inferred. */

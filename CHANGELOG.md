@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Ten interactive architecture views, cross-view navigation in the sidebar and editor, repository-specific agent classifications, standalone MALT HTML publications with delivery receipts and a signed guidance feed for connected local agents. [Walkthrough](docs/architecture-views.md)
+
+- Interactive architecture maps with tagged source relationships, path tracing and visual branch comparisons. The reviewer separates source evidence from hypotheses and can discuss a question with a developer before saving a clarification for that branch and file version. [Architecture explorer walkthrough](docs/architecture-explorer.md)
+
 ### Changed
 
 - New look: the barley sprig from the activity bar becomes the full-color mark (amber grains, teal stem) for the extension icon. The README, wiki and docs have a new hero image and diagrams of how a change is reviewed and of the trust boundary, all hand-built from reviewable SVG and HTML sources in `design/`.

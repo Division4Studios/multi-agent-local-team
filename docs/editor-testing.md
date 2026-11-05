@@ -12,6 +12,11 @@ Press **F5**, then open a disposable Git repository in the new window. Start wit
 | Save a multiline change and separate block | Correct top/side/bottom edges; no doubled rounded corners between lines |
 | Hover a reviewed block | Status and summary first, then purpose/technical/design and rule counts with failing rules; retry link works |
 | Run **Scan Project Standards** in a repo with code but no architecture doc | Message counts documented and inferred rules and gaps; **Show Gaps** opens a page that includes a missing-architecture-doc gap; inferred rules show `Inferred from code:` as their source |
+| Explore a project, file and declaration with keyboard and mouse | Breadcrumbs and **Back** restore focus to the chosen neighbourhood. Filter connections, zoom, trace a call and open its source. |
+| Compare a base and target with a removed declaration and a changed call | **Changes only** includes the affected entities. Trace each side separately and open removed source from the base. The checkout stays on the original branch. |
+| Select a working hypothesis, ask a follow-up, edit the wording and apply it | The map and file summaries identify a developer clarification. A rescan preserves it on the same branch and file version. Editing the file or switching branches removes it from current review context until applicable again. |
+| Open a subject from **Architecture Explorer**, switch to a related view, then **Reveal in sidebar** | Both surfaces navigate to the same subject. Back, search, keyboard selection, paging and reduced motion remain usable. |
+| Finalize a timed diagram and compare two agent sessions | The receipt binds the delivered HTML hash. A subscriber receives an update and a stale handoff cannot enter the new revision. |
 | Run **Check Consolidation Across Changes** with two new similar files | A **Consolidation** row appears above the files with its findings; selecting one opens its detail page |
 | Expand a reviewed block in Changes | Rule groups sorted running → failed → passed → not run → not applicable; selecting a checked rule opens its detail page beside the editor |
 | Select a sidebar block | Correct file and line revealed; file icons follow the selected icon theme |

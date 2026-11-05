@@ -4,7 +4,7 @@ body:
       value: |
         <img src="https://raw.githubusercontent.com/wiki/Division4Studios/multi-agent-local-team/images/mark.png" alt="MALT" width="40">
 
-        Talk an idea through here. Once there's agreement on the problem and the approach, it becomes a [feature request](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml).
+        Ideas are discussed on the [MALT Discord](https://discord.gg/DwSpsGjvFY) in #ideas, where it's quicker to talk them through. You can still post one here. Once there's agreement on the problem and the approach, it becomes a [feature request](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml).
   - type: textarea
     id: problem
     attributes:

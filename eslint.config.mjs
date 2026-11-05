@@ -36,6 +36,17 @@ const TOOLING_PATTERNS = [
     message: 'Tooling-only package; it must never be imported by extension code.',
   },
 ];
+/** The Docker image ships only out/reviewer and out/shared, so reviewer and shared code may import nothing else. */
+const REVIEWER_PATTERNS = [
+  ...TOOLING_PATTERNS,
+  {
+    group: [
+      '**/architecture/*', '**/backend/*', '**/diff/*', '**/editor/*', '**/git/*', '**/github/*', '**/pullRequest/*',
+      '**/review/*', '**/standards/*', '**/test/*', '**/views/*', '**/commands', '**/config', '**/extension',
+    ],
+    message: 'The reviewer image contains only src/reviewer and src/shared; move pure helpers into src/shared.',
+  },
+];
 
 /** @param {import('eslint').Linter.Config[]} configs */
 const asErrors = (configs) =>
@@ -167,7 +178,7 @@ export default asErrors(
       // Every other file still may not import child_process.
       files: ['src/backend/hostBackend.ts', 'src/reviewer/providers/claudeCode.ts'],
       rules: {
-        'no-restricted-imports': ['error', { paths: [...VM_IMPORTS, ...NO_VSCODE_IN_REVIEWER], patterns: TOOLING_PATTERNS }],
+        'no-restricted-imports': ['error', { paths: [...VM_IMPORTS, ...NO_VSCODE_IN_REVIEWER], patterns: REVIEWER_PATTERNS }],
       },
     },
     {
@@ -177,7 +188,7 @@ export default asErrors(
       rules: {
         'no-restricted-imports': [
           'error',
-          { paths: [...PROCESS_IMPORTS, ...VM_IMPORTS, ...NO_VSCODE_IN_REVIEWER], patterns: TOOLING_PATTERNS },
+          { paths: [...PROCESS_IMPORTS, ...VM_IMPORTS, ...NO_VSCODE_IN_REVIEWER], patterns: REVIEWER_PATTERNS },
         ],
       },
     },

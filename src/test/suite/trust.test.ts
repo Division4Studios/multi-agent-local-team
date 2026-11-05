@@ -160,6 +160,25 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
+    name: 'policy: a saved understanding, including confirmed intent, is sanitized; evidence keeps its line breaks',
+    run: (): void => {
+      const zeroWidth = String.fromCodePoint(0x200b);
+      const rightToLeft = String.fromCodePoint(0x202e);
+      const understanding = {
+        what: INJECTION, whatEvidence: `const a = 1;\n${rightToLeft}const b = 2;`, why: `w${zeroWidth}`.repeat(900),
+        whyEvidence: 'q'.repeat(700), question: INJECTION, confirmed: `${INJECTION}${'c'.repeat(2_000)}`,
+      };
+      const [module] = sanitizeModules([{ path: 'src/a.ts', purpose: 'p', exports: [], understanding }], new Set(['src/a.ts']));
+      const result = module?.understanding;
+      assert.ok(result !== undefined);
+      for (const text of [result.what, result.why, result.question, result.confirmed ?? '\n']) {
+        assert.ok(!['\n', zeroWidth, rightToLeft].some((char) => text.includes(char)));
+      }
+      assert.equal(result.whatEvidence, 'const a = 1;\n const b = 2;');
+      assert.deepEqual([result.why.length, result.whyEvidence.length, result.confirmed?.length], [800, 600, 1_600]);
+    },
+  },
+  {
     name: 'policy: consolidation findings may only name files MALT showed the model',
     run: (): void => {
       const finding = { title: 't', files: ['src/a.ts', 'src/invented.ts', 'src/a.ts'], note: 'n', detail: 'd', anchors: [] };

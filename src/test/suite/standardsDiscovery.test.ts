@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -38,13 +39,15 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
-    name: 'architecture discovery reads the head of source files, shallowest first, skipping tests and build output',
+    name: 'architecture discovery samples source implementations, shallowest first, skipping tests and build output',
     run: async (): Promise<void> => {
       const root = await mkdtemp(join(tmpdir(), 'malt-code-'));
       for (const folder of ['src/components', 'src/test', 'node_modules/x', 'out']) {
         await mkdir(join(root, folder), { recursive: true });
       }
-      await writeFile(join(root, 'main.py'), 'def main():\n    pass\n');
+      const secret = ['sk', 'ant', 'a'.repeat(30)].join('-');
+      const main = `def main():\n    client = connect("${secret}")\n`;
+      await writeFile(join(root, 'main.py'), main);
       await writeFile(join(root, 'src', 'components', 'Modal.tsx'), `export const Modal = 1;\n${'x'.repeat(5_000)}`);
       await writeFile(join(root, 'src', 'components', 'Modal.test.tsx'), 'test');
       await writeFile(join(root, 'src', 'test', 'helper.ts'), 'helper');
@@ -53,7 +56,9 @@ export const tests: readonly TestCase[] = [
       await writeFile(join(root, 'README.md'), '# not code');
       const sources = await collectCodeSources(root);
       assert.deepEqual(sources.map((source) => source.path), ['main.py', 'src/components/Modal.tsx']);
-      assert.equal(sources[1]?.content.length, 1_500);
+      assert.equal(sources[1]?.content.endsWith('x'.repeat(5_000)), true);
+      assert.ok(sources[0]?.content.includes('[REDACTED]') === true && !sources[0].content.includes(secret), 'secrets never reach the model');
+      assert.equal(sources[0].fingerprint, createHash('sha256').update(main).digest('hex'), 'the fingerprint is of the real file');
     },
   },
   {

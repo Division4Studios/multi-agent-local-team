@@ -6,7 +6,7 @@
 
 ### Multi-Agent Local Team
 
-**Focused code reviews, project standards, and clear feedback inside VS Code.**
+**Review changed code, explore project architecture, and compare branches inside VS Code.**
 
 A VS Code extension for teams who ship with AI and still care what lands in `main`.
 
@@ -45,6 +45,8 @@ A VS Code extension for teams who ship with AI and still care what lands in `mai
 ## Guides
 
 - [First review and installation](docs/getting-started.md)
+- [Ten interactive architecture views, checked exports, and local-agent connections](docs/architecture-views.md)
+- [Explore the architecture, compare branches and clarify design intent](docs/architecture-explorer.md)
 - [Settings and commands](docs/configuration.md)
 - [Standards, ignored instructions, and generated output](docs/standards.md)
 - [Troubleshooting and current limitations](docs/troubleshooting.md)
@@ -69,7 +71,8 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 | 🗂️ **Rules by group** | In **Changes**, expand a block to see its rules in collapsible groups, sorted running → failed → passed → not run → not applicable. Select a checked rule for a full-page explanation. |
 | 📏 **Standards from your own repo** | **Scan Project Standards** reads your `.claude`/`.codex`/`.agents` skills, docs and lint configs and distills short, checkable rules into `.malt/standards.json`. |
 | 🔍 **Finds the gaps in your standards** | The scan then compares your docs with your code. Conventions the code clearly follows but no doc states become rules marked *Inferred from code*; what neither settles (no architecture doc, two competing patterns) is listed as gaps for the team to decide. |
-| 🧭 **Knows what already exists** | The same scan maps your source files (purpose and exports) into `.malt/architecture.json`. Each block review gets only the related slice, so the reviewer can say "extend the existing `Modal`" instead of guessing. |
+| 🧭 **Knows what already exists** | The same scan maps your source files (purpose, exports and explanations with their evidence) into `.malt/architecture.json`. Each block review gets only the related slice, so the reviewer can say "extend the existing `Modal`" instead of guessing. |
+| **Interactive architecture map** | Open **Reviewer → Architecture** to explore dependencies, trace calls, compare branches and clarify the reviewer's understanding of design intent. |
 | 🧩 **Consolidation across the change** | One call compares the new declarations across every changed file, and against the map, to catch three near-identical components or a second date formatter. It runs on demand, or 30 seconds after new files stop appearing. |
 | 🔀 **Review a pull request** | Pick an open PR on GitHub; MALT checks it out safely, outlines every changed block and reviews it like your own changes. Results stay in VS Code; **Finish** takes you back to your branch. |
 | 🐳 **Always-hot, isolated reviewer** | The reviewer runs in a hardened Docker container (read-only workspace, no privileges, localhost-only), or as a local daemon when Docker isn't available. |
@@ -161,8 +164,9 @@ Contributions are welcome! Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) be
 
 - 🐛 Found a bug? [Open a bug report](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=bug_report.yml)
 - 🎯 MALT got a verdict wrong? [Report a wrong review result](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=review_quality.yml)
-- ✨ Have an idea? [Discuss it](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/ideas) or [request a feature](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml)
-- ❓ Need help? [Ask in Discussions](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/q-a) or see [SUPPORT.md](SUPPORT.md)
+- 💬 Want to talk? [Join the MALT Discord](https://discord.gg/DwSpsGjvFY): help, ideas, development and office hours
+- ✨ Have an idea? Discuss it in #ideas on Discord, or [request a feature](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=feature_request.yml)
+- ❓ Need help? Ask in #help on Discord, [ask in Discussions](https://github.com/Division4Studios/multi-agent-local-team/discussions/categories/q-a) for a searchable answer, or see [SUPPORT.md](SUPPORT.md)
 
 ## 🔒 Security
 

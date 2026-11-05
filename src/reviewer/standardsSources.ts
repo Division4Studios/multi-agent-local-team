@@ -5,13 +5,17 @@
  * Symlinked files and directories are never followed (Dirent reports them as links, not files/directories),
  * and every read goes through the confined reader.
  */
+import { createHash } from 'node:crypto';
+import { infraPath, infrastructure } from '../shared/infrastructure';
 import { readdir, realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+import { redactSecrets } from './redact';
 import { readWorkspaceFile } from './workspace';
 
 export interface SourceFile {
   readonly path: string;
   readonly content: string;
+  readonly fingerprint?: string;
 }
 
 const MAX_FILES = 150;
@@ -22,7 +26,7 @@ const MAX_DEPTH = 6;
 
 /** Architecture map: only the head of each source file (imports, exports, top-level declarations) is read. */
 const MAX_CODE_FILES = 400;
-const MAX_CODE_HEAD_CHARS = 1_500;
+const MAX_CODE_HEAD_CHARS = 8_000;
 const MAX_CODE_TOTAL_CHARS = 350_000;
 const CODE_FILE = /\.(?:[cm]?[jt]sx?|py|go|rs|java|kt|cs|rb|php|swift|vue|svelte|c|cc|cpp|h|hpp)$/u;
 const TEST_FILE = /(?:\.(?:test|spec)\.|(?:^|\/)(?:__tests__|tests?)\/)/u;
@@ -93,10 +97,38 @@ const findFiles = async (realRoot: string, matches: (name: string) => boolean): 
   return found;
 };
 
-/** Reads a source through the confined reader; unsafe (linked/outside) or oversized files are skipped. */
-const readSource = async (root: string, path: string, maxChars: number): Promise<string | undefined> => {
+/** Keep declarations, implementation and exit paths in view within the per-file prompt budget. */
+const implementationSample = (source: string, limit: number): string => {
+  if (source.length <= limit) {
+    return source;
+  }
+  const marker = '\n[excerpt omitted]\n';
+  const part = Math.floor((limit - marker.length * 2) / 3);
+  const middle = Math.floor((source.length - part) / 2);
+  return [source.slice(0, part), source.slice(middle, middle + part), source.slice(-part)].join(marker);
+};
+
+/** What the model sees of a file: infrastructure as its resource names, anything else (sampled) as text. */
+const promptContent = (path: string, raw: string, maxChars: number, sample: boolean): string => {
+  if (infraPath(path)) {
+    return JSON.stringify(infrastructure(path, raw).flatMap((d) => d.items.map((item) => ({ name: item.label, kind: item.group })))).slice(0, maxChars);
+  }
+  return sample ? implementationSample(raw, maxChars) : raw.slice(0, maxChars);
+};
+
+/**
+ * Reads a source through the confined reader; unsafe (linked/outside) or oversized files are skipped. Secrets are
+ * redacted from the whole file before sampling, so no credential reaches the model, not even one cut in half by an
+ * excerpt boundary. The fingerprint is of the raw file, so it still matches the map.
+ */
+const readSource = async (root: string, path: string, maxChars: number, sample: boolean): Promise<SourceFile | undefined> => {
   try {
-    return (await readWorkspaceFile(root, path, MAX_SOURCE_BYTES))?.slice(0, maxChars);
+    const raw = await readWorkspaceFile(root, path, MAX_SOURCE_BYTES);
+    if (raw === undefined) {
+      return undefined;
+    }
+    const fingerprint = createHash('sha256').update(raw.replaceAll('\r\n', '\n')).digest('hex');
+    return { path, content: promptContent(path, redactSecrets(raw), maxChars, sample), fingerprint };
   } catch {
     return undefined;
   }
@@ -104,22 +136,24 @@ const readSource = async (root: string, path: string, maxChars: number): Promise
 
 interface ReadLimits {
   readonly fileChars: number;
+  readonly sample?: boolean;
   readonly totalChars: number;
 }
 
 const readSources = async (realRoot: string, paths: readonly string[], limits: ReadLimits): Promise<SourceFile[]> => {
   const sources: SourceFile[] = [];
   let total = 0;
-  for (const path of paths) {
-    const content = await readSource(realRoot, path, limits.fileChars);
-    if (content === undefined) {
+  for (const [i, path] of paths.entries()) {
+    const limit = limits.sample === true ? Math.min(limits.fileChars, Math.floor((limits.totalChars - total) / (paths.length - i))) : limits.fileChars;
+    const file = await readSource(realRoot, path, limit, limits.sample === true);
+    if (file === undefined) {
       continue;
     }
-    if (total + content.length > limits.totalChars) {
+    if (total + file.content.length > limits.totalChars) {
       break;
     }
-    total += content.length;
-    sources.push({ path, content });
+    total += file.content.length;
+    sources.push(file);
   }
   return sources;
 };
@@ -135,8 +169,8 @@ export const collectStandardsSources = async (root: string): Promise<SourceFile[
 export const collectCodeSources = async (root: string): Promise<SourceFile[]> => {
   const realRoot = await realpath(root);
   const depth = (path: string): number => path.split('/').length;
-  const paths = (await findFiles(realRoot, (name) => CODE_FILE.test(name)))
+  const paths = (await findFiles(realRoot, (name) => CODE_FILE.test(name) || infraPath(name)))
     .filter((path) => !TEST_FILE.test(path))
     .sort((a, b) => (depth(a) === depth(b) ? a.localeCompare(b) : depth(a) - depth(b)));
-  return await readSources(realRoot, paths.slice(0, MAX_CODE_FILES), { fileChars: MAX_CODE_HEAD_CHARS, totalChars: MAX_CODE_TOTAL_CHARS });
+  return await readSources(realRoot, paths.slice(0, MAX_CODE_FILES), { fileChars: MAX_CODE_HEAD_CHARS, totalChars: MAX_CODE_TOTAL_CHARS, sample: true });
 };

@@ -7,7 +7,8 @@ import type { BigIntStats } from 'node:fs';
 import { open, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { ARCHITECTURE_FILE, STANDARDS_FILE, parseArchitectureDocument, parseStandardsDocument } from '../shared/protocol';
-import type { ArchitectureDocument, StandardsDocument } from '../shared/protocol';
+import type { ArchitectureDocument, ArchitectureModule, StandardsDocument } from '../shared/protocol';
+import { parseInterpretation } from '../shared/understanding';
 
 const CONTEXT_LINES = 60;
 const MAX_FILE_BYTES = 2_000_000;
@@ -113,11 +114,63 @@ const generatedFileLoader = <T>(path: string, parse: (value: unknown) => T | und
 };
 
 const readStandards = generatedFileLoader(STANDARDS_FILE, parseStandardsDocument);
+const readCurrentMap = generatedFileLoader('.malt/maps/v1/reviewer.json', parseArchitectureDocument);
 const readArchitecture = generatedFileLoader(ARCHITECTURE_FILE, parseArchitectureDocument);
 
 /** `.malt/standards.json`: documented and inferred rules, and the gaps the last scan found. */
 export const loadStandards = async (root: string): Promise<StandardsDocument | undefined> => await readStandards(root);
 
-/** The architecture map from `.malt/architecture.json`; empty if there is none. */
-export const loadArchitecture = async (root: string): Promise<ArchitectureDocument> =>
-  (await readArchitecture(root)) ?? { version: 1, generatedAt: '', modules: [] };
+/** Whether a path names a regular file that really lives inside the workspace, confined exactly like a read. */
+const isWorkspaceFile = async (realRoot: string, relativePath: string): Promise<boolean> => {
+  try {
+    const candidate = resolveInWorkspace(realRoot, relativePath);
+    const handle = await open(candidate, OPEN_FLAGS);
+    try {
+      await assertConfined(realRoot, candidate, await handle.stat({ bigint: true }), relativePath);
+      return true;
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * `.malt/architecture.json` is committed, so a repository controls it. Its entries must name real files inside
+ * the workspace, and they never carry developer-confirmed intent: only the extension's signed notes can, and those
+ * reach the reviewer through `reviewer.json`.
+ */
+const committedModules = async (root: string, modules: readonly ArchitectureModule[]): Promise<ArchitectureModule[]> => {
+  const realRoot = await realpath(root).catch((): undefined => undefined);
+  if (realRoot === undefined) {
+    return [];
+  }
+  const kept = await Promise.all(modules.map(async (module) => ((await isWorkspaceFile(realRoot, module.path)) ? module : undefined)));
+  return kept.filter((module): module is ArchitectureModule => module !== undefined).map((module) => {
+    const understanding = module.understanding === undefined ? undefined : parseInterpretation(module.understanding);
+    return {
+      path: module.path, purpose: module.purpose, exports: module.exports,
+      ...(module.fingerprint === undefined ? {} : { fingerprint: module.fingerprint }),
+      ...(understanding === undefined ? {} : { understanding }),
+    };
+  });
+};
+
+/** The current branch map wins; committed entries without a fingerprint fill in files it does not describe. */
+const mergeMaps = (legacy: readonly ArchitectureModule[], current: ArchitectureDocument): ArchitectureDocument => {
+  const previous = new Map(legacy.map((m) => [m.path, m]));
+  const modules = new Map(legacy.filter((m) => m.fingerprint === undefined).map((m) => [m.path, m]));
+  for (const item of current.modules) {
+    const original = previous.get(item.path);
+    modules.set(item.path, { ...item, exports: original?.fingerprint === item.fingerprint ? original?.exports ?? [] : item.exports });
+  }
+  return { ...current, modules: [...modules.values()] };
+};
+
+/** The architecture map: the current branch map (`reviewer.json`) over the committed `.malt/architecture.json`. */
+export const loadArchitecture = async (root: string): Promise<ArchitectureDocument> => {
+  const [committed, current] = await Promise.all([readArchitecture(root), readCurrentMap(root)]);
+  const legacy = await committedModules(root, committed?.modules ?? []);
+  return current === undefined ? { version: 1, generatedAt: committed?.generatedAt ?? '', modules: legacy } : mergeMaps(legacy, current);
+};

@@ -98,6 +98,10 @@ jobs:
       - name: Dependency policy and file selection regression tests
         run: npm run test:toolchain
 
+      - name: Finalize all ten native MALT views and inspect the delivered HTML in Chrome
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node scripts/verify-architecture-publication.mjs --browser-check
+
       - name: Extension tests (Linux)
         if: runner.os == 'Linux'
         run: xvfb-run -a npm run test:compiled
