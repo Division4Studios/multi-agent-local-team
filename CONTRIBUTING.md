@@ -70,7 +70,7 @@ Rules that are enforced and will not be waived in review:
 - **Branch from `dev` and open your pull request against `dev`.** A pull request into `main` from any other branch fails the *Source branch is dev* check and can't merge.
 - Both branches are protected by repository rulesets. Nobody can push to them directly, force-push or delete them. Every change needs a pull request with an approving code-owner review, all review conversations resolved, and every CI check passing: the build, tests on Linux, macOS and Windows, CodeQL with no new alerts, and dependency review. New commits dismiss earlier approvals.
 - **Every commit in your pull request must be signed** with a key on your own GitHub account. It takes a few minutes, once. See [Signing your commits](#signing-your-commits).
-- Release tags (`v*`) can only be created by maintainers, and can't be moved or deleted.
+- Release tags (`v*`) can only be created by maintainers, and can't be moved or deleted. How a release is made: [docs/releasing.md](docs/releasing.md).
 
 [docs/repository-settings.md](docs/repository-settings.md) lists every repository setting and the reason for it.
 

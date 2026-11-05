@@ -47,6 +47,18 @@ Each protected branch has two rulesets. The **gate** has no bypass at all, not e
 
 - `v*` tags can only be created by the admin role, and nobody can move or delete them.
 
+## Releases
+
+Releases are made by `.github/workflows/release.yml` when the admin pushes a `vMAJOR.MINOR.PATCH` tag; the steps are in [Releasing](releasing.md). The workflow:
+
+- refuses a tag that isn't annotated, whose signature GitHub can't verify, that isn't on `main`'s first-parent history (a release pull request's merge commit), or whose version doesn't match `package.json`, `package-lock.json` and a dated `CHANGELOG.md` section;
+- runs `ci.yml` (called as a reusable workflow) on the tagged commit, so a release passes the same matrix as a pull request;
+- rebuilds the `.vsix` without the npm cache and fails unless its compiled JavaScript is byte-identical to the output CI tested;
+- signs a build provenance attestation (`id-token: write`, `attestations: write`) and creates a **draft** release (`contents: write`). These permissions belong to that one job; every other job reads only.
+
+A maintainer publishes the draft. A release made with `GITHUB_TOKEN` triggers no workflows, so publishing by hand is also what posts it to #shipped. Published releases are immutable (see **Features**), so a release is never edited: a fix ships as the next version.
+
+
 ### Signed commits
 
 Both gates require **every commit in a pull request** to carry a signature GitHub can verify, not just the commit that lands. GitHub checks each signature against a key on the committer's own account, so each contributor uses their own key; nobody is ever given one. Setup is a few minutes, once: [CONTRIBUTING.md → Signing your commits](../CONTRIBUTING.md#signing-your-commits). Commits made on github.com are signed by GitHub automatically.
