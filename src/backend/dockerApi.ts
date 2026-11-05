@@ -116,6 +116,16 @@ export class DockerClient {
     }
   }
 
+  /** The engine's `/info` (how and where it runs), or undefined if it cannot be read. */
+  public async info(): Promise<unknown> {
+    try {
+      const response = await this.sendJson('GET', '/info');
+      return response.status === 200 ? parseJson(response.body) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   public async inspect(kind: 'images' | 'containers', name: string): Promise<unknown> {
     const response = await this.sendJson('GET', `/${kind}/${encodeURIComponent(name)}/json`);
     if (response.status === 404) {

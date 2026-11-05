@@ -36,9 +36,41 @@ const buildContext = async (extensionRoot: string): Promise<Buffer> => {
 
 const shortHash = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex').slice(0, 12);
 
-const containerSpec = (image: string, options: StartOptions): Record<string, unknown> => ({
+/** What decides the container user: the host's platform and IDs, and the engine's `/info`. */
+export interface UserContext {
+  readonly platform: NodeJS.Platform;
+  readonly uid: number | undefined;
+  readonly gid: number | undefined;
+  readonly engine: unknown;
+}
+
+/**
+ * The container user (#34). A native, rootful Linux engine checks bind-mounted files against the container's own UID,
+ * so there the reviewer runs as the developer's UID:GID and reads exactly what they can, no more. Everywhere else it
+ * keeps the image's unprivileged `node` user: Docker Desktop (any OS) maps file ownership itself, rootless Docker maps
+ * container UIDs to other host IDs, and the reviewer never runs as root, even when VS Code does. An unreadable
+ * `/info` also keeps `node`, the previous behavior.
+ */
+export const containerUser = ({ platform, uid, gid, engine }: UserContext): string =>
+  platform === 'linux' && uid !== undefined && gid !== undefined && uid !== 0 && gid !== 0 && isNativeRootfulEngine(engine)
+    ? `${String(uid)}:${String(gid)}`
+    : 'node';
+
+/** A Linux engine that is neither Docker Desktop nor rootless, judged from `/info`; anything unreadable is neither. */
+const isNativeRootfulEngine = (engine: unknown): boolean => {
+  if (!isRecord(engine)) {
+    return false;
+  }
+  const system = engine['OperatingSystem'];
+  const security = engine['SecurityOptions'];
+  return typeof system === 'string' && !system.includes('Docker Desktop')
+    && Array.isArray(security) && security.every((option) => typeof option === 'string' && !option.includes('name=rootless'));
+};
+
+/** Mode 1777: the reviewer's home and temp folders are writable whichever unprivileged user it runs as. */
+export const containerSpec = (image: string, options: StartOptions, user: string): Record<string, unknown> => ({
   Image: image,
-  User: 'node',
+  User: user,
   Env: [
     `MALT_PORT=${String(CONTAINER_PORT)}`,
     'MALT_HOST=0.0.0.0',
@@ -52,7 +84,7 @@ const containerSpec = (image: string, options: StartOptions): Record<string, unk
     Mounts: [{ Type: 'bind', Source: options.workspaceRoot, Target: '/workspace', ReadOnly: true }],
     PortBindings: { [`${String(CONTAINER_PORT)}/tcp`]: [{ HostIp: '127.0.0.1', HostPort: String(options.port) }] },
     ReadonlyRootfs: true,
-    Tmpfs: { '/tmp': 'rw,nosuid,size=128m', '/home/node': 'rw,nosuid,size=256m' },
+    Tmpfs: { '/tmp': 'rw,nosuid,size=128m,mode=1777', '/home/node': 'rw,nosuid,size=256m,mode=1777' },
     CapDrop: ['ALL'],
     SecurityOpt: ['no-new-privileges'],
     Memory: 1_073_741_824,
@@ -82,7 +114,8 @@ export class DockerBackend implements ReviewerBackend {
     const name = `malt-reviewer-${shortHash(options.workspaceRoot)}`;
     this.containerName = name;
     await this.remove(name);
-    const created = await this.client.sendJson('POST', `/containers/create?name=${name}`, containerSpec(image, options));
+    const user = containerUser({ platform: process.platform, uid: process.getuid?.(), gid: process.getgid?.(), engine: await this.client.info() });
+    const created = await this.client.sendJson('POST', `/containers/create?name=${name}`, containerSpec(image, options, user));
     if (created.status !== 201) {
       throw new Error(dockerErrorMessage(created));
     }
@@ -90,7 +123,7 @@ export class DockerBackend implements ReviewerBackend {
     if (started.status !== 204 && started.status !== 304) {
       throw new Error(dockerErrorMessage(started));
     }
-    this.log(`Started container ${name} from ${image}`);
+    this.log(`Started container ${name} from ${image} as user ${user}`);
   }
 
   public async stop(): Promise<void> {
