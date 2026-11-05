@@ -13,6 +13,11 @@ export interface StructuredCall {
   readonly timeoutMs: number;
   /** Receives the answer as it streams in, for the live reviewer log. Display only; the result is the return value. */
   readonly onText?: (text: string) => void;
+  /**
+   * Called whenever the model sends anything (answer text, thinking, structured output, status), so a progress view
+   * can tell a call that is working from one that has stalled. Liveness only; nothing is passed.
+   */
+  readonly onActivity?: () => void;
   /** Receives the call's token usage and cost, as the provider reports them. */
   readonly onUsage?: (usage: CallUsage) => void;
 }

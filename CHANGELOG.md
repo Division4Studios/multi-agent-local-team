@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Live reviewer test.** Every release first builds the reviewer image and makes a real Claude call of every kind; a release whose reviewer the API rejects can't be drafted. It also runs after reviewer changes reach `dev`, and locally with `npm run test:live`.
 - **Releases.** Versions follow MAJOR.MINOR.PATCH. Pushing a signed `vX.Y.Z` tag on `main` runs the full CI matrix, rebuilds the extension, checks that the build matches the tested output, and drafts a GitHub release with the `.vsix`, its SHA-256 checksum and a signed build provenance attestation (`gh attestation verify`). The release notes come from this changelog. [Releasing](docs/releasing.md)
 
 - **Before Commit: Explain and Inspect Changes** (Changes view title bar): a page that reviews all saved local changes before you commit. It shows a file map, changed import connections, recorded failures and consolidation candidates, with links to the verified source. You can ask questions on demand. Test results you record are kept separate from AI review as developer-reported. Opening the page makes no model call. [Before commit](docs/before-commit-review.md)
@@ -27,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A standards scan shows what each running stage is doing (waiting for the model, thinking, writing with a character count, or possibly stalled after 2 minutes of silence) and how long it has run, instead of only a count of finished stages.
 - Rule checks after a standards rescan: a saved review that names a renamed or removed rule is reviewed again with the current rules, instead of failing on every retry with "Unknown rule".
 - Rule checks and consolidation are no longer rejected by the API ("input_schema.type: Field required", "input_schema does not support oneOf, allOf, or anyOf at the top level"). An evidence request is now a `needsContext` field of the answer; an answer that contains one is never counted as a verdict.
 - **Explain what I'm seeing** and **Ask about this view** no longer fail with "Invalid architecture discussion response": the model is told each answer field's length limit, so long answers are neither rejected nor cut mid-sentence.

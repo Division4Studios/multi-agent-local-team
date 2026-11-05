@@ -170,6 +170,7 @@ export class ClaudeCodeProvider implements ReviewProvider {
     const workDir = await mkdtemp(join(tmpdir(), 'malt-reviewer-'));
     const args = claudeArgs(call);
     const onEvent = (event: unknown): void => {
+      call.onActivity?.();
       const text = streamedText(event);
       if (text !== undefined) {
         call.onText?.(text);
