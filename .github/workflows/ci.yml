@@ -16,6 +16,9 @@ on:
 permissions:
   contents: read
 
+# No npm cache: release.yml runs this workflow on a release tag (inputs.ref), and code that runs where caches are
+# shared could plant an entry later runs restore. npm ci installs exactly the lockfile either way.
+
 concurrency:
   group: ci-${{ inputs.ref || github.ref }}
   cancel-in-progress: true
@@ -36,7 +39,6 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          cache: npm
 
       - name: Install and enforce dependency policy
         run: npm ci && npm run check-deps && npm run audit
@@ -80,7 +82,6 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          cache: npm
 
       - name: Install (lockfile only, no install scripts)
         run: npm ci
