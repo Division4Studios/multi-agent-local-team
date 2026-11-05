@@ -37,7 +37,7 @@
       image.src = url;
       await image.decode();
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = theme === 'dark' ? '#15212d' : '#fff';
+      ctx.fillStyle = window.getComputedStyle(doc.body).getPropertyValue('--surface').trim();
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
     } finally {
@@ -76,7 +76,7 @@
     return finished;
   }
   window.maltEncode = async (format, scale, route, inspect) => {
-    if (format === 'svg') return blob(snapshot().body, 'image/svg+xml');
+    if (format === 'svg') return blob(snapshot(doc.documentElement.dataset.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')).body, 'image/svg+xml');
     const canvas = doc.createElement('canvas');
     await raster(scale, canvas);
     if (format === 'webm') return video(canvas, scale, route, inspect);

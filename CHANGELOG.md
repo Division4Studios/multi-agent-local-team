@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Middle-mouse and empty-canvas diagram panning, Space + drag, keyboard arrows, and Center diagram controls in the explorer and portable HTML viewer.
+
+### Changed
+
+- Coordinated MALT colors across diagrams, legends, selected-component notes, discussions, review pages, and exports, with light, dark, editor, and high-contrast support.
+
 ## [1.0.0] - 2026-11-05
 
 ### Added

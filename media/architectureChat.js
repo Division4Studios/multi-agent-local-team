@@ -6,6 +6,7 @@
     const box = document.createElement('section'), heading = document.createElement('h3'), body = document.createElement('p');
     heading.textContent = role;
     body.textContent = text;
+    body.setAttribute('data-role', role === 'You' || role === 'Developer clarification' ? 'developer' : 'reviewer');
     box.append(heading, body);
     el('thread').append(box);
   }
