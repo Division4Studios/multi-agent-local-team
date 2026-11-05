@@ -52,19 +52,33 @@ import { INVESTIGATION_SCHEMA, INVESTIGATION_SYSTEM_PROMPT, buildInvestigationUs
 import { gapId } from '../shared/investigation';
 import type { GapInvestigation } from '../shared/investigation';
 import { loadArchitecture, loadStandards, readFileWindow } from './workspace';
+import type { ScanProgress, ScanStage } from '../shared/scanProgress';
+import { needsComponentContext } from './reviewContext';
+import { reviewWithEvidence } from './evidenceReview';
+
+const scanStage = async <T>(stage: ScanStage, task: () => Promise<T>, report: (progress: ScanProgress) => void): Promise<T> => {
+  report({ stage, state: 'running' });
+  try {
+    const result = await task();
+    report({ stage, state: 'complete' });
+    return result;
+  } catch (error: unknown) {
+    report({ stage, state: 'failed' });
+    throw error;
+  }
+};
 
 const REVIEW_TIMEOUT_MS = 180_000;
 const SCAN_TIMEOUT_MS = 900_000;
 /** How many map entries a block review, and a whole-change consolidation check, may include. */
 const BLOCK_SLICE = 25;
-const CHANGE_SLICE = 80;
 const MAX_INFERRED_RULES = 15;
 
 const blockLabel = (request: ReviewRequest): string =>
   `${request.filePath}:${String(request.startLine + 1)}${request.endLine === request.startLine ? '' : `-${String(request.endLine + 1)}`}`;
 
-/** Rules in this group get the architecture map slice; other checks do not need it. */
-const isArchitectureRule = (rule: Rule): boolean => rule.category.toLowerCase() === 'architecture';
+/** A check named a rule the current standards no longer contain (e.g. a rescan renamed it). The server answers 409. */
+export class UnknownRuleError extends Error {}
 
 export interface ServiceConfig {
   readonly workspaceRoot: string;
@@ -159,16 +173,18 @@ export class ReviewService {
     ]);
     const rule = [...BASELINE_RULES, ...projectRules].find((candidate) => candidate.id === request.ruleId);
     if (rule === undefined) {
-      throw new Error(`Unknown rule: ${request.ruleId}`);
+      throw new UnknownRuleError(`Unknown rule: ${request.ruleId}`);
     }
-    const architecture = isArchitectureRule(rule) ? await this.blockSlice(request) : [];
-    const output = await this.ask(`Check ${rule.id} · ${blockLabel(request)}`, {
+    const { output } = await reviewWithEvidence({
+      root: this.config.workspaceRoot, blocks: [request], startWithComponent: needsComponentContext(rule),
+      loadModules: async () => (await this.architecture()).modules,
+    }, async (scope) => await this.ask(`Check ${rule.id} · ${blockLabel(request)}${scope.requests.length === 0 ? '' : ` · evidence ${String(scope.requests.length)}`}`, {
       systemPrompt: CHECK_SYSTEM_PROMPT,
-      userPrompt: buildCheckUserPrompt(request, window, rule, { projectRules, architecture, nonce: createNonce() }),
+      userPrompt: buildCheckUserPrompt(request, window, rule, { projectRules, architecture: scope.architecture, nonce: createNonce(), component: scope.component, evidence: scope }),
       schema: CHECK_SCHEMA,
       ...this.config.profiles.check,
       timeoutMs: REVIEW_TIMEOUT_MS,
-    });
+    }));
     const check = isRecord(output) ? parseRuleCheck({ ...output, ruleId: rule.id, title: rule.title }) : undefined;
     if (check === undefined) {
       throw new Error('Provider returned a check that does not match the protocol');
@@ -181,23 +197,30 @@ export class ReviewService {
    * comparing them for conventions the code follows that no document states (inferred rules) and for gaps. A failed
    * map or gap call is reported as a warning so the documented rules are still saved.
    */
-  public async scanStandards(): Promise<StandardsScan> {
+  public async scanStandards(report: (progress: ScanProgress) => void = () => undefined): Promise<StandardsScan> {
     const root = this.config.workspaceRoot;
+    report({ stage: 'sources', state: 'running' });
     const [sources, code] = await Promise.all([collectStandardsSources(root), collectCodeSources(root)]);
-    const [documented, mapped] = await Promise.allSettled([this.extractRules(sources), this.mapCode(code,sources)]);
+    report({ stage: 'sources', state: 'complete' });
+    const [documented, mapped] = await Promise.allSettled([
+      scanStage('standards', async () => await this.extractRules(sources), report),
+      scanStage('architecture', async () => await this.mapCode(code,sources), report),
+    ]);
     if (documented.status === 'rejected') {
       throw new Error(describeError(documented.reason));
     }
     const documents = sources.map((source) => source.path);
     const scan: StandardsScan = { rules: documented.value, gaps: [], sources: documents, modules: [], warnings: [] };
     if (mapped.status === 'rejected') {
+      report({ stage: 'gaps', state: 'skipped' });
       return { ...scan, warnings: [`The code could not be mapped: ${describeError(mapped.reason)}`] };
     }
     if (mapped.value.length === 0) {
+      report({ stage: 'gaps', state: 'skipped' });
       return scan;
     }
     try {
-      const { inferred, gaps } = await this.findGaps(documented.value, documents, mapped.value);
+      const { inferred, gaps } = await scanStage('gaps', async () => await this.findGaps(documented.value, documents, mapped.value), report);
       return { ...scan, rules: [...documented.value, ...inferred], gaps, modules: mapped.value };
     } catch (error: unknown) {
       return { ...scan, modules: mapped.value, warnings: [`Gap analysis failed: ${describeError(error)}`] };
@@ -320,25 +343,35 @@ export class ReviewService {
     return investigation;
   }
 
-  /** One call over the whole change. A change without new declarations needs no call. */
+  /**
+   * One call over the whole change. A change without new declarations in source files needs no call: a declaration in
+   * a documentation example has no implementation to supply, so no finding about it could be kept.
+   */
   public async consolidation(request: ConsolidationRequest): Promise<readonly Finding[]> {
-    const declarations = newDeclarations(request.blocks);
+    const declarations = newDeclarations(request.blocks.filter((block) => isSourceCodePath(block.filePath)));
     if (declarations.length === 0) {
       return [];
     }
-    const architecture = architectureSlice((await this.architecture()).modules, request.blocks, CHANGE_SLICE);
-    const output = await this.ask(`Consolidation · ${String(request.blocks.length)} block(s)`, {
-      systemPrompt: CONSOLIDATION_SYSTEM_PROMPT,
-      userPrompt: buildConsolidationUserPrompt(declarations, architecture, createNonce()),
-      schema: CONSOLIDATION_SCHEMA,
-      ...this.config.profiles.consolidation,
-      timeoutMs: REVIEW_TIMEOUT_MS,
+    const changed = new Set(declarations.map((file) => file.filePath));
+    const projectRules = await this.rules();
+    const { output, scope } = await reviewWithEvidence({
+      root: this.config.workspaceRoot, blocks: request.blocks.filter((block) => changed.has(block.filePath)), startWithComponent: true,
+      loadModules: async () => (await this.architecture()).modules,
+    }, async (evidence) => {
+      if (evidence.component === undefined) { throw new Error('Consolidation needs complete component evidence'); }
+      return await this.ask(`Consolidation · ${String(request.blocks.length)} block(s)${evidence.requests.length === 0 ? '' : ` · evidence ${String(evidence.requests.length)}`}`, {
+        systemPrompt: CONSOLIDATION_SYSTEM_PROMPT,
+        userPrompt: buildConsolidationUserPrompt(declarations, evidence.architecture, createNonce(), { component: evidence.component, projectRules, evidence }),
+        schema: CONSOLIDATION_SCHEMA,
+        ...this.config.profiles.consolidation,
+        timeoutMs: REVIEW_TIMEOUT_MS,
+      });
     });
     const findings = isRecord(output) ? parseArray(output['findings'], parseFinding) : undefined;
     if (findings === undefined) {
       throw new Error('Provider returned consolidation findings that do not match the protocol');
     }
-    const known = new Set([...request.blocks.map((block) => block.filePath), ...architecture.map((module) => module.path)]);
+    const known = new Set(scope.component?.files.map((file) => file.path) ?? []);
     return enforceFindingPolicy(findings, known);
   }
 }

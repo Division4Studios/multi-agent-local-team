@@ -21,6 +21,8 @@ export interface Part {
   parent?: string;
   group?: string;
   detail?: string;
+  summary?: string;
+  explanationKind?: string;
   fields?: string[];
   start?: number;
   end?: number;
@@ -40,6 +42,7 @@ export interface Diagram {
   kind: ViewKind;
   title: string;
   path: string;
+  summary?: string;
   items: Part[];
   links: Wire[];
 }
@@ -69,7 +72,7 @@ const parsePart = (v: unknown): Part | undefined => {
     return undefined;
   }
   const part: Part = { id: v['id'], label: v['label'] };
-  for (const k of ['ref', 'parent', 'group', 'detail'] as const) {
+  for (const k of ['ref', 'parent', 'group', 'detail', 'summary', 'explanationKind'] as const) {
     if (short(v[k])) {
       part[k] = v[k];
     }
@@ -112,6 +115,7 @@ const validClock = (kind: ViewKind, item: Part): boolean => {
 };
 const consistent = (items: Part[], kind: ViewKind): boolean =>
   new Set(items.map((i) => i.id)).size === items.length && items.every((i) => validClock(kind, i));
+const diagramSummary = (value: unknown): Pick<Diagram, 'summary'> => short(value) ? { summary: value } : {};
 export const parseDiagram = (v: unknown, path?: string): Diagram | undefined => {
   if (!isRecord(v) || !isView(v['kind']) || !short(v['id']) || !short(v['title'])) {
     return undefined;
@@ -129,5 +133,5 @@ export const parseDiagram = (v: unknown, path?: string): Diagram | undefined => 
   if (!consistent(items, kind)) {
     return undefined;
   }
-  return { path: source, id: v['id'], kind, title: v['title'], items, links };
+  return { path: source, id: v['id'], kind, title: v['title'], items, links, ...diagramSummary(v['summary']) };
 };

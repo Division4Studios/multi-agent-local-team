@@ -100,7 +100,8 @@ const sanitizeQuote = (value: string): string =>
   value.replace(/[\p{Cf}]|[^\P{Cc}\n\r\t]/gu, ' ').slice(0, UNDERSTANDING_LIMITS.evidence);
 
 const sanitizeUnderstanding = (value: Understanding): Understanding => ({
-  ...(value.claims===undefined ? {} : {claims:value.claims.map(c=>({view:c.view,title:sanitizeText(c.title,100),from:sanitizeText(c.from,100),to:sanitizeText(c.to,100),label:sanitizeText(c.label,200),evidence:sanitizeQuote(c.evidence)}))}),
+  ...(value.explanations === undefined ? {} : { explanations: value.explanations.map((item) => ({ symbol: sanitizeText(item.symbol, 120), summary: sanitizeText(item.summary, 600), evidence: sanitizeQuote(item.evidence), view: item.view, reason: sanitizeText(item.reason, 400) })) }),
+  ...(value.claims===undefined ? {} : {claims:value.claims.map(c=>({view:c.view,title:sanitizeText(c.title,100),from:sanitizeText(c.from,100),to:sanitizeText(c.to,100),label:sanitizeText(c.label,200),evidence:sanitizeQuote(c.evidence), ...Object.fromEntries(['summary', 'fromSummary', 'toSummary'].flatMap(key => { const text: unknown = Reflect.get(c, key); return typeof text === 'string' ? [[key, sanitizeText(text, 600)]] : []; }))}))}),
   ...(value.role === undefined ? {} : { role: sanitizeText(value.role, 100) }),
   what: sanitizeText(value.what, UNDERSTANDING_LIMITS.text),
   whatEvidence: sanitizeQuote(value.whatEvidence),

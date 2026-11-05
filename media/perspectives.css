@@ -1,126 +1,49 @@
-[hidden] {
-  display: none !important;
-}
-#modelNav,
-#modelScreen {
-  max-width: 1300px;
-  margin: 15px auto;
-}
-#modelNav select {
-  max-width: min(38ch, 80vw);
-}
-#modelKind {
-  font-weight: 600;
-}
-#modelQuestion {
-  margin: 0.4rem 0;
-  color: var(--vscode-descriptionForeground);
-}
-#modelDrawing {
-  overflow: auto;
-  max-height: 65vh;
-  border: 1px solid var(--vscode-panel-border);
-  margin: 1rem 0;
-}
-#modelSvg text {
-  font: 13px var(--vscode-font-family);
-  fill: var(--vscode-foreground);
-}
-#modelSvg .caption {
-  font-size: 12px;
-}
-#modelSvg .card-title {
-  font-weight: 600;
-}
-.model-card {
-  cursor: pointer;
-}
-.model-card rect {
-  fill: var(--vscode-editor-background);
-  stroke: var(--role);
-  stroke-width: 2;
-}
-.model-card.selected rect,
-.model-card:focus rect {
-  stroke: var(--vscode-focusBorder);
-  stroke-width: 4;
-}
-.wire,
-.lifeline,
-.lane {
-  stroke: var(--vscode-descriptionForeground);
-  stroke-width: 1.4;
-}
-.lifeline,
-.dependency,
-.implements,
-.realization {
-  stroke-dasharray: 5 4;
-}
-.lane {
-  opacity: 0.35;
-}
-.role0 {
-  --role: #468ed1;
-}
-.role1 {
-  --role: #ba7ac8;
-}
-.role2 {
-  --role: #40a499;
-}
-.role3 {
-  --role: #bf8750;
-}
-.role4 {
-  --role: #dd697e;
-}
-.role5 {
-  --role: #82a451;
-}
-.role6 {
-  --role: #9496ca;
-}
-.timebar {
-  fill: var(--role);
-}
-#modelDetail div {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-#modelDetail button,
-#relatedModels button {
-  margin: 3px;
-}
-
+#modelNav { padding: 16px 0 20px; border-top: 1px solid var(--border); }
+#modelNav > .tools { align-items: end; }
+#modelNav select { max-width: min(38ch, 80vw); }
+#modelKind { font-weight: 600; }
+#modelQuestion { margin: 14px 0 8px; font-size: 16px; }
+#relatedModels button { border-radius: 999px; padding: 5px 12px; font-size: 11px; }
+#modelDrawing { margin: 0; }
+#modelSvg text { font: 13px var(--vscode-font-family, system-ui); fill: var(--ink); }
+#modelSvg .caption { font-size: 11px; fill: var(--muted); }
+#modelSvg .card-title { font-weight: 600; }
+#modelSvg .card-stereotype { font-size: 11px; fill: var(--muted); letter-spacing: .035em; }
+#modelSvg .card-summary { font-size: 12px; fill: var(--ink); }
+#modelSvg .compartment-heading { font-size: 11px; font-weight: 650; fill: var(--muted); }
+#modelSvg .card-member { font: 12px var(--vscode-editor-font-family, ui-monospace, monospace); fill: var(--ink); }
+.compartment-rule { stroke: var(--role); stroke-width: 1; opacity: .55; }
+#modelSvg .edge-label { font-size: 11px; fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+.model-card { cursor: pointer; }
+.model-card rect { fill: color-mix(in srgb, var(--role) 10%, var(--panel)); stroke: var(--role); stroke-width: 1.3; }
+.model-card.selected rect, .model-card:focus rect, .model-card:hover rect { stroke: var(--accent); stroke-width: 3; }
+.lifeline, .lane { stroke: var(--muted); stroke-width: 1; }
+.lifeline, .dependency, .implements, .realization { stroke-dasharray: 5 4; }
+.lane { opacity: .25; }
+.role0 { --role: var(--blue, #468ed1); }
+.role1 { --role: var(--purple, #ba7ac8); }
+.role2 { --role: var(--green, #40a499); }
+.role3 { --role: var(--amber, #bf8750); }
+.role4 { --role: var(--pink, #dd697e); }
+.role5 { --role: var(--lime, #82a451); }
+.role6 { --role: var(--slate, #9496ca); }
+.timebar { fill: var(--role); }
+#modelDetail div { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
+#modelDetail button { display: block; margin: 8px 0; max-width: 100%; }
+#modelLegend { display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.legend-key { color: var(--muted); font-size: 11px; display: flex; align-items: center; gap: 6px; }
+.legend-key::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--role); }
+#modelRoute { color: var(--muted); min-height: 3em; }
+#modelSteps { padding-left: 22px; max-height: 200px; overflow: auto; }
+#modelSteps li { padding: 4px 0; color: var(--muted); }
+#modelSteps button { border: 0; padding: 3px 6px; background: transparent; min-height: 28px; }
+#modelSteps button[aria-current='step'] { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+#modelSvg [data-active='true'] { stroke: var(--accent); stroke-width: 3; }
+#modelSvg text[data-active='true'] { fill: var(--ink); stroke: var(--surface); }
+.uml-end { fill: var(--panel); stroke: var(--ink); stroke-width: 1.6; }
+.uml-end.filled { fill: var(--ink); }
+.uml-end.outer { fill: none; }
 @media (prefers-reduced-motion: no-preference) {
-  #modelSvg[data-motion='live']:not([data-kind='classes']):not([data-kind='er']) .wire {
-    stroke-dasharray: 10 3;
-    animation: malt-flow 3s linear infinite;
-  }
-  #modelSvg[data-motion='live'] .timebar {
-    animation: malt-span 3s ease-in-out infinite alternate;
-  }
+  #modelSvg[data-motion='live'] .wire[data-active='true'] { stroke-dasharray: 9 5; animation: malt-flow 1.4s linear infinite; }
 }
-@keyframes malt-flow {
-  to {
-    stroke-dashoffset: -26;
-  }
-}
-@keyframes malt-span {
-  to {
-    opacity: 0.72;
-  }
-}
-
-.uml-end {
-  fill: var(--vscode-editor-background);
-  stroke: var(--vscode-foreground);
-  stroke-width: 1.6;
-}
-.uml-end.filled {
-  fill: var(--vscode-foreground);
-}
-.uml-end.outer {
-  fill: none;
-}
+@keyframes malt-flow { to { stroke-dashoffset: -28; } }

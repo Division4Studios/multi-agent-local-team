@@ -16,6 +16,7 @@ import { registerStandardsCommands, showFindingLocation } from './standards/stan
 import { ConversationPanel } from './views/conversationPanel';
 import type { PullRequestReview } from './pullRequest/pullRequestReview';
 import { configureReviewType } from './views/reviewSettings';
+import { registerChangeReview } from './views/changeReview';
 
 export interface CommandDeps {
   readonly store: HunkStore;
@@ -147,6 +148,7 @@ const setCredentials = async (deps: CommandDeps): Promise<void> => {
 
 export const registerCommands = (deps: CommandDeps): vscode.Disposable =>
   vscode.Disposable.from(
+    registerChangeReview(deps),
     vscode.commands.registerCommand('malt.startReviewer', async () => { await startReviewer(deps); }),
     vscode.commands.registerCommand('malt.stopReviewer', async () => { await deps.manager.stop(); }),
     vscode.commands.registerCommand('malt.scanStandards', async () => { await runScan(deps); }),

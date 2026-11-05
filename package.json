@@ -120,6 +120,12 @@
         "icon": "$(trash)"
       },
       {
+        "command": "malt.beforeCommit",
+        "title": "Before Commit: Explain and Inspect Changes",
+        "category": "MALT",
+        "icon": "$(preview)"
+      },
+      {
         "command": "malt.reviewAgain",
         "title": "Review Again",
         "category": "MALT",
@@ -269,6 +275,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "malt.beforeCommit",
+          "when": "view == malt.changes",
+          "group": "navigation@0"
+        },
         {
           "command": "malt.agentConnection",
           "when": "view == malt.architectureViews",

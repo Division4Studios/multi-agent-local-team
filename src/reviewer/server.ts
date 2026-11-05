@@ -9,6 +9,7 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { PROTOCOL_VERSION, parseCheckRequest, parseConsolidationRequest, parseReviewRequest } from '../shared/protocol';
 import type { ReviewRequest } from '../shared/protocol';
+import { UnknownRuleError } from './service';
 import type { ReviewService } from './service';
 import { ConversationLog } from './conversations';
 import { log } from './log';
@@ -139,6 +140,18 @@ const route = async (service: ReviewService, request: IncomingMessage): Promise<
 };
 
 const HEARTBEAT_MS = 15_000;
+const streamScan = async (service: ReviewService, response: ServerResponse): Promise<void> => {
+  response.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' });
+  const send = (event: unknown): void => {
+    if (!response.destroyed) { response.write(`${JSON.stringify(event)}\n`); }
+  };
+  const heartbeat = setInterval(() => { if (!response.destroyed) { response.write('\n'); } }, HEARTBEAT_MS);
+  heartbeat.unref();
+  response.on('close', () => { clearInterval(heartbeat); });
+  try { send({ result: await service.scanStandards((progress) => { send({ progress }); }) }); }
+  catch (error: unknown) { send({ error: publicMessage(error) }); }
+  finally { clearInterval(heartbeat); response.end(); }
+};
 /** A viewer that stops reading is dropped rather than letting unsent events pile up in memory. */
 const MAX_UNSENT_BYTES = 8_000_000;
 
@@ -188,12 +201,16 @@ export const createReviewerServer = (service: ReviewService, token: string, conv
       streamConversations(conversations, request, response);
       return;
     }
+    if (request.method === 'POST' && request.url === '/standards/scan' && request.headers.accept === 'application/x-ndjson') {
+      void streamScan(service, response);
+      return;
+    }
     route(service, request).then(
       (body) => {
         sendJson(response, 200, body);
       },
       (error: unknown) => {
-        const status = error instanceof HttpError ? error.status : 500;
+        const status = error instanceof HttpError ? error.status : (error instanceof UnknownRuleError ? 409 : 500);
         const message = publicMessage(error);
         log(`error ${String(status)}: ${message}`);
         sendJson(response, status, { error: message });

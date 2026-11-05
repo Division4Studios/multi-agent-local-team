@@ -8,6 +8,7 @@ import type { GitApi, GitRepository } from '../../git/gitApi';
 import { compareGraphs } from '../../architecture/graph';
 import { headOf, revision } from '../../architecture/sources';
 import { MapTracker } from '../../architecture/tracker';
+import { Atlas } from '../../architecture/navigation';
 import { waitFor } from './testUtils';
 import type { TestCase } from './harness';
 
@@ -36,6 +37,19 @@ const fixture = async (root: string, git: TestGit): Promise<TestRepository> => {
   return repo;
 };
 
+const explicitNavigation = (tracker: MapTracker): void => {
+  const atlas = new Atlas(tracker);
+  try {
+    atlas.visit({ kind: 'architecture', key: '', item: 'file:base.ts' });
+    assert.equal(atlas.item?.id, 'file:base.ts');
+    atlas.visit({ kind: 'tree', key: '', item: 'workspace' });
+    assert.equal(atlas.item.id, 'workspace', 'an explicitly requested item wins over the previously selected file');
+    atlas.visit({ kind: 'architecture', key: '', item: 'file:base.ts' });
+    atlas.visit({ kind: 'tree', key: '', item: '' });
+    assert.equal(atlas.item.id, 'file:base.ts', 'switching representation without an explicit item still carries selection');
+  } finally { atlas.dispose(); }
+};
+
 export const tests: readonly TestCase[] = [{
   name: 'architecture: checkout rebuilds automatically; two pinned branch maps leave HEAD and local edits alone',
   run: async (): Promise<void> => {
@@ -54,6 +68,7 @@ export const tests: readonly TestCase[] = [{
       tracker = new MapTracker(folder, git, key);
       const active = tracker;
       await waitFor(() => active.snapshot?.commit === base.commit && active.snapshot.nodes.some((n) => n.label === 'Base'), 'initial branch map', 25_000);
+      explicitNavigation(active);
       await repo.createBranch('feature/widgets', true);
       const child = join(root, 'child.ts');
       await writeFile(child, "import { Base } from './base';\nexport class Child extends Base {}");

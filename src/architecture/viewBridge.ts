@@ -5,6 +5,8 @@ import { finalizeView } from './finalize';
 import type { Atlas } from './navigation';
 import type { Place } from './catalog';
 import type { MapNode } from './graph';
+import { narrateView } from './narration';
+import { questionKey } from './panelQuestions';
 
 export const parsePlace = (m: unknown): Place | undefined => {
   if (!isRecord(m) || !isView(m['kind']) || typeof m['key'] !== 'string' || typeof m['item'] !== 'string') {
@@ -42,11 +44,13 @@ export const sendView = (a: Atlas, web: vscode.Webview): void => {
     src = selectedSource(a);
   void web.postMessage({
     action: 'perspective',
+    questionKey: questionKey(a),
     kinds: Object.entries(views).map(([k, v]) => [k, v[0]]),
     question: views[p.kind][1],
     place: p,
     menu: a.menu(p.kind),
     model: d,
+    narration: d === undefined || a.snapshot === undefined ? undefined : narrateView(d, p.item, a.snapshot),
     related: a.links(),
     source: src !== undefined,
     discuss: a.base === undefined && src !== undefined,
