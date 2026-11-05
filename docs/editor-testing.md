@@ -4,7 +4,7 @@ Run `npm run verify` first. Automated tests launch VS Code, but visual layout an
 
 ## Setup
 
-Press **F5**, then open a disposable Git repository in the new window. Start with one committed text file. Disable `malt.changes.autoReview` if checking presentation without model calls. Use a configured reviewer for the verdict/hover checks.
+Press **F5**, then open a disposable Git repository in the new window. Start with one committed text file. Disable `malt.changes.autoReview` and `malt.changes.autoConsolidation` if checking presentation without model calls. Use a configured reviewer for the verdict/hover checks.
 
 | Check | Expected result |
 | --- | --- |

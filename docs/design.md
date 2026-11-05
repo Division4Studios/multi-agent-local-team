@@ -27,7 +27,7 @@ Every asset is hand-authored as SVG or HTML/CSS and is reviewable as text. No im
 |---|---|---|
 | `media/malt.svg` | Activity-bar icon: the mark's paths in `currentColor`, so it follows the theme. The source of the shape. | Yes |
 | `media/icon.png` | 256 px Marketplace and VSIX icon, rendered from `design/icon.html` | Yes |
-| `design/brand/mark.svg` | The full-color mark: the same paths as `media/malt.svg` in brand colors (`mark.png`: 1024 px render) | No |
+| `design/brand/mark.svg` | The full-color mark: the same shape as `media/malt.svg` in brand colors (top grain split into two facets, stem starting below it) (`mark.png`: 1024 px render) | No |
 | `design/brand/lockup-dark.svg`, `lockup-light.svg` | The mark's paths and a drawn wordmark, for dark or light backgrounds (PNG exports beside them) | No |
 | `design/hero.html` → `hero.png` | README and wiki header: the editor mock-up with MALT's real labels and hover layout | No |
 | `docs/images/architecture-guidance.svg` | Sidebar, signed feed and local agent handoff illustration for the [ten-view guide](architecture-views.md). | Yes |
