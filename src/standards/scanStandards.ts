@@ -6,6 +6,7 @@
  * what neither settles is recorded as gaps for the team.
  */
 import * as vscode from 'vscode';
+import { scanNotification } from './scanNotification';
 import type { GitRepository } from '../git/gitApi';
 import { getGitApi } from '../git/gitApi';
 import { headOf, relativePath } from '../architecture/sources';
@@ -72,9 +73,9 @@ export const scanStandards = async (client: ReviewerClient, folder: vscode.Works
   const scan = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: 'MALT: Scanning standards and architecture docs, mapping the code and looking for gaps…',
+      title: 'MALT: Scanning project',
     },
-    async () => await client.scanStandards(),
+    async (progress) => await client.scanStandards(scanNotification(progress)),
   );
   ensureCurrent(current);
   for (const warning of scan.warnings) {
@@ -100,7 +101,7 @@ export const scanStandards = async (client: ReviewerClient, folder: vscode.Works
   if (choice === 'Open Rules') {
     await vscode.window.showTextDocument(target);
   } else if (choice === 'Show Gaps') {
-    showGaps(scan.gaps);
+    await showGaps(scan.gaps, folder);
   }
 };
 
@@ -117,5 +118,5 @@ export const showSavedGaps = async (folder: vscode.WorkspaceFolder): Promise<voi
     void vscode.window.showInformationMessage('MALT has no recorded standards gaps. Run Scan Project Standards to look for them.');
     return;
   }
-  showGaps(document.gaps);
+  await showGaps(document.gaps, folder);
 };

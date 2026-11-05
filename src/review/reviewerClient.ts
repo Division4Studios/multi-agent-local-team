@@ -1,5 +1,7 @@
 /** HTTP client for the reviewer service, bound to 127.0.0.1 and authenticated with a per-start token. */
 import { request as httpRequest } from 'node:http';
+import { scanStream } from './scanStream';
+import type { ScanProgress } from '../shared/scanProgress';
 import { isRecord, isString, parseArray } from '../shared/guards';
 import { parseConversationEvent } from '../shared/conversation';
 import { parseInterpretation } from '../shared/understanding';
@@ -27,6 +29,8 @@ export interface ReviewerEndpoint {
 }
 
 const REVIEW_TIMEOUT_MS = 240_000;
+/** Up to three provider calls when the model requests two additional evidence rounds, plus reading margin. */
+const EVIDENCE_REVIEW_TIMEOUT_MS = 600_000;
 /** One provider call (up to the scan timeout) plus margin. */
 const INVESTIGATION_TIMEOUT_MS = 960_000;
 /** Two scan calls run in parallel, then the gap analysis: up to two provider timeouts plus margin. */
@@ -37,6 +41,16 @@ interface CallOptions {
   readonly path: string;
   readonly body?: unknown;
   readonly timeoutMs: number;
+}
+
+/** A non-200 answer from the reviewer. 409 on /check means the rule no longer exists in the current standards. */
+export class ReviewerHttpError extends Error {
+  public readonly status: number;
+
+  public constructor(status: number, message: string) {
+    super(`Reviewer error (HTTP ${String(status)}): ${message}`);
+    this.status = status;
+  }
 }
 
 const call = async (endpoint: ReviewerEndpoint, options: CallOptions): Promise<unknown> =>
@@ -71,7 +85,7 @@ const call = async (endpoint: ReviewerEndpoint, options: CallOptions): Promise<u
             resolvePromise(parsed);
           } else {
             const message = isRecord(parsed) && isString(parsed['error']) ? parsed['error'] : 'unknown error';
-            reject(new Error(`Reviewer error (HTTP ${String(res.statusCode)}): ${message}`));
+            reject(new ReviewerHttpError(res.statusCode ?? 0, message));
           }
         });
       },
@@ -108,7 +122,7 @@ export class ReviewerClient {
 
   public async check(request: CheckRequest): Promise<RuleCheck> {
     const check = parseRuleCheck(
-      await call(this.endpoint, { method: 'POST', path: '/check', body: request, timeoutMs: REVIEW_TIMEOUT_MS }),
+      await call(this.endpoint, { method: 'POST', path: '/check', body: request, timeoutMs: EVIDENCE_REVIEW_TIMEOUT_MS }),
     );
     if (check?.ruleId !== request.ruleId) {
       throw new Error('Reviewer returned an invalid check');
@@ -124,7 +138,8 @@ export class ReviewerClient {
     return answer;
   }
 
-  public async scanStandards(): Promise<StandardsScan> {
+  public async scanStandards(report?: (progress: ScanProgress) => void): Promise<StandardsScan> {
+    if (report !== undefined) { return await scanStream(this.endpoint, report); }
     const scan = parseStandardsScan(await call(this.endpoint, { method: 'POST', path: '/standards/scan', body: {}, timeoutMs: SCAN_TIMEOUT_MS }));
     if (scan === undefined) {
       throw new Error('Reviewer returned an invalid standards scan');
@@ -133,7 +148,7 @@ export class ReviewerClient {
   }
 
   public async consolidation(request: ConsolidationRequest): Promise<readonly Finding[]> {
-    const result = await call(this.endpoint, { method: 'POST', path: '/consolidation', body: request, timeoutMs: REVIEW_TIMEOUT_MS });
+    const result = await call(this.endpoint, { method: 'POST', path: '/consolidation', body: request, timeoutMs: EVIDENCE_REVIEW_TIMEOUT_MS });
     const findings = isRecord(result) ? parseArray(result['findings'], parseFinding) : undefined;
     if (findings === undefined) {
       throw new Error('Reviewer returned invalid consolidation findings');

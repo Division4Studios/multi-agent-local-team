@@ -46,10 +46,12 @@ const isCandidate = (name: string): boolean =>
  * hidden (dot) or dependency/build folder anywhere on the path. Stricter than discovery (no dot folders at all),
  * so data files (`.env`, `secrets.json`, keys, notes) can never be read as "code".
  */
+/** Whether a path names a code file by its extension alone (documentation and data files do not). */
+export const isCodeFileName = (path: string): boolean => CODE_FILE.test(path.split('/').at(-1) ?? '');
+
 export const isSourceCodePath = (path: string): boolean => {
   const segments = path.split('/');
-  const name = segments.at(-1) ?? '';
-  return CODE_FILE.test(name) && segments.every((segment) => segment !== '' && segment !== '..' && !segment.startsWith('.') && !SKIPPED_DIRECTORIES.has(segment));
+  return isCodeFileName(path) && segments.every((segment) => segment !== '' && segment !== '..' && !segment.startsWith('.') && !SKIPPED_DIRECTORIES.has(segment));
 };
 
 const shouldDescend = (name: string): boolean =>

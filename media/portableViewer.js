@@ -109,6 +109,7 @@
       fields: el('fields').checked,
       zone: el('zone').value,
       zoom: Number(el('zoom').value),
+      activeWire: route[at] ?? -1,
     });
     svg.dataset.motion = el('motion').checked ? 'live' : 'still';
     for (const g of svg.querySelectorAll('[data-item]')) g.classList.toggle('selected', g.dataset.item === id);

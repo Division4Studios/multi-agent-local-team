@@ -4,6 +4,16 @@ Open a trusted local project in VS Code and select **MALT → Reviewer → Archi
 
 The **Architecture Explorer** in the MALT sidebar offers ten views of the same workspace. You can follow a selected subject between the sidebar and the editor, publish standalone diagrams, and share clarified intent with local agent sessions. [Views, publication and agent setup](architecture-views.md)
 
+The editor opens a canvas beside an inspector; in a narrow editor the inspector moves below it. **Appearance** follows VS Code by default, with explicit Light and Dark options. The sidebar uses native theme colors. Open **Project actions** for branch comparison, rebuilding and file summaries.
+
+In diagram views, **Follow the flow** provides Play/Pause, Next step, Reset and playback speed. Sequence messages follow their recorded order, including returns. Other routes start at the selected item and follow the first outgoing connection at a branch; the route text explains this choice. Only the active relationship animates. **Reduce motion** keeps the selected step and its explanation visible without movement. Playback is an illustration of recorded relationships, not a live execution trace.
+
+Every view starts with **What you are looking at**. Selecting or drilling into an item updates that explanation and the question context. Cards include wrapped responsibilities; class/interface diagrams separate the type's responsibility from its UML attributes and operations. **Show technical members** reveals those details when needed. Existing maps receive structural explanations immediately. A new standards scan can add more specific participant/declaration summaries and a recommended representation with its reason; recommendations are suggestions, not proof of behavior or automatic view changes.
+
+Use **Ask about this view** to ask for a plain-English explanation, a concrete example, or the reason a part exists. Choose **Product / business reader** or **Developer**, and continue with follow-up questions. Answers use the selected item, diagram metadata and up to six complete matching source files within the discussion budget. The page reports omitted evidence, distinguishes inferred purpose from documented rationale, and links to supplied source files. Changing the selection or revision prevents an old answer from being shown in the new context. Questions make reviewer calls only when submitted and never automatically save a clarification.
+
+For a human review of all saved local changes before committing, open [Before commit](before-commit-review.md) from the Changes view title bar.
+
 ## Follow a process through the code
 
 To try the example below, open MALT's own repository.
@@ -33,9 +43,9 @@ Structural indexing and branch comparisons run locally. A standards scan or disc
 
 ## Compare two branches
 
-1. Choose **Compare branches…**, select the base, then choose a target local branch. Select **Current working tree** as the target to include saved local edits.
+1. Choose **Compare branches…**, select the base, then choose a target local branch. Select **Current project files** as the target to include saved, uncommitted changes. Unsaved editor edits are not included. In live mode the heading shows the branch followed by **Current files**; commit comparisons identify the saved commits separately.
 2. Enable **Changes only**. Follow a changed folder down to its declarations. A plus marks an addition, a minus with a dashed outline marks a removal, and a tilde marks a change. The comparison includes relationships as well as nodes. Renames appear as a removal and addition.
-3. Use **Trace in** to trace the base or the target independently. A removed declaration opens source from the base commit. Select **Working tree** to resume live navigation and clarification.
+3. Use **Trace in** to trace the base or the target independently. A removed declaration opens source from the base commit. Select **Current project files** to resume live navigation and clarification.
 
 MALT reads branch tips through VS Code's Git provider. You can compare a branch you have never opened. The comparison leaves HEAD, the index and saved local edits in place.
 

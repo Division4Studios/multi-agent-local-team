@@ -2,6 +2,7 @@ import { agentModels } from './agentModels';
 import { diagramKey, newDiagram } from '../shared/diagram';
 import type { Diagram, Part, ViewKind } from '../shared/diagram';
 import type { MapNode, Snapshot } from './graph';
+import { explainDiagram } from './narration';
 
 export interface Place {
   kind: ViewKind;
@@ -83,7 +84,7 @@ export const catalog = (s: Snapshot, history?: Diagram): Diagram[] => {
     ...schema(diagrams),
     ...diagrams,
     ...(history === undefined ? [] : [history]),
-  ];
+  ].map((diagram) => explainDiagram(diagram, s));
 };
 export const related = (models: Diagram[], diagram: Diagram, part: Part): { model: Diagram; item: Part }[] => {
   if (part.ref === undefined) {

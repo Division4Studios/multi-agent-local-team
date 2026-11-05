@@ -1,13 +1,27 @@
 /** A quote is evidence for an agent interpretation. Only an explicit developer action confirms intent. */
 import { isRecord, readStrings } from './guards';
+import { isView } from './diagram';
 
-export interface ModelClaim { readonly view:string; readonly title:string; readonly from:string; readonly to:string; readonly label:string; readonly evidence:string }
+export interface SubjectExplanation { readonly symbol: string; readonly summary: string; readonly evidence: string; readonly view: string; readonly reason: string }
+const explanationFields = ['symbol', 'summary', 'evidence', 'view', 'reason'] as const;
+export const explanationsOf = (value: unknown): SubjectExplanation[] => {
+  if (!Array.isArray(value)) { return []; }
+  const entries: readonly unknown[] = value;
+  return entries.slice(0, 30).flatMap((entry) => {
+    const fields = isRecord(entry) ? readStrings(entry, explanationFields) : undefined;
+    return fields !== undefined && isView(fields.view) && fields.symbol.trim() !== '' && Object.values(fields).every((text) => text.length <= 600) ? [fields] : [];
+  });
+};
+
+export interface ModelClaim { readonly view:string; readonly title:string; readonly from:string; readonly to:string; readonly label:string; readonly evidence:string; readonly summary?:string; readonly fromSummary?:string; readonly toSummary?:string }
 const claimKinds=new Set(['architecture','workflow','sequence','dataflow','lifecycle']);
 const claimFields=['view','title','from','to','label','evidence'] as const;
 const parseClaim=(v:unknown):ModelClaim|undefined=>{
   const claim=isRecord(v)?readStrings(v,claimFields):undefined;
   if(claim===undefined||!claimKinds.has(claim.view)){return undefined;}
-  return Object.values(claim).every(s=>s.length<=600)&&[claim.title,claim.from,claim.to,claim.label].every(s=>s.trim()!=='')?claim:undefined;
+  if (!Object.values(claim).every(s=>s.length<=600)||![claim.title,claim.from,claim.to,claim.label].every(s=>s.trim()!=='')) { return undefined; }
+  const extra = isRecord(v) ? Object.fromEntries(['summary', 'fromSummary', 'toSummary'].flatMap((key) => typeof v[key] === 'string' && v[key].length <= 600 ? [[key, v[key]]] : [])) : {};
+  return { ...claim, ...extra };
 };
 export const claimsOf=(v:unknown):ModelClaim[]=>{
   if(!Array.isArray(v)){return [];}
@@ -15,6 +29,7 @@ export const claimsOf=(v:unknown):ModelClaim[]=>{
   return values.slice(0,12).flatMap(x=>parseClaim(x)??[]);
 };
 export interface Interpretation {
+  readonly explanations?: readonly SubjectExplanation[];
   readonly claims?: readonly ModelClaim[];
   readonly role?: string;
   readonly what: string;
@@ -24,12 +39,15 @@ export interface Interpretation {
   readonly question: string;
 }
 export interface Understanding extends Interpretation { readonly confirmed?: string }
+const interpretationExtras = (v: unknown): Pick<Interpretation, 'role' | 'claims' | 'explanations'> => {
+  if (!isRecord(v)) { return {}; }
+  const role = v['role'], claims = claimsOf(v['claims']), explanations = explanationsOf(v['explanations']);
+  return { ...(typeof role === 'string' && role.length <= 100 ? { role } : {}), ...(claims.length > 0 ? { claims } : {}), ...(explanations.length > 0 ? { explanations } : {}) };
+};
 export const parseInterpretation = (v: unknown): Interpretation | undefined => {
   const fields = isRecord(v) ? readStrings(v, ['what', 'whatEvidence', 'why', 'whyEvidence', 'question']) : undefined;
   if (fields === undefined || Object.values(fields).some((s) => s.length > 1600)) { return undefined; }
-  const role = isRecord(v) ? v['role'] : undefined;
-  const claims = claimsOf(isRecord(v) ? v['claims'] : undefined);
-  return { ...fields, ...(typeof role === 'string' && role.length <= 100 ? {role}:{}), ...(claims.length > 0 ? {claims}:{}) };
+  return { ...fields, ...interpretationExtras(v) };
 };
 export const parseUnderstanding = (v: unknown): Understanding | undefined => {
   const fields = parseInterpretation(v);
@@ -53,7 +71,8 @@ export const parseDiscussion = (v: unknown): DiscussionRequest | undefined => {
 export const interpretationSchema = {
   type: 'object',
   properties: {
-    claims: { type:'array', maxItems:12, items:{type:'object',properties:Object.fromEntries(claimFields.map(k=>[k,{type:'string'}])),required:claimFields,additionalProperties:false} },
+    explanations: { type: 'array', maxItems: 30, items: { type: 'object', properties: Object.fromEntries(explanationFields.map((key) => [key, { type: 'string' }])), required: explanationFields, additionalProperties: false } },
+    claims: { type:'array', maxItems:12, items:{type:'object',properties:Object.fromEntries([...claimFields, 'summary', 'fromSummary', 'toSummary'].map(k=>[k,{type:'string'}])),required:claimFields,additionalProperties:false} },
     role: { type: 'string' }, what: { type: 'string' }, whatEvidence: { type: 'string' }, why: { type: 'string' },
     whyEvidence: { type: 'string' }, question: { type: 'string' },
   },

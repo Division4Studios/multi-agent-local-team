@@ -9,6 +9,7 @@
 import type { CheckRequest, OverviewResponse, ReviewRequest, Rule, RuleCheck } from '../shared/protocol';
 import type { HunkState, HunkStore, TrackedHunk } from './hunkStore';
 import { missingRules } from './reviewProgress';
+import { ReviewerHttpError } from './reviewerClient';
 
 /** The capabilities the queue needs from the reviewer. */
 export interface HunkReviewer {
@@ -165,6 +166,11 @@ export class ReviewQueue {
   }
 
   private async runCheck(client: HunkReviewer, tracked: TrackedHunk, rule: Rule): Promise<void> {
+    const owed = this.options.store.state(tracked.id).review;
+    // The block restarted from its overview after this check was queued: the check belongs to the old rule list.
+    if (owed === undefined || !missingRules(owed).some((other) => other.id === rule.id)) {
+      return;
+    }
     const running = (state: HunkState): readonly string[] => (state.running ?? []).filter((ruleId) => ruleId !== rule.id);
     this.update(tracked.id, (state) => ({ ...state, running: [...running(state), rule.id] }));
     try {
@@ -173,9 +179,25 @@ export class ReviewQueue {
         ...state,
         review: { ...state.review, checks: [...state.review.checks.filter((other) => other.ruleId !== rule.id), check] },
       }));
+    } catch (error: unknown) {
+      if (!(error instanceof ReviewerHttpError && error.status === 409)) {
+        throw error;
+      }
+      this.restart(tracked, rule);
     } finally {
       this.update(tracked.id, (state) => ({ ...state, running: running(state) }));
     }
+  }
+
+  /** The saved review names a rule the reviewer no longer has (standards were rescanned): start over from the overview. */
+  private restart(tracked: TrackedHunk, rule: Rule): void {
+    // Already restarted (by another stale check), or the new overview no longer lists the rule.
+    const review = this.options.store.state(tracked.id).review;
+    if (this.stopped || review?.rules.some((other) => other.id === rule.id) !== true) {
+      return;
+    }
+    this.options.store.setState(tracked.id, { status: 'reviewing' });
+    this.push([{ tracked }], true);
   }
 
   private update(id: string, change: (state: HunkState) => HunkState): void {

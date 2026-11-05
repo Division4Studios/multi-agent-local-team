@@ -2,10 +2,12 @@
 (function () {
   'use strict';
   const host = window.acquireVsCodeApi();
+  window.startMaltTheme?.(host);
   const el = id => document.getElementById(id);
   const svg = el('map');
   const root = 'workspace';
   const pageSize = 7;
+  const cardWidth = 304, connectionGap = 92, graphWidth = 3 * cardWidth + 2 * connectionGap + 32;
   const marks = { added: '+', removed: '−', changed: '~', same: '' };
   let nodes = new Map(), children = new Map(), edges = [], focus = root, history = [];
   let page = 0, zoom = 1, comparing = false, traceStart, traceEnd;
@@ -17,6 +19,7 @@
     return b;
   };
   const lenses = window.startMaltViews?.(m => host.postMessage(m), id => visit(id, false));
+  const questions = window.startMaltQuestions?.(m => host.postMessage(m));
   function visit(id, sync = true) {
     if (!nodes.has(id)) { return; }
     if (id !== focus) { history.push(focus); }
@@ -36,6 +39,33 @@
     }
     return path;
   }
+  function declarationExplanation(n, knowledge) {
+    if (n.kind === 'file' || !knowledge) { return undefined; }
+    let qualified = n.label;
+    try {
+      const id = JSON.parse(n.id);
+      if (Array.isArray(id) && typeof id[1] === 'string') { qualified = id[1]; }
+    } catch { /* Older cached graph identities may not encode a qualified declaration. */ }
+    const explanations = knowledge.explanations || [];
+    if (qualified !== n.label) {
+      const exact = explanations.find(item => item.symbol === qualified);
+      if (exact) { return exact; }
+    }
+    const matches = [...nodes.values()].filter(node => node.path === n.path && node.label === n.label);
+    return matches.length === 1 ? explanations.find(item => item.symbol === n.label) : undefined;
+  }
+  function nodeSummary(n) {
+    const knowledge = nodes.get('file:' + n.path)?.understanding;
+    if (n.kind === 'file' && knowledge) { return knowledge.confirmed || knowledge.what; }
+    const explanation = declarationExplanation(n, knowledge);
+    if (explanation?.summary) { return explanation.summary; }
+    const owned = children.get(n.id)?.length || 0;
+    if (owned) { return 'Groups ' + owned + ' items. Open it to explore what belongs here.'; }
+    const outgoing = edges.filter(edge => edge.from === n.id).length;
+    const incoming = edges.filter(edge => edge.to === n.id).length;
+    if (incoming || outgoing) { return incoming + ' incoming and ' + outgoing + ' outgoing connections. Ask about this item to understand its role.'; }
+    return 'Its role has not been explained yet. Ask about this item to inspect the available evidence.';
+  }
   function understanding(n) {
     const box = el('knowledge');
     box.replaceChildren();
@@ -54,8 +84,13 @@
       box.append(p);
     }
     line('File', file.path);
-    if (k.confirmed) { line('Developer clarification', k.confirmed); }
-    line(k.whatEvidence ? 'What · source evidence' : 'What · working hypothesis', k.what);
+    if (n.kind !== 'file') {
+      const explanation = declarationExplanation(n, k);
+      line(explanation?.evidence ? 'Selected declaration · source excerpt available' : 'Selected declaration', nodeSummary(n));
+      if (explanation?.evidence) { line('Declaration evidence', explanation.evidence); }
+    }
+    if (k.confirmed) { line('Developer clarification for this file', k.confirmed); }
+    line(k.whatEvidence ? 'File context · source evidence' : 'File context · working hypothesis', k.what);
     if (k.whatEvidence) { line('Evidence', k.whatEvidence); }
     line(k.whyEvidence ? 'Why · documented rationale' : 'Why · working hypothesis', k.why);
     if (k.whyEvidence) { line('Evidence', k.whyEvidence); }
@@ -97,19 +132,40 @@
     for (const [key, value] of Object.entries(attrs)) { e.setAttribute(key, String(value)); }
     return e;
   };
-  function card(item, x, y, center) {
+  function wrapCardText(value) {
+    const width = (text) => [...text].reduce((sum, c) => sum + (/[MW@#%]/u.test(c) ? 13 : /[ilI.,:;|'! ]/u.test(c) ? 4 : /[A-Z]/u.test(c) ? 10 : c.codePointAt(0) > 255 ? 14 : 8), 0);
+    const lines = [];
+    let line = '';
+    for (const word of String(value).trim().split(/\s+/u)) {
+      if (line && width(line + ' ' + word) > cardWidth - 32) { lines.push(line); line = ''; }
+      for (const c of (line ? ' ' : '') + word) {
+        if (line && width(line + c) > cardWidth - 32) { lines.push(line); line = ''; }
+        line += c;
+      }
+    }
+    if (line) { lines.push(line); }
+    return lines;
+  }
+  function cardLayout(item) {
+    const rows = [];
+    for (const [value, className] of [[(marks[item.status] + ' ' + item.label).trim(), 'caption'], [item.node.label, 'card-title'], [nodeSummary(item.node), 'card-summary']]) {
+      rows.push(...wrapCardText(value).map(text => ({ text, className })));
+    }
+    return { rows, height: rows.length * 19 + 26 };
+  }
+  function card(item, x, y, center, layout) {
     const n = item.node;
     const title = [item.label, n.label, n.path, comparing && item.status].filter(Boolean).join(' · ');
     const g = svgEl('g', { transform: 'translate(' + x + ',' + y + ')', role: 'button', tabindex: 0,
-      'aria-label': title, class: 'node ' + item.status + (center ? ' active' : '') });
+      'aria-label': title, 'aria-description': nodeSummary(n), 'aria-pressed': String(center), 'data-item': n.id, 'data-kind': n.kind, class: 'node ' + item.status + (center ? ' active' : '') });
     const tooltip = svgEl('title', {});
-    tooltip.textContent = title;
-    g.append(tooltip, svgEl('rect', { width: 216, height: 57, rx: 8 }));
-    const caption = svgEl('text', { x: 12, y: 20, class: 'caption' });
-    caption.textContent = (marks[item.status] + ' ' + item.label).trim();
-    const name = svgEl('text', { x: 12, y: 42 });
-    name.textContent = n.label.length > 24 ? n.label.slice(0, 23) + '…' : n.label;
-    g.append(caption, name);
+    tooltip.textContent = title + '\n' + nodeSummary(n);
+    g.append(tooltip, svgEl('rect', { width: cardWidth, height: layout.height, rx: 8 }));
+    layout.rows.forEach((row, index) => {
+      const label = svgEl('text', { x: 16, y: 24 + index * 19, class: row.className });
+      label.textContent = row.text;
+      g.append(label);
+    });
     const select = () => center && n.line ? post('source', n.id) : visit(n.id);
     g.addEventListener('click', select);
     g.addEventListener('keydown', e => {
@@ -218,6 +274,7 @@
     });
   }
   function draw() {
+    const focused = svg.contains?.(document.activeElement) ? document.activeElement?.getAttribute('data-item') : undefined;
     svg.replaceChildren();
     const n = nodes.get(focus);
     if (!n) {
@@ -234,33 +291,42 @@
     const pages = Math.max(1, Math.ceil(Math.max(left.length, right.length) / pageSize));
     page = Math.min(page, pages - 1);
     const slice = a => a.slice(page * pageSize, (page + 1) * pageSize);
-    const sides = [slice(left), slice(right)];
-    const height = Math.max(225, 28 + 78 * Math.max(...sides.map(a => a.length)));
-    svg.setAttribute('viewBox', '0 0 824 ' + height);
-    svg.setAttribute('width', String(824 * zoom));
+    const sides = [slice(left), slice(right)].map(items => items.map(item => ({ ...item, layout: cardLayout(item) })));
+    const selected = { node: n, label: n.kind + ' · selected', status: n.status };
+    const selectedLayout = cardLayout(selected);
+    const columnHeight = items => items.reduce((sum, item) => sum + item.layout.height + 32, 0) - 32;
+    const height = Math.max(240, selectedLayout.height + 48, ...sides.map(items => columnHeight(items) + 48));
+    svg.setAttribute('viewBox', '0 0 ' + graphWidth + ' ' + height);
+    svg.setAttribute('width', String(graphWidth * zoom));
     svg.setAttribute('height', String(height * zoom));
     const cy = height / 2;
+    const middleX = 16 + cardWidth + connectionGap, rightX = middleX + cardWidth + connectionGap;
     arrow();
     sides.forEach((items, i) => {
-      items.forEach((item, j) => {
-        const y = cy + (j - (items.length - 1) / 2) * 78;
-        if (i === 0) { wire(224, y, 304, cy, item.status); }
-        else { wire(520, cy, 600, y, item.status); }
-        card(item, i === 0 ? 8 : 600, y - 28, false);
+      let y = (height - columnHeight(items)) / 2;
+      items.forEach(item => {
+        const centerY = y + item.layout.height / 2;
+        if (i === 0) { wire(16 + cardWidth, centerY, middleX, cy, item.status); }
+        else { wire(middleX + cardWidth, cy, rightX, centerY, item.status); }
+        card(item, i === 0 ? 16 : rightX, y, false, item.layout);
+        y += item.layout.height + 32;
       });
     });
-    card({ node: n, label: n.kind + ' · selected', status: n.status }, 304, cy - 28, true);
+    card(selected, middleX, cy - selectedLayout.height / 2, true, selectedLayout);
     el('pages').textContent = 'Page ' + (page + 1) + ' of ' + pages + ' · ' + left.length + ' incoming / ' + right.length + ' outgoing';
     el('less').disabled = page === 0;
     el('more').disabled = page + 1 >= pages;
+    if (focused) { [...svg.querySelectorAll('[data-item]')].find(item => item.getAttribute('data-item') === focused)?.focus({ preventScroll: true }); }
   }
   function receive(event) {
     if (event.origin !== window.origin) { return; }
     const m = event.data;
-    if (m?.action === 'perspective') { lenses?.(m); return; }
+    if (m?.action === 'perspective') { questions?.(m); lenses?.(m); return; }
+    if (m?.action === 'viewAnswer') { questions?.(m); return; }
     if (!m || m.action !== 'graph') { return; }
     comparing = m.diff;
     el('title').textContent = m.title;
+    el('mapContext').textContent = m.context || '';
     el('status').textContent = m.message + (m.diff ? '   ·   + added   − removed   ~ changed' : '');
     el('diffFilter').hidden = !m.diff;
     el('live').hidden = !m.diff;
@@ -308,7 +374,7 @@
   el('less').addEventListener('click', () => { page = Math.max(0, page - 1); draw(); });
   el('zoomIn').addEventListener('click', () => { zoom = Math.min(3, zoom * 1.25); draw(); });
   el('zoomOut').addEventListener('click', () => { zoom = Math.max(0.4, zoom / 1.25); draw(); });
-  el('fit').addEventListener('click', () => { zoom = Math.max(0.25, Math.min(2, svg.parentElement.clientWidth / 824)); draw(); });
+  el('fit').addEventListener('click', () => { zoom = Math.max(0.25, Math.min(2, svg.parentElement.clientWidth / graphWidth)); draw(); });
   window.addEventListener('message', receive);
   post('ready');
 }());

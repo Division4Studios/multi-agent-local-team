@@ -7,6 +7,8 @@ import { isNonNegativeInteger, isString } from '../shared/guards';
 import type { Finding } from '../shared/protocol';
 import { showGaps, showListPage } from '../views/detailPanel';
 import type { FindingHighlight } from '../editor/findingHighlight';
+import { workspaceFile } from '../editor/findingHighlight';
+import { relativePath } from '../architecture/sources';
 import type { StandardsModel } from './standardsModel';
 import { architecturePage, rulePage, standardsPage } from './standardsPages';
 import { gapIndexFrom, registerInvestigationCommands } from './investigationCommands';
@@ -52,8 +54,24 @@ const register = (deps: StandardsCommandDeps, id: string, handler: (...args: unk
     return handler(...args);
   });
 
+const openReference = async (value: unknown): Promise<void> => {
+  if (!isString(value)) { return; }
+  const target = vscode.Uri.parse(value);
+  const folder = vscode.workspace.getWorkspaceFolder(target);
+  if (target.scheme !== 'file' || folder === undefined) { return; }
+  const uri = await workspaceFile(folder, relativePath(folder.uri, target));
+  if (uri === undefined) {
+    void vscode.window.showInformationMessage('This reference is no longer available in the workspace.');
+    return;
+  }
+  const stat = await vscode.workspace.fs.stat(uri);
+  if (stat.type === vscode.FileType.Directory) { await vscode.commands.executeCommand('revealInExplorer', uri); }
+  else { await vscode.window.showTextDocument(uri, { preview: true }); }
+};
+
 export const registerStandardsCommands = (deps: StandardsCommandDeps): vscode.Disposable =>
   vscode.Disposable.from(
+    register(deps, 'malt.openFindingReference', openReference),
     register(deps, 'malt.showStandards', async () => {
       if (deps.standards.standards === undefined) {
         await offerScan(deps, 'project standards');
@@ -79,7 +97,7 @@ export const registerStandardsCommands = (deps: StandardsCommandDeps): vscode.Di
       if (gap !== undefined) {
         const target = { folder: deps.standards.workspaceFolder, finding: gap, kind: 'Standards gap' };
         await showFindingLocation(deps.highlight, target, anchorIndex, () => {
-          showGaps([gap]);
+          void showGaps([gap], deps.standards.workspaceFolder);
         });
       }
     }),
@@ -87,7 +105,7 @@ export const registerStandardsCommands = (deps: StandardsCommandDeps): vscode.Di
       const index = gapIndexFrom(arg);
       const gap = index === undefined ? undefined : deps.standards.gaps[index];
       if (gap !== undefined) {
-        showGaps([gap]);
+        void showGaps([gap], deps.standards.workspaceFolder);
       }
     }),
     registerInvestigationCommands(

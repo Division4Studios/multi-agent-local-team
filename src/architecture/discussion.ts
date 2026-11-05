@@ -42,7 +42,8 @@ export const dialogueOf = (turns: readonly Turn[]): string => {
   }
   return text;
 };
-const reviewerTurn = (answer: Interpretation): Turn => ({
+/** An answer replayed as the reviewer's own earlier, unverified interpretation (never as the developer's words). */
+export const reviewerTurn = (answer: Interpretation): Turn => ({
   role: 'reviewer',
   interpretation: { what: answer.what, whatEvidence: answer.whatEvidence, why: answer.why, whyEvidence: answer.whyEvidence, question: answer.question },
 });

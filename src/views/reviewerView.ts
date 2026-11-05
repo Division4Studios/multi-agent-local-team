@@ -20,6 +20,8 @@ import type { ReviewType } from '../shared/reviewProfiles';
 import { affectsReviewProfiles } from './reviewSettings';
 import { gapChildren, gapNodeItem, isGapNode } from './gapItems';
 import type { GapNode } from './gapItems';
+import { findingLinks, findingMarkdown } from '../editor/findingMarkdown';
+import { workspaceFile } from '../editor/findingHighlight';
 
 type Node =
   | { readonly kind: 'reviewer' | 'models' | 'standards' | 'gaps' | 'architecture' | 'queue' }
@@ -139,6 +141,15 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
       return gapNodeItem(node, (gap) => this.standards.investigationFor(gap));
     }
     return this.rowItem(node.kind);
+  }
+
+  public async resolveTreeItem(treeItem: vscode.TreeItem, node: Node): Promise<vscode.TreeItem> {
+    const folder = this.standards.workspaceFolder;
+    if (node.kind === 'gap' && this.standards.investigationFor(node.gap) === undefined) {
+      const links = folder === undefined ? new Map<string, vscode.Uri>() : await findingLinks(node.gap, async (path) => await workspaceFile(folder, path));
+      treeItem.tooltip = findingMarkdown(node.gap, links);
+    }
+    return treeItem;
   }
 
   /** The top-level rows. */

@@ -13,9 +13,22 @@ import { feedVerifier } from '../../shared/feedSignature';
 import { catalog, related } from '../../architecture/catalog';
 import { publication } from '../../architecture/publication';
 import { isRecord } from '../../shared/guards';
+import { relationshipLabel } from '../../architecture/atlasTree';
 import type { TestCase } from './harness';
 
 export const tests: TestCase[] = [
+  {
+    name: 'sidebar relationships distinguish incoming, outgoing, returns and self-loops',
+    run: (): void => {
+      const caller = { id: 'api', label: 'API' }, database = { id: 'db', label: 'Database' };
+      const call = { from: caller.id, to: database.id, label: 'read order' };
+      assert.equal(relationshipLabel(call, caller.id, database), 'To Database · read order');
+      assert.equal(relationshipLabel(call, database.id, caller), 'From API · read order');
+      const response = { from: database.id, to: caller.id, label: 'order', kind: 'return' };
+      assert.equal(relationshipLabel(response, caller.id, database), 'From Database · order');
+      assert.equal(relationshipLabel({ from: caller.id, to: caller.id, label: 'retry' }, caller.id, caller), 'Self · retry');
+    },
+  },
   {
     name: 'SQL columns, nullable and unique FK ends and transfers retain shared table identities',
     run: (): void => {
