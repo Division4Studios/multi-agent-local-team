@@ -4,9 +4,11 @@
  * log, and posts the answer back. The reviewer built the prompt and validates the answer; this only runs the call.
  */
 import type * as vscode from 'vscode';
+import { MAX_DELEGATED_RESULT_BYTES } from '../shared/delegation';
 import type { DelegatedCall, DelegatedResult } from '../shared/delegation';
 import { PROVIDER_LABELS } from '../shared/reviewProfiles';
 import type { ProviderId } from '../shared/reviewProfiles';
+import { ReviewerHttpError } from './reviewerClient';
 import type { ReviewerClient } from './reviewerClient';
 
 /** Runs one call and returns its JSON answer. `onText` receives the answer as it streams (display only). */
@@ -92,7 +94,26 @@ export class DelegationWorker implements vscode.Disposable {
       result = { id: call.id, error: error instanceof Error ? error.message : String(error) };
     }
     await text.flush();
-    // A late answer (the call already timed out) or a stopped reviewer is not an error worth showing.
-    await client.answerModelCall(result).catch(() => undefined);
+    await deliver(client, call, result);
   }
 }
+
+/**
+ * Posts the answer. An answer too large to send, or one the reviewer rejects, settles the call with an explicit
+ * error at once rather than leaving it to time out. A 404 means the call already ended (timed out); nothing to do.
+ */
+export const deliver = async (client: Pick<ReviewerClient, 'answerModelCall'>, call: DelegatedCall, result: DelegatedResult): Promise<void> => {
+  const label = PROVIDER_LABELS[call.provider];
+  const sized: DelegatedResult = Buffer.byteLength(JSON.stringify(result)) > MAX_DELEGATED_RESULT_BYTES
+    ? { id: call.id, error: `${label}'s answer is larger than MALT accepts (${String(MAX_DELEGATED_RESULT_BYTES)} bytes)` }
+    : result;
+  try {
+    await client.answerModelCall(sized);
+  } catch (error: unknown) {
+    if ((error instanceof ReviewerHttpError && error.status === 404) || 'error' in sized) {
+      return;
+    }
+    const reason = error instanceof Error ? error.message : String(error);
+    await client.answerModelCall({ id: call.id, error: `${label} answered, but the answer could not be delivered to the reviewer: ${reason}` }).catch(() => undefined);
+  }
+};

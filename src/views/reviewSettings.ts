@@ -84,7 +84,9 @@ export const configureReviewType = async (type: unknown, credentials: Credential
   if (status === undefined) {
     return;
   }
-  const model = await pickModel(type, status, status.provider === current.provider ? current.model : '');
+  const info = REVIEW_TYPE_INFO[type];
+  const config = vscode.workspace.getConfiguration('malt');
+  const model = await pickModel(type, status, status.provider === 'copilot' ? config.get<string>(info.copilotModelSetting, '') : config.get<string>(info.modelSetting, ''));
   if (model === undefined || !isModelName(model)) {
     return;
   }
@@ -92,18 +94,21 @@ export const configureReviewType = async (type: unknown, credentials: Credential
   if (effort === undefined) {
     return;
   }
-  const info = REVIEW_TYPE_INFO[type];
-  const config = vscode.workspace.getConfiguration('malt');
+  // Each provider keeps its own model: Copilot's next to the (user-level) provider, Claude's where it already lives.
   await config.update(info.providerSetting, status.provider, vscode.ConfigurationTarget.Global);
-  await config.update(info.modelSetting, model, targetFor(info.modelSetting));
-  await config.update(info.effortSetting, effort, targetFor(info.effortSetting));
+  if (status.provider === 'copilot') {
+    await config.update(info.copilotModelSetting, model, vscode.ConfigurationTarget.Global);
+  } else {
+    await config.update(info.modelSetting, model, targetFor(info.modelSetting));
+    await config.update(info.effortSetting, effort, targetFor(info.effortSetting));
+  }
 };
 
 /** Whether a configuration change touches any review type's provider, model or effort. */
 export const affectsReviewProfiles = (event: vscode.ConfigurationChangeEvent): boolean =>
   REVIEW_TYPES.some((type) => {
     const info = REVIEW_TYPE_INFO[type];
-    return [info.providerSetting, info.modelSetting, info.effortSetting].some((key) => event.affectsConfiguration(`malt.${key}`));
+    return [info.providerSetting, info.modelSetting, info.copilotModelSetting, info.effortSetting].some((key) => event.affectsConfiguration(`malt.${key}`));
   });
 
 /** After model or effort settings change, offers one restart (changes made together are batched). */

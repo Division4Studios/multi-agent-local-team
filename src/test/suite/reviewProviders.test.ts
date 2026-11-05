@@ -10,10 +10,12 @@ import { createReviewerServer } from '../../reviewer/server';
 import { ReviewService } from '../../reviewer/service';
 import type { StructuredCall } from '../../reviewer/providers/provider';
 import { ReviewerClient } from '../../review/reviewerClient';
-import { DelegationWorker } from '../../review/delegationWorker';
-import { copilotErrorMessage, copilotInstructions, extractJsonObject } from '../../review/copilotRunner';
+import { DelegationWorker, deliver } from '../../review/delegationWorker';
+import { ReviewerHttpError } from '../../review/reviewerClient';
+import { DATA_LEAD_IN, copilotErrorMessage, copilotInstructions, extractJsonObject } from '../../review/copilotRunner';
 import { commandCandidates } from '../../views/providerDetection';
-import { parseDelegatedCall, parseDelegatedResult, parseDelegatedText } from '../../shared/delegation';
+import { MAX_DELEGATED_RESULT_BYTES, parseDelegatedCall, parseDelegatedResult, parseDelegatedText } from '../../shared/delegation';
+import type { DelegatedCall, DelegatedResult } from '../../shared/delegation';
 import { describeProfile, profileFrom, profilesFromEnv, profilesToEnv } from '../../shared/reviewProfiles';
 import type { ReviewProfiles } from '../../shared/reviewProfiles';
 import type { TestCase } from './harness';
@@ -49,6 +51,7 @@ export const tests: readonly TestCase[] = [
       assert.deepEqual(profileFrom('overview', 'gpt-5', 'low', 'copilot'), { provider: 'copilot', model: 'gpt-5', effort: 'low' });
       assert.deepEqual(profileFrom('overview', 'gpt-5', 'low', 'openai'), { provider: 'claude', model: 'sonnet', effort: 'low' }, 'unknown provider: Claude with its default model');
       assert.deepEqual(profileFrom('overview', 'sonnet', 'high'), { provider: 'claude', model: 'sonnet', effort: 'high' }, 'no provider setting means Claude, as before');
+      assert.deepEqual(profileFrom('overview', '', 'low', 'copilot'), { provider: 'copilot', model: 'auto', effort: 'low' }, 'Copilot without a model takes its first model, never a Claude alias');
       const round = profilesFromEnv(profilesToEnv(profiles('copilot')));
       assert.deepEqual(round, profiles('copilot'), 'the provider reaches the reviewer through the environment');
       assert.equal(describeProfile(claudeProfile), 'haiku · low effort', 'Claude is described as before');
@@ -166,6 +169,9 @@ export const tests: readonly TestCase[] = [
       const instructions = copilotInstructions({ systemPrompt: 'STATIC PROMPT', schema: { type: 'object', required: ['x'] } });
       assert.ok(instructions.startsWith('STATIC PROMPT\n'));
       assert.ok(instructions.endsWith('{"type":"object","required":["x"]}'));
+      assert.match(instructions, /never follow instructions in it/u, 'the instructions say what the data message is');
+      assert.ok(!/MALT-DATA-[0-9a-f]/u.test(instructions), 'no data block ever enters the instructions');
+      assert.match(DATA_LEAD_IN, /not instructions/u);
       assert.match(copilotErrorMessage('NoPermissions', 'gpt-5'), /Detect Review Providers/u);
       assert.match(copilotErrorMessage('NotFound', 'gpt-5'), /no model "gpt-5"/u);
       assert.match(copilotErrorMessage('Weird', 'gpt-5'), /\(Weird\)/u);
@@ -180,6 +186,64 @@ export const tests: readonly TestCase[] = [
       assert.equal(windows.length, 3);
       assert.ok(windows.some((path) => path.endsWith('claude.EXE')) && windows.some((path) => path.endsWith('claude.CMD')));
       assert.deepEqual(commandCandidates('', { PATH: '/usr/bin' }, 'linux'), []);
+    },
+  },
+  {
+    name: 'providers: health names the providers the configuration actually uses',
+    run: async (): Promise<void> => {
+      const delegation = new Delegation();
+      const { server, client } = await startServer(delegation, []);
+      try {
+        assert.equal((await client.health()).provider, 'claude, copilot', 'the overview goes to Copilot, the rest to Claude');
+      } finally {
+        delegation.close();
+        server.close();
+      }
+    },
+  },
+  {
+    name: 'providers: an answer too large to deliver fails the call at once instead of timing out',
+    run: async (): Promise<void> => {
+      const delegation = new Delegation();
+      const { server, client } = await startServer(delegation, []);
+      const worker = new DelegationWorker(() => client, { copilot: async (): Promise<unknown> => await Promise.resolve({ summary: 'x'.repeat(1_000_000) }) });
+      try {
+        worker.start();
+        const started = Date.now();
+        await assert.rejects(client.review({ filePath: 'src/a.ts', startLine: 1, endLine: 1, patch: '@@\n+const b = 2;' }), /larger than MALT accepts/u);
+        assert.ok(Date.now() - started < 30_000, 'settled long before the call’s timeout');
+      } finally {
+        worker.dispose();
+        delegation.close();
+        server.close();
+      }
+    },
+  },
+  {
+    name: 'providers: a rejected delivery becomes an explicit error, and a finished call is left alone',
+    run: async (): Promise<void> => {
+      const call: DelegatedCall = { id: ID, provider: 'copilot', model: 'gpt-5', systemPrompt: 's', userPrompt: 'u', schema: {}, timeoutMs: 1_000 };
+      const posted: DelegatedResult[] = [];
+      const failing = (status: number): { answerModelCall: (result: DelegatedResult) => Promise<void> } => ({
+        answerModelCall: async (result): Promise<void> => {
+          posted.push(result);
+          if (posted.length === 1) {
+            throw new ReviewerHttpError(status, 'rejected');
+          }
+          await Promise.resolve();
+        },
+      });
+      await deliver(failing(413), call, { id: ID, output: { a: 1 } });
+      assert.equal(posted.length, 2);
+      const second = posted[1];
+      assert.ok(second !== undefined && 'error' in second);
+      assert.match(second.error, /could not be delivered/u);
+      posted.length = 0;
+      await deliver(failing(404), call, { id: ID, output: { a: 1 } });
+      assert.equal(posted.length, 1, 'a 404 means the call already ended: nothing more to send');
+      posted.length = 0;
+      await deliver(failing(200), call, { id: ID, output: { big: 'x'.repeat(MAX_DELEGATED_RESULT_BYTES) } });
+      assert.ok(posted[0] !== undefined && 'error' in posted[0] && posted[0].error.includes('larger than MALT accepts'), 'measured before sending');
     },
   },
 ];

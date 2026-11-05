@@ -15,6 +15,7 @@ import type {
 } from '../shared/protocol';
 import type { ProviderSet, ReviewProvider, StructuredCall } from './providers/provider';
 import { ConversationLog } from './conversations';
+import { PROVIDERS, REVIEW_TYPES } from '../shared/reviewProfiles';
 import type { ReviewProfiles } from '../shared/reviewProfiles';
 import type { CallUsage } from '../shared/conversation';
 import { ground, groundModules, DISCUSSION_PROMPT } from './understanding';
@@ -132,8 +133,10 @@ export class ReviewService {
     }
   }
 
+  /** The providers the configured profiles use, e.g. "claude" or "claude, copilot": the UI shows where code goes. */
   public get providerName(): string {
-    return this.providers.claude.name;
+    const used = new Set(REVIEW_TYPES.map((type) => this.config.profiles[type].provider));
+    return [...new Set(PROVIDERS.filter((provider) => used.has(provider)).map((provider) => this.providers[provider].name))].join(', ');
   }
 
   /** Project rules from `.malt/standards.json`, sanitized; never shadow or replace the baseline rules. */

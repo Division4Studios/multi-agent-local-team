@@ -31,6 +31,12 @@ export interface DelegatedText {
   readonly text: string;
 }
 
+/**
+ * The largest answer the extension posts back, serialized. The reviewer accepts request bodies up to 1,000,000 bytes,
+ * so this leaves room for the envelope; a larger answer is reported as an error instead of being sent.
+ */
+export const MAX_DELEGATED_RESULT_BYTES = 900_000;
+
 const ID = /^[a-f0-9-]{36}$/u;
 export const isDelegationId = (value: unknown): value is string => typeof value === 'string' && ID.test(value);
 

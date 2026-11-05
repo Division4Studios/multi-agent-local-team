@@ -185,7 +185,7 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
     const tooltip = new vscode.MarkdownString();
     tooltip.appendText(`Reviewer: ${STATE_WORDS[status.state]}${status.detail === '' ? '' : ` (${status.detail})`}\n`);
     tooltip.appendText(`Runs as: ${status.backend === undefined ? 'not started' : BACKEND_LABELS[status.backend]}\n`);
-    tooltip.appendText(`Model provider: ${status.provider ?? 'unknown'}\n\nClick to watch the live reviewer log.`);
+    tooltip.appendText(`Model providers in use: ${status.provider ?? 'unknown'}\n\nClick to watch the live reviewer log.`);
     result.tooltip = tooltip;
     return result;
   }

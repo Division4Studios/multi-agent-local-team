@@ -15,6 +15,8 @@ export const PROVIDER_LABELS: Readonly<Record<ProviderId, string>> = { claude: '
 export const isProviderId = (value: unknown): value is ProviderId => PROVIDERS.some((provider) => provider === value);
 /** Providers whose calls the extension makes, not the reviewer. */
 export const isDelegated = (provider: ProviderId): boolean => provider !== 'claude';
+/** Copilot's model when none is set: the first model Copilot offers. */
+export const COPILOT_AUTO_MODEL = 'auto';
 /** Whether a provider takes a reasoning effort; Copilot's Language Model API has none. */
 export const takesEffort = (provider: ProviderId): boolean => provider === 'claude';
 
@@ -35,7 +37,13 @@ export interface ReviewTypeInfo {
   readonly detail: string;
   /** Setting keys under `malt.`. The provider setting is machine-scoped: a repository must not choose who sees its code. */
   readonly providerSetting: string;
+  /** Claude's model (workspace-overridable, as before). */
   readonly modelSetting: string;
+  /**
+   * Copilot's model, machine-scoped like the provider. Each provider keeps its own model, so switching provider in
+   * one workspace never leaves another with a model the provider doesn't have.
+   */
+  readonly copilotModelSetting: string;
   readonly effortSetting: string;
   readonly defaults: CallProfile;
 }
@@ -56,6 +64,7 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     detail: 'What each changed block does, why, and which rules apply. One call per block.',
     providerSetting: 'reviewer.triageProvider',
     modelSetting: 'reviewer.triageModel',
+    copilotModelSetting: 'reviewer.triageCopilotModel',
     effortSetting: 'reviewer.triageEffort',
     defaults: { provider: 'claude', model: 'sonnet', effort: 'low' },
   },
@@ -64,6 +73,7 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     detail: 'One call per applicable rule per block. Most of MALT’s usage.',
     providerSetting: 'reviewer.reviewProvider',
     modelSetting: 'reviewer.reviewModel',
+    copilotModelSetting: 'reviewer.reviewCopilotModel',
     effortSetting: 'reviewer.reviewEffort',
     defaults: { provider: 'claude', model: 'haiku', effort: 'low' },
   },
@@ -72,6 +82,7 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     detail: 'One call across the whole change, after new files stop appearing.',
     providerSetting: 'reviewer.consolidationProvider',
     modelSetting: 'reviewer.consolidationModel',
+    copilotModelSetting: 'reviewer.consolidationCopilotModel',
     effortSetting: 'reviewer.consolidationEffort',
     defaults: { provider: 'claude', model: 'sonnet', effort: 'low' },
   },
@@ -80,6 +91,7 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     detail: 'Three calls, only when you run Scan Project Standards.',
     providerSetting: 'reviewer.standardsProvider',
     modelSetting: 'reviewer.standardsModel',
+    copilotModelSetting: 'reviewer.standardsCopilotModel',
     effortSetting: 'reviewer.standardsEffort',
     defaults: { provider: 'claude', model: 'opus', effort: 'medium' },
   },
@@ -88,6 +100,7 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     detail: 'Reads the real code behind one standards gap and decides if it is real. Only when you ask.',
     providerSetting: 'reviewer.investigationProvider',
     modelSetting: 'reviewer.investigationModel',
+    copilotModelSetting: 'reviewer.investigationCopilotModel',
     effortSetting: 'reviewer.investigationEffort',
     defaults: { provider: 'claude', model: 'sonnet', effort: 'medium' },
   },
@@ -108,9 +121,10 @@ export const isEffort = (value: unknown): value is Effort => EFFORTS.some((effor
 export const profileFrom = (type: ReviewType, model: unknown, effort: unknown, provider: unknown = 'claude'): CallProfile => {
   const { defaults } = REVIEW_TYPE_INFO[type];
   const known = isProviderId(provider);
+  const fallback = known && provider === 'copilot' ? COPILOT_AUTO_MODEL : defaults.model;
   return {
     provider: known ? provider : defaults.provider,
-    model: known && isModelName(model) ? model : defaults.model,
+    model: known && isModelName(model) ? model : fallback,
     effort: isEffort(effort) ? effort : defaults.effort,
   };
 };

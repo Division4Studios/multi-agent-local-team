@@ -22,7 +22,10 @@ export interface MaltSettings {
 
 const readProfile = (config: vscode.WorkspaceConfiguration, type: ReviewType): CallProfile => {
   const info = REVIEW_TYPE_INFO[type];
-  return profileFrom(type, config.get<unknown>(info.modelSetting), config.get<unknown>(info.effortSetting), config.get<unknown>(info.providerSetting, 'claude'));
+  const provider = config.get<unknown>(info.providerSetting, 'claude');
+  // Each provider has its own model setting, so a provider is never paired with another provider's model.
+  const model = config.get<unknown>(provider === 'copilot' ? info.copilotModelSetting : info.modelSetting);
+  return profileFrom(type, model, config.get<unknown>(info.effortSetting), provider);
 };
 
 /** Invalid values (e.g. a hand-edited setting) fall back to that type's default. */
