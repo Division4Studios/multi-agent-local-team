@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { REVIEW_TYPES, REVIEW_TYPE_INFO, describeProfile, isModelName, profileFrom, profilesFromEnv, profilesToEnv } from '../../shared/reviewProfiles';
 import type { ReviewProfiles } from '../../shared/reviewProfiles';
-import { addUsage, claudeArgs, isFormatFailure, usageFrom } from '../../reviewer/providers/claudeCode';
+import { MIN_RETRY_MS, addUsage, claudeArgs, isFormatFailure, retryBudgetMs, usageFrom } from '../../reviewer/providers/claudeCode';
 import { parseCallUsage, parseConversationEvent } from '../../shared/conversation';
 import type { TestCase } from './harness';
 
@@ -76,7 +76,7 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
-    name: 'cli: only a schema-format failure is retried, and usage adds up across attempts',
+    name: 'cli: only a schema-format failure is retried, within the original deadline, and usage adds up across attempts',
     run: (): void => {
       assert.equal(isFormatFailure({ type: 'result', subtype: 'error_max_structured_output_retries', is_error: true }), true);
       for (const other of [{ subtype: 'success' }, { subtype: 'error_max_turns' }, { result: 'Invalid API key', is_error: true }, undefined, 'error_max_structured_output_retries']) {
@@ -88,6 +88,10 @@ export const tests: readonly TestCase[] = [
       assert.equal(addUsage(first, undefined), first);
       assert.equal(addUsage(undefined, second), second);
       assert.equal(addUsage(undefined, undefined), undefined);
+      assert.equal(retryBudgetMs(180_000, 20_000), 160_000, 'the retry gets what is left of the original deadline');
+      assert.equal(retryBudgetMs(180_000, 180_000 - MIN_RETRY_MS), MIN_RETRY_MS);
+      assert.equal(retryBudgetMs(180_000, 160_000), undefined, 'too little time left: no retry, the original error stands');
+      assert.equal(retryBudgetMs(180_000, 200_000), undefined, 'past the deadline: no retry');
     },
   },
 ];

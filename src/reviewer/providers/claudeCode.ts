@@ -158,10 +158,23 @@ const extractStructuredOutput = ({ code, result, stderr }: ProcessResult): unkno
 /**
  * The CLI gave up after the model's answers repeatedly failed the schema. Seen live: the model slips into another
  * tool-call syntax inside a long text field, swallowing the fields after it. It is a formatting failure, not an
- * answer, so the call is retried once as a fresh, isolated call. Any other error fails at once.
+ * answer, so the call is retried once as a fresh, isolated call within the original deadline (`retryBudgetMs`).
+ * Any other error fails at once.
  */
 export const isFormatFailure = (result: unknown): boolean =>
   isRecord(result) && result['subtype'] === 'error_max_structured_output_retries';
+
+/** A retry shorter than this would rarely finish an answer; the original error is reported instead. */
+export const MIN_RETRY_MS = 30_000;
+
+/**
+ * Time left for a retry within the call's original deadline, or undefined if too little remains. The retry never
+ * extends the call: the extension's HTTP timeouts allow for one provider timeout per call, not two.
+ */
+export const retryBudgetMs = (timeoutMs: number, elapsedMs: number): number | undefined => {
+  const remaining = timeoutMs - elapsedMs;
+  return remaining >= MIN_RETRY_MS ? remaining : undefined;
+};
 
 /** Usage across attempts: a failed attempt still used tokens, and the live log should show what the call cost. */
 export const addUsage = (total: CallUsage | undefined, next: CallUsage | undefined): CallUsage | undefined =>
@@ -182,10 +195,12 @@ export class ClaudeCodeProvider implements ReviewProvider {
   }
 
   public async callStructured(call: StructuredCall): Promise<unknown> {
-    let result = await this.attempt(call);
+    const started = Date.now();
+    let result = await this.attempt(call, call.timeoutMs);
     let usage = usageFrom(result.result);
-    if (isFormatFailure(result.result)) {
-      result = await this.attempt(call);
+    const budget = isFormatFailure(result.result) ? retryBudgetMs(call.timeoutMs, Date.now() - started) : undefined;
+    if (budget !== undefined) {
+      result = await this.attempt(call, budget);
       usage = addUsage(usage, usageFrom(result.result));
     }
     if (usage !== undefined) {
@@ -194,7 +209,7 @@ export class ClaudeCodeProvider implements ReviewProvider {
     return extractStructuredOutput(result);
   }
 
-  private async attempt(call: StructuredCall): Promise<ProcessResult> {
+  private async attempt(call: StructuredCall, timeoutMs: number): Promise<ProcessResult> {
     // A private (0700), unpredictably named, empty working directory per call: nothing from the reviewed repo is
     // in scope, and no other local user can pre-create or read it. MALT writes no files into it.
     const workDir = await mkdtemp(join(tmpdir(), 'malt-reviewer-'));
@@ -207,7 +222,7 @@ export class ClaudeCodeProvider implements ReviewProvider {
       }
     };
     try {
-      return await runProcess(this.claudePath, args, { input: call.userPrompt, timeoutMs: call.timeoutMs, cwd: workDir, onEvent });
+      return await runProcess(this.claudePath, args, { input: call.userPrompt, timeoutMs, cwd: workDir, onEvent });
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }
