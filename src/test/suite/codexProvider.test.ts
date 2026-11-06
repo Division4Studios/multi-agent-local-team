@@ -1,6 +1,10 @@
 /** Codex as a review provider (#33): the isolated container, its request and answer, and the provider profile. */
 import assert from 'node:assert/strict';
-import { codexContainerSpec, codexEffort, parseCodexOutput } from '../../backend/codexContainer';
+import { Socket } from 'node:net';
+import { join } from 'node:path';
+import { CodexContainer, codexContainerSpec, codexEffort, parseCodexOutput } from '../../backend/codexContainer';
+import type { CodexDocker } from '../../backend/codexContainer';
+import type { DockerResponse } from '../../backend/dockerApi';
 import { stripNulls, toStrictSchema } from '../../backend/strictSchema';
 import { NO_CODEX_KEY, codexRequest, createCodexRunner } from '../../review/codexRunner';
 import { CHECK_SCHEMA, OVERVIEW_SCHEMA } from '../../reviewer/prompts';
@@ -39,7 +43,69 @@ const assertStrict = (schema: unknown): void => {
   }
 };
 
+const REQUEST = { instructions: 'i', prompt: 'p', schema: {} };
+const respond = (status: number): DockerResponse => ({ status, body: Buffer.from('{}') });
+
+/**
+ * A fake engine that records every request. `onBuild` and `onStart` run while the image builds and the container
+ * starts, the two waits during which a call can be cancelled. The image is never present, so every run builds.
+ */
+const fakeDocker = (hooks: { readonly onBuild?: () => Promise<void>; readonly onStart?: () => void }): { readonly docker: CodexDocker; readonly calls: string[] } => {
+  const calls: string[] = [];
+  const docker: CodexDocker = {
+    inspect: async (): Promise<unknown> => { calls.push('inspect'); return await Promise.resolve<unknown>(undefined); },
+    build: async () => { calls.push('build'); await hooks.onBuild?.(); },
+    attachStdin: async () => { calls.push('attach'); return await Promise.resolve(new Socket()); },
+    sendJson: async (method, path) => {
+      calls.push(`${method} ${path.split('?')[0] ?? ''}`);
+      if (path.endsWith('/start')) {
+        hooks.onStart?.();
+      }
+      return await Promise.resolve(respond(path.endsWith('/start') || method !== 'POST' ? 204 : 201));
+    },
+    send: async (options) => { calls.push(`${options.method} ${options.path}`); return await Promise.resolve(respond(200)); },
+    logs: async () => { calls.push('logs'); return await Promise.resolve('{"output":{}}'); },
+  };
+  return { docker, calls };
+};
+
+const run = async (docker: CodexDocker, signal: AbortSignal, timeoutMs = 60_000): Promise<unknown> =>
+  await new CodexContainer(docker, join(__dirname, '..', '..', '..'), () => undefined).run(REQUEST, { apiKey: 'k', timeoutMs, signal });
+
 export const tests: TestCase[] = [
+  {
+    name: 'codex: a call cancelled while the image builds never creates a container or sends the prompt',
+    run: async (): Promise<void> => {
+      const controller = new AbortController();
+      const { docker, calls } = fakeDocker({ onBuild: async () => { controller.abort(); await Promise.resolve(); } });
+      await assert.rejects(run(docker, controller.signal), { message: 'Reviewer task cancelled' });
+      assert.ok(calls.includes('build'));
+      assert.ok(!calls.some((call) => call.startsWith('POST /containers')), calls.join(', '));
+    },
+  },
+  {
+    name: 'codex: a call cancelled while its container starts sends nothing, does not wait, and removes the container',
+    run: async (): Promise<void> => {
+      const controller = new AbortController();
+      const { docker, calls } = fakeDocker({ onStart: () => { controller.abort(); } });
+      await assert.rejects(run(docker, controller.signal), { message: 'Reviewer task cancelled' });
+      assert.ok(!calls.some((call) => call.endsWith('/wait')), calls.join(', '));
+      assert.ok(calls.some((call) => call.startsWith('DELETE /containers/')), calls.join(', '));
+    },
+  },
+  {
+    name: 'codex: an already-cancelled call does nothing, and the time budget includes the image build',
+    run: async (): Promise<void> => {
+      const cancelled = new AbortController();
+      cancelled.abort();
+      const idle = fakeDocker({});
+      await assert.rejects(run(idle.docker, cancelled.signal), { message: 'Reviewer task cancelled' });
+      assert.deepEqual(idle.calls, []);
+      const slow = fakeDocker({ onBuild: async () => { await new Promise((resolve) => { setTimeout(resolve, 50); }); } });
+      await assert.rejects(run(slow.docker, new AbortController().signal, 20), /did not answer within/u);
+      assert.ok(!slow.calls.some((call) => call.startsWith('POST /containers')), slow.calls.join(', '));
+    },
+  },
   {
     name: 'codex: schemas become strict, optional properties nullable, and the nulls are removed from the answer',
     run: (): void => {

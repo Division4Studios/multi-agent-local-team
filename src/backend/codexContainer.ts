@@ -35,9 +35,15 @@ export interface CodexRequest {
 
 export interface CodexRunOptions {
   readonly apiKey: string;
+  /** The whole call's budget, image build included. */
   readonly timeoutMs: number;
   readonly signal?: AbortSignal;
 }
+
+/** What the runner needs from Docker (a narrower type, so tests can supply a fake engine). */
+export type CodexDocker = Pick<DockerClient, 'attachStdin' | 'build' | 'inspect' | 'logs' | 'send' | 'sendJson'>;
+
+const CANCELLED = 'Reviewer task cancelled';
 
 /** The container: nothing from the workspace or the host, and only the key in its environment. */
 export const codexContainerSpec = (image: string, apiKey: string): Record<string, unknown> => ({
@@ -79,11 +85,32 @@ export const parseCodexOutput = (logs: string): unknown => {
 
 const timeoutError = (timeoutMs: number): Error => new Error(`Codex did not answer within ${String(Math.round(timeoutMs / 1000))} s`);
 
-/** Settles with the reason when the call is cancelled or runs out of time; the caller then removes the container. */
-const deadline = async (timeoutMs: number, signal: AbortSignal | undefined, done: Promise<unknown>): Promise<Error> =>
+/**
+ * Checked before every step that could start work or send the prompt: a call cancelled or out of time while the
+ * image was building (or the container starting) must never reach OpenAI.
+ */
+const checkLive = (options: CodexRunOptions, endsAt: number): void => {
+  if (options.signal?.aborted === true) {
+    throw new Error(CANCELLED);
+  }
+  if (Date.now() >= endsAt) {
+    throw timeoutError(options.timeoutMs);
+  }
+};
+
+/**
+ * Settles with the reason when the call is cancelled (already, or later) or runs out of time; the caller then removes
+ * the container.
+ */
+const deadline = async (endsAt: number, options: CodexRunOptions, done: Promise<unknown>): Promise<Error> =>
   await new Promise((resolve) => {
-    const timer = setTimeout(() => { resolve(timeoutError(timeoutMs)); }, timeoutMs);
-    const abort = (): void => { resolve(new Error('Reviewer task cancelled')); };
+    const { signal } = options;
+    const abort = (): void => { resolve(new Error(CANCELLED)); };
+    if (signal?.aborted === true) {
+      abort();
+      return;
+    }
+    const timer = setTimeout(() => { resolve(timeoutError(options.timeoutMs)); }, Math.max(0, endsAt - Date.now()));
     signal?.addEventListener('abort', abort, { once: true });
     void done.finally(() => {
       clearTimeout(timer);
@@ -92,12 +119,12 @@ const deadline = async (timeoutMs: number, signal: AbortSignal | undefined, done
   });
 
 export class CodexContainer {
-  private readonly client: DockerClient;
+  private readonly client: CodexDocker;
   private readonly extensionRoot: string;
   private readonly log: (line: string) => void;
   private image: Promise<string> | undefined;
 
-  public constructor(client: DockerClient, extensionRoot: string, log: (line: string) => void) {
+  public constructor(client: CodexDocker, extensionRoot: string, log: (line: string) => void) {
     this.client = client;
     this.extensionRoot = extensionRoot;
     this.log = log;
@@ -105,32 +132,36 @@ export class CodexContainer {
 
   /** Runs one call in a new container and returns its JSON answer (still untrusted: the reviewer validates it). */
   public async run(request: CodexRequest, options: CodexRunOptions): Promise<unknown> {
-    options.signal?.throwIfAborted();
+    const endsAt = Date.now() + options.timeoutMs;
+    checkLive(options, endsAt);
     const image = await this.ensureImage();
+    checkLive(options, endsAt);
     const name = `malt-codex-${randomUUID()}`;
     const created = await this.client.sendJson('POST', `/containers/create?name=${name}`, codexContainerSpec(image, options.apiKey));
     if (created.status !== 201) {
       throw new Error(dockerErrorMessage(created));
     }
     try {
-      await this.runCreated(name, request, options);
+      await this.runCreated(name, request, options, endsAt);
       return parseCodexOutput(await this.client.logs(name, 'all'));
     } finally {
       await this.client.sendJson('DELETE', `/containers/${name}?force=1&v=1`).catch(() => undefined);
     }
   }
 
-  private async runCreated(name: string, request: CodexRequest, options: CodexRunOptions): Promise<void> {
+  private async runCreated(name: string, request: CodexRequest, options: CodexRunOptions, endsAt: number): Promise<void> {
     const stdin = await this.client.attachStdin(name);
     try {
+      checkLive(options, endsAt);
       const started = await this.client.sendJson('POST', `/containers/${name}/start`);
       if (started.status !== 204) {
         throw new Error(dockerErrorMessage(started));
       }
+      checkLive(options, endsAt);
       // One line: the launcher reads up to the newline, so stdin can stay open until the container exits.
       stdin.write(`${JSON.stringify(request)}\n`);
       const exited = this.client.send({ method: 'POST', path: `/containers/${name}/wait`, timeoutMs: options.timeoutMs + 60_000 });
-      const response = await Promise.race([exited, deadline(options.timeoutMs, options.signal, exited)]);
+      const response = await Promise.race([exited, deadline(endsAt, options, exited)]);
       if (response instanceof Error) {
         throw response;
       }
