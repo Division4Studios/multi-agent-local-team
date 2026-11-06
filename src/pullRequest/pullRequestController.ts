@@ -254,7 +254,7 @@ export class PullRequestController implements vscode.TreeDataProvider<ChangesNod
             blocks,
             skipped,
             client: (): ReviewerClient | undefined => this.deps.manager.client,
-            concurrency: (): number => readSettings().maxConcurrentReviews,
+            concurrency: (): number => this.deps.manager.agentCapacity,
           }));
         },
       );

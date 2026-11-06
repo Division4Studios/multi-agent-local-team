@@ -1,13 +1,15 @@
 /** HTTP client for the reviewer service, bound to 127.0.0.1 and authenticated with a per-start token. */
 import { request as httpRequest } from 'node:http';
 import { scanStream } from './scanStream';
+import { parseReviewerAgents } from '../shared/reviewerAgents';
+import type { AgentControl, ReviewerAgent } from '../shared/reviewerAgents';
 import type { ScanProgress } from '../shared/scanProgress';
 import { isRecord, isString, parseArray } from '../shared/guards';
 import { parseConversationEvent } from '../shared/conversation';
 import { parseInterpretation } from '../shared/understanding';
 import type { DiscussionRequest, Interpretation } from '../shared/understanding';
 import { parseGapInvestigation } from '../shared/investigation';
-import { parseDelegatedCalls } from '../shared/delegation';
+import { isDelegationId, parseDelegatedCalls } from '../shared/delegation';
 import type { DelegatedCall, DelegatedResult, DelegatedText } from '../shared/delegation';
 import type { GapInvestigation } from '../shared/investigation';
 import type { ConversationEvent } from '../shared/conversation';
@@ -106,6 +108,12 @@ export class ReviewerClient {
     this.endpoint = endpoint;
   }
 
+  public async agents(control?: AgentControl): Promise<ReviewerAgent[]> {
+    const result = parseReviewerAgents(await call(this.endpoint, { method: control === undefined ? 'GET' : 'POST', path: '/agents', body: control, timeoutMs: 5_000 }));
+    if (result === undefined) { throw new Error('Invalid reviewer agents response'); }
+    return result;
+  }
+
   public async health(): Promise<HealthResponse> {
     const health = parseHealthResponse(await call(this.endpoint, { method: 'GET', path: '/health', timeoutMs: 5_000 }));
     if (health === undefined) {
@@ -172,6 +180,12 @@ export class ReviewerClient {
   }
 
   /** Calls the reviewer wants the extension to run; waits up to the reviewer's long-poll window for one. */
+  public async activeModelCalls(): Promise<readonly string[]> {
+    const ids = parseArray(await call(this.endpoint, { method: 'GET', path: '/model-calls/active', timeoutMs: 5_000 }), (id) => isDelegationId(id) ? id : undefined);
+    if (ids === undefined) { throw new Error('Invalid active model calls'); }
+    return ids;
+  }
+
   public async takeModelCalls(): Promise<readonly DelegatedCall[]> {
     const calls = parseDelegatedCalls(await call(this.endpoint, { method: 'GET', path: '/model-calls', timeoutMs: MODEL_CALL_POLL_TIMEOUT_MS }));
     if (calls === undefined) {

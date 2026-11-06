@@ -10,6 +10,7 @@
 import * as vscode from 'vscode';
 import { WEBVIEW_THEME } from './theme';
 import { randomBytes } from 'node:crypto';
+import type { ReviewerAgent } from '../shared/reviewerAgents';
 import type { ConversationEvent } from '../shared/conversation';
 
 const RECONNECT_MS = 3_000;
@@ -53,13 +54,15 @@ export class LiveLogConnection implements vscode.Disposable {
   private readonly source: LiveLogSource;
   private readonly post: (message: LiveLogMessage) => void;
   private readonly reconnectMs: number;
+  private readonly agentId: string | undefined;
   private readonly subscription: vscode.Disposable;
   private connectedTo: LiveLogSource['client'];
   private stop: (() => void) | undefined;
   private retry: NodeJS.Timeout | undefined;
   private disposed = false;
 
-  public constructor(source: LiveLogSource, post: (message: LiveLogMessage) => void, reconnectMs = RECONNECT_MS) {
+  public constructor(source: LiveLogSource, post: (message: LiveLogMessage) => void, reconnectMs = RECONNECT_MS, agentId?: string) {
+    this.agentId = agentId;
     this.source = source;
     this.post = post;
     this.reconnectMs = reconnectMs;
@@ -95,7 +98,7 @@ export class LiveLogConnection implements vscode.Disposable {
     this.post({ type: 'status', text: 'Connected · streaming live · secrets redacted · nothing is saved' });
     this.stop = client.streamConversations(
       (event) => {
-        if (this.connectedTo === client) {
+        if (this.connectedTo === client && (this.agentId === undefined || event.agentId === this.agentId)) {
           this.post({ type: 'event', event });
         }
       },
@@ -127,41 +130,42 @@ export class LiveLogConnection implements vscode.Disposable {
   }
 }
 
-const html = (nonce: string, scriptUri: vscode.Uri): string => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+const html = (nonce: string, scriptUri: vscode.Uri, agent?: ReviewerAgent): string => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
 <style nonce="${nonce}">${STYLE}</style><title>MALT live reviewer log</title></head><body>
-<header><h1>Live reviewer log</h1><div id="status">Connecting…</div><div id="usage"></div></header><div id="calls"></div>
+<header><h1>${agent === undefined ? 'Live reviewer log' : `Agent ${String(agent.number)} live stream log`}</h1><div id="status">Connecting…</div><div id="usage"></div></header><div id="calls"></div>
 <script nonce="${nonce}" src="${scriptUri.toString()}"></script></body></html>`;
 
 export class ConversationPanel implements vscode.Disposable {
-  private static current: ConversationPanel | undefined;
+  private static readonly panels = new Map<string, ConversationPanel>();
+  private readonly key: string;
   private readonly panel: vscode.WebviewPanel;
   private readonly connection: LiveLogConnection;
   private disposed = false;
 
-  private constructor(source: LiveLogSource, extensionUri: vscode.Uri) {
+  private constructor(source: LiveLogSource, extensionUri: vscode.Uri, agent?: ReviewerAgent) {
+    this.key = agent?.id ?? 'all';
     const media = vscode.Uri.joinPath(extensionUri, 'media');
-    this.panel = vscode.window.createWebviewPanel('malt.conversations', 'MALT · Live reviewer log', vscode.ViewColumn.Beside, {
+    this.panel = vscode.window.createWebviewPanel('malt.conversations', agent === undefined ? 'MALT - Live reviewer log' : `MALT - Agent ${String(agent.number)} log`, vscode.ViewColumn.Beside, {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [media],
     });
     const script = this.panel.webview.asWebviewUri(vscode.Uri.joinPath(media, 'liveLog.js'));
-    this.panel.webview.html = html(randomBytes(16).toString('hex'), script);
+    this.panel.webview.html = html(randomBytes(16).toString('hex'), script, agent);
     this.connection = new LiveLogConnection(source, (message) => {
       void this.panel.webview.postMessage(message);
-    });
+    }, RECONNECT_MS, agent?.id);
     this.panel.onDidDispose(() => {
       this.dispose();
     });
   }
 
-  public static show(source: LiveLogSource, extensionUri: vscode.Uri): void {
-    if (ConversationPanel.current === undefined) {
-      ConversationPanel.current = new ConversationPanel(source, extensionUri);
-    } else {
-      ConversationPanel.current.panel.reveal(vscode.ViewColumn.Beside);
-    }
+  public static show(source: LiveLogSource, extensionUri: vscode.Uri, agent?: ReviewerAgent): void {
+    const key = agent?.id ?? 'all';
+    const existing = ConversationPanel.panels.get(key);
+    if (existing === undefined) { ConversationPanel.panels.set(key, new ConversationPanel(source, extensionUri, agent)); }
+    else { existing.panel.reveal(vscode.ViewColumn.Beside); }
   }
 
   public dispose(): void {
@@ -170,9 +174,7 @@ export class ConversationPanel implements vscode.Disposable {
       return;
     }
     this.disposed = true;
-    if (ConversationPanel.current === this) {
-      ConversationPanel.current = undefined;
-    }
+    ConversationPanel.panels.delete(this.key);
     this.connection.dispose();
     this.panel.dispose();
   }

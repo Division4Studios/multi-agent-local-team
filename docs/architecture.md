@@ -15,7 +15,8 @@ flowchart LR
   Store --> Queue[ReviewQueue]
   Queue --> Client[ReviewerClient]
   Client --> Service[Local reviewer service]
-  Service --> Claude[Claude CLI / configured model service]
+  Service --> Agents[Shared reviewer agent pool]
+  Agents --> Claude[Configured model provider]
   Claude --> Service
   Service --> Store
   Docs[Project docs and ignored agent instructions] --> Scan[Standards discovery]
@@ -46,6 +47,8 @@ New blocks trigger optional review and file opening. The review queue limits con
 Review IDs identify content and deliberately ignore line numbers. Identical blocks can share a cached verdict, but each sidebar row includes its URI and line range in its identity. Navigation carries the content ID and start line and resolves them against the current store; stale or invalid locations do not fall back to a different occurrence. Line shifts preserve cached reviews while updating row locations.
 
 Standards discovery is independent of Git change filtering. It can read ignored project instructions, but skips generated `.malt/` directories. The save operation creates an internal `.gitignore` only when absent. The reviewer reads the resulting rules file explicitly and sanitizes rules before combining them with immutable baseline checks. The scan also writes `.malt/architecture.json`; the reviewer re-sanitizes it on load and sends each call only a related slice (`src/reviewer/architecture.ts`).
+
+The service-wide `AgentPool` assigns every provider call a stable agent and a fresh task identity. Two slots are created by default; authenticated controls add, stop, start or cancel specific agents. A queued call shares its deadline with provider execution. Cancellation reaches the Claude process or the delegated Copilot cancellation token, and late results cannot be accepted as successful. Agent snapshots contain only redacted task labels and state; conversation events carry agent identities for separate logs.
 
 The service validates request/response shapes and confines workspace reads. Claude calls are tool-less, use an isolated working directory, and disable project/user settings and MCP configuration loading. Model results and repository text are untrusted; hover text is escaped and only the MALT retry command is enabled. See [SECURITY.md](../SECURITY.md) for the security and dependency policy.
 

@@ -44,10 +44,10 @@
 </head>
 <body>
   <h2>How MALT reviews a change <span>· one block at a time</span></h2>
-  <div class="sub">Every changed block gets one overview call, then one isolated call per rule that applies.</div>
+  <div class="sub">Every changed block gets an overview, then rule checks. Two shared reviewer agents by default; add capacity explicitly.</div>
 
   <div class="zone" style="left:568px;top:160px;width:294px;height:390px;border-color:rgba(167,139,250,.7)"><em style="color:var(--violet)">Reviewer sandbox</em></div>
-  <div class="tag" style="left:576px;top:560px;width:300px;line-height:1.5">Docker: read-only workspace,<br>no capabilities, 127.0.0.1 only</div>
+  <div class="tag" style="left:576px;top:560px;width:300px;line-height:1.5">Shared agents: health, cancel, logs<br>Docker: read-only, localhost-only</div>
 
   <div class="node ws" style="left:60px;top:200px"><i>✎</i><b>You or your agent</b><span>edit files in the workspace</span></div>
   <div class="node ext" style="left:60px;top:370px"><i>⎇</i><b>Change tracking</b><span>VS Code's Git extension<br>diff with HEAD</span></div>
@@ -56,7 +56,7 @@
   <div class="node rev" style="left:600px;top:200px"><i>◎</i><b>Overview</b><span>summary, purpose, technical, design · which rules apply</span></div>
   <div class="node rev" style="left:600px;top:420px"><i>✓</i><b>Rule checks</b><span>one isolated call per<br>applicable rule</span></div>
   <div class="node ws" style="left:1050px;top:200px;width:240px"><i>▤</i><b>.malt/standards.json</b><span>rules from your docs, configs and agent skills</span></div>
-  <div class="node model" style="left:1050px;top:420px;width:240px"><i>✦</i><b>Claude</b><span>tool-less, fresh call each time · structured output</span></div>
+  <div class="node model" style="left:1050px;top:420px;width:240px"><i>✦</i><b>Model provider</b><span>tool-less, isolated calls · structured output</span></div>
 
   <div class="node ui" style="left:1360px;top:200px;width:200px"><i>▢</i><b>Editor</b><span>outlined blocks, inline status, hover card</span></div>
   <div class="node ui" style="left:1360px;top:420px;width:200px"><i>☰</i><b>Changes view</b><span>files → blocks → rule groups</span></div>

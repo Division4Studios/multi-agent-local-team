@@ -4,9 +4,11 @@
  * Every event crosses a trust boundary and is validated by `parseConversationEvent`.
  */
 import { isNonNegativeInteger, isRecord, isString } from './guards';
+import { isAgentId } from './reviewerAgents';
 
 /** A model call started: what it is for, which model and effort, and the (untrusted) user prompt it was given. */
 export interface ConversationStart {
+  readonly agentId?: string;
   readonly kind: 'start';
   readonly callId: string;
   readonly at: number;
@@ -27,6 +29,7 @@ export interface CallUsage {
 
 /** A piece of the model's answer as it streams in. */
 export interface ConversationText {
+  readonly agentId?: string;
   readonly kind: 'text';
   readonly callId: string;
   readonly at: number;
@@ -35,6 +38,7 @@ export interface ConversationText {
 
 /** The call finished, successfully or not, with its usage when the provider reported it. */
 export interface ConversationEnd {
+  readonly agentId?: string;
   readonly kind: 'end';
   readonly callId: string;
   readonly at: number;
@@ -79,7 +83,7 @@ const parseEnd = (value: Readonly<Record<string, unknown>>, callId: string, at: 
   return usage === undefined ? undefined : { kind: 'end', callId, at, ok, error, usage };
 };
 
-export const parseConversationEvent = (value: unknown): ConversationEvent | undefined => {
+const parseEvent = (value: unknown): ConversationEvent | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -97,4 +101,13 @@ export const parseConversationEvent = (value: unknown): ConversationEvent | unde
     default:
       return undefined;
   }
+};
+
+/** Agent metadata is optional for older log events, but malformed identities are rejected. */
+export const parseConversationEvent = (value: unknown): ConversationEvent | undefined => {
+  const event = parseEvent(value);
+  if (event === undefined || !isRecord(value)) { return undefined; }
+  const agentId = value['agentId'];
+  if (agentId === undefined) { return event; }
+  return isAgentId(agentId) ? { ...event, agentId } : undefined;
 };
