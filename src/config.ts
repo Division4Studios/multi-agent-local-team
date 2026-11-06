@@ -1,5 +1,6 @@
 /** Typed access to MALT settings. */
 import * as vscode from 'vscode';
+import { agentCount } from './shared/reviewerAgents';
 import { REVIEW_TYPE_INFO, profileFrom } from './shared/reviewProfiles';
 import type { CallProfile, ReviewProfiles, ReviewType } from './shared/reviewProfiles';
 
@@ -45,7 +46,7 @@ export const readSettings = (): MaltSettings => {
     backend: readBackend(config.get<string>('reviewer.backend', 'auto')),
     autoStart: config.get<boolean>('reviewer.autoStart', true),
     profiles: readProfiles(config),
-    maxConcurrentReviews: Math.max(1, config.get<number>('reviewer.maxConcurrentReviews', 2)),
+    maxConcurrentReviews: agentCount(config.get<unknown>('reviewer.maxConcurrentReviews', 2)),
     claudePath: config.get<string>('reviewer.claudePath', 'claude'),
     dockerSocketPath: config.get<string>('docker.socketPath', ''),
     autoOpen: config.get<boolean>('changes.autoOpen', true),

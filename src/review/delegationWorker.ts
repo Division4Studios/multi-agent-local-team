@@ -12,7 +12,7 @@ import { ReviewerHttpError } from './reviewerClient';
 import type { ReviewerClient } from './reviewerClient';
 
 /** Runs one call and returns its JSON answer. `onText` receives the answer as it streams (display only). */
-export type CallRunner = (call: DelegatedCall, onText: (text: string) => void) => Promise<unknown>;
+export type CallRunner = (call: DelegatedCall, onText: (text: string) => void, signal?: AbortSignal) => Promise<unknown>;
 
 /** Wait after a failed poll (reviewer restarting, network hiccup) before asking again. */
 const RETRY_MS = 2_000;
@@ -50,6 +50,7 @@ export class DelegationWorker implements vscode.Disposable {
   private readonly runners: Partial<Record<ProviderId, CallRunner>>;
   private polling = false;
   private disposed = false;
+  private readonly active = new Set<AbortController>();
 
   public constructor(client: () => ReviewerClient | undefined, runners: Partial<Record<ProviderId, CallRunner>>) {
     this.client = client;
@@ -67,12 +68,17 @@ export class DelegationWorker implements vscode.Disposable {
 
   public dispose(): void {
     this.disposed = true;
+    for (const controller of this.active) { controller.abort(); }
   }
+
+  private isCurrent(client: ReviewerClient): boolean { return !this.disposed && this.client() === client; }
 
   private async poll(): Promise<void> {
     for (let client = this.client(); client !== undefined && !this.disposed; client = this.client()) {
       try {
-        for (const call of await client.takeModelCalls()) {
+        const calls = await client.takeModelCalls();
+        if (!this.isCurrent(client)) { return; }
+        for (const call of calls) {
           void this.run(client, call);
         }
       } catch {
@@ -81,7 +87,16 @@ export class DelegationWorker implements vscode.Disposable {
     }
   }
 
+  private async checkCall(client: ReviewerClient, id: string, controller: AbortController): Promise<void> {
+    try {
+      if (this.disposed || this.client() !== client || !(await client.activeModelCalls()).includes(id)) { controller.abort(); }
+    } catch { controller.abort(); }
+  }
+
   private async run(client: ReviewerClient, call: DelegatedCall): Promise<void> {
+    const controller = new AbortController();
+    this.active.add(controller);
+    const timer = setInterval(() => { void this.checkCall(client, call.id, controller); }, 1_000);
     const text = textBatcher(async (chunk) => { await client.streamModelText({ id: call.id, text: chunk }); });
     let result: DelegatedResult;
     try {
@@ -89,9 +104,14 @@ export class DelegationWorker implements vscode.Disposable {
       if (runner === undefined) {
         throw new Error(`${PROVIDER_LABELS[call.provider]} is not available in this VS Code window`);
       }
-      result = { id: call.id, output: await runner(call, text.add) };
+      const output = await runner(call, text.add, controller.signal);
+      controller.signal.throwIfAborted();
+      result = { id: call.id, output };
     } catch (error: unknown) {
       result = { id: call.id, error: error instanceof Error ? error.message : String(error) };
+    } finally {
+      clearInterval(timer);
+      this.active.delete(controller);
     }
     await text.flush();
     await deliver(client, call, result);

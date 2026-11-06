@@ -13,6 +13,7 @@ import type { StandardsModel } from './standards/standardsModel';
 import type { FindingHighlight } from './editor/findingHighlight';
 import type { AttentionGuard } from './editor/attention';
 import { registerStandardsCommands, showFindingLocation } from './standards/standardsCommands';
+import { registerAgentCommands } from './views/reviewerAgentCommands';
 import { ConversationPanel } from './views/conversationPanel';
 import type { PullRequestReview } from './pullRequest/pullRequestReview';
 import { configureReviewType } from './views/reviewSettings';
@@ -150,6 +151,7 @@ const setCredentials = async (deps: CommandDeps): Promise<void> => {
 export const registerCommands = (deps: CommandDeps): vscode.Disposable =>
   vscode.Disposable.from(
     registerChangeReview(deps),
+    registerAgentCommands(deps.manager, deps.extensionUri, (id, handler) => userCommand(deps, id, handler)),
     vscode.commands.registerCommand('malt.startReviewer', async () => { await startReviewer(deps); }),
     vscode.commands.registerCommand('malt.stopReviewer', async () => { await deps.manager.stop(); }),
     vscode.commands.registerCommand('malt.scanStandards', async () => { await runScan(deps); }),

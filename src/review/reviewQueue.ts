@@ -127,6 +127,8 @@ export class ReviewQueue {
     }
   }
 
+  public resume(): void { this.pump(); }
+
   private pump(): void {
     while (!this.stopped && this.inFlight < this.options.concurrency()) {
       const task = this.waiting.shift();

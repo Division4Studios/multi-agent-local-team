@@ -30,6 +30,8 @@ Press **F5**, then open a disposable Git repository in the new window. Start wit
 | Scan with ignored `.claude/SKILL.md` | Instructions are discoverable; generated `.malt/standards.json` is never a changed block |
 | Run scan a second time | Generated output is not used as a discovery source; `.malt/.gitignore` stays intact |
 | Revert/commit a changed block | Obsolete decorations and sidebar entries disappear after Git refresh |
+| Expand **Reviewers health**, use keyboard context menus, and open two agent logs | Stable agent identities; two initial slots; each log contains only its agent. No editor focus change from status refreshes. |
+| Add agents beyond eight; cancel one active task; stop/start an agent | Other work continues; cancelled work stays incomplete; stopped slots accept no work; idle is grey. Check green idle parent, mixed yellow, all-failed red. |
 | Stop reviewer or force a request failure | Pending/error text is distinct from a code verdict; retry works after recovery |
 
 Repeat presentation checks in **Dark+**, **Light+**, **High Contrast**, and **High Contrast Light**. Check keyboard navigation, narrow sidebars, zoomed text, long review summaries and filenames, and multiple editor groups. Do not rely solely on red/green to identify results.

@@ -7,6 +7,7 @@ import { Delegation, DelegatingProvider } from './delegation';
 import { createReviewerServer, shutdownReviewerServer } from './server';
 import { ReviewService } from './service';
 import { ConversationLog } from './conversations';
+import { agentCount } from '../shared/reviewerAgents';
 import { profilesFromEnv } from '../shared/reviewProfiles';
 import { describeError, log } from './log';
 
@@ -31,6 +32,7 @@ const main = (): void => {
   const service = new ReviewService(
     {
       workspaceRoot: required('MALT_WORKSPACE'),
+      agents: agentCount(Number(process.env['MALT_REVIEWER_AGENTS'])),
       profiles: profilesFromEnv(process.env),
       ...(process.env["MALT_MAP_VERIFIER"] === undefined || process.env["MALT_MAP_VERIFIER"] === "" ? {} : { mapVerifier: process.env["MALT_MAP_VERIFIER"] }),
     },
@@ -43,6 +45,7 @@ const main = (): void => {
   });
   const shutdown = (): void => {
     log('shutting down');
+    service.agents.close();
     delegation.close();
     shutdownReviewerServer(server);
   };

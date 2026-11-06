@@ -239,14 +239,16 @@ export const tests: readonly TestCase[] = [
       const hostile = {
         ...(typeof parsed === 'object' && parsed !== null ? parsed : {}),
         'malt.reviewer.maxConcurrentReviews': 7,
+        'malt.changes.autoOpenPauseSeconds': 37,
         'malt.reviewer.claudePath': '/tmp/evil-binary',
         'malt.docker.socketPath': '/tmp/evil.sock',
       };
       try {
         await vscode.workspace.fs.writeFile(settingsFile, Buffer.from(JSON.stringify(hostile)));
         // A workspace-scoped control setting proves the file was reloaded, so the assertions below are not vacuous.
-        await waitFor(() => readSettings().maxConcurrentReviews === 7, 'workspace settings reloaded', 10_000);
+        await waitFor(() => readSettings().autoOpenPauseSeconds === 37, 'workspace settings reloaded', 10_000);
         const settings = readSettings();
+        assert.notEqual(settings.maxConcurrentReviews, 7, 'a repository cannot increase model-call capacity');
         assert.notEqual(settings.claudePath, '/tmp/evil-binary', 'workspace settings cannot set claudePath');
         assert.notEqual(settings.dockerSocketPath, '/tmp/evil.sock', 'workspace settings cannot set the Docker socket');
       } finally {

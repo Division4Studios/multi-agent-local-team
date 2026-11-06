@@ -1,6 +1,6 @@
 /**
  * "Reviewer" view in the MALT sidebar:
- * - Reviewer: one row for health and where it runs; opens the live reviewer log.
+ * - Reviewers health: aggregate status with individual agents, task controls and per-agent live logs.
  * - Models & effort: the model and effort for each kind of review call; select one to change it.
  * - Standards: opens the standards page; expands into categories → rules.
  * - Gaps: expands into the gaps; each one opens the file at the declaration it names, outlined, with hover details.
@@ -9,6 +9,8 @@
  * Rescanning is the view's title-bar action, so none of these rows starts a scan by accident.
  */
 import * as vscode from 'vscode';
+import { reviewerAgentItem, reviewersHealthItem } from './reviewerAgentItems';
+import type { ReviewerAgent } from '../shared/reviewerAgents';
 import type { ReviewerManager, ReviewerStatus } from '../backend/reviewerManager';
 import type { HunkStore } from '../review/hunkStore';
 import type { Rule } from '../shared/protocol';
@@ -24,6 +26,7 @@ import { findingLinks, findingMarkdown } from '../editor/findingMarkdown';
 import { workspaceFile } from '../editor/findingHighlight';
 
 type Node =
+  | { readonly kind: 'agent'; readonly agent: ReviewerAgent }
   | { readonly kind: 'reviewer' | 'models' | 'standards' | 'gaps' | 'architecture' | 'queue' }
   | { readonly kind: 'reviewType'; readonly type: ReviewType }
   | { readonly kind: 'group'; readonly group: RuleGroup }
@@ -94,6 +97,7 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
     };
     this.subscriptions = [
       manager.onDidChangeStatus(refresh),
+      manager.agentMonitor.onDidChange(refresh),
       store.onDidChange(refresh),
       standards.onDidChange(refresh),
       vscode.workspace.onDidChangeConfiguration((event) => {
@@ -104,11 +108,12 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
     ];
   }
 
-  /** Only Standards (→ groups → rules) and Gaps (→ gaps → declarations) have children. */
+  /** Agents, models, Standards (→ groups → rules) and Gaps (→ gaps → declarations) have children. */
   public getChildren(node?: Node): Node[] {
     if (node === undefined) {
       return [{ kind: 'reviewer' }, { kind: 'models' }, { kind: 'standards' }, { kind: 'gaps' }, { kind: 'architecture' }, { kind: 'queue' }];
     }
+    if (node.kind === 'reviewer') { return this.manager.agentMonitor.agents.map((agent) => ({ kind: 'agent', agent })); }
     if (node.kind === 'models') {
       return REVIEW_TYPES.map((type) => ({ kind: 'reviewType', type }));
     }
@@ -128,6 +133,7 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
   }
 
   public getTreeItem(node: Node): vscode.TreeItem {
+    if (node.kind === 'agent') { return reviewerAgentItem(node.agent); }
     if ('type' in node) {
       return reviewTypeItem(node.type);
     }
@@ -177,15 +183,17 @@ export class ReviewerTreeProvider implements vscode.TreeDataProvider<Node>, vsco
   private reviewerItem(): vscode.TreeItem {
     const status = this.manager.status;
     const where = status.backend === undefined ? '' : ` · ${BACKEND_LABELS[status.backend]}`;
-    const result = item('Reviewer', {
+    if (status.state === 'running') { return reviewersHealthItem(this.manager.agentMonitor.agents, this.manager.agentMonitor.unavailable); }
+    const result = item('Reviewers health', {
       description: `${STATE_WORDS[status.state]}${where}`,
       icon: STATE_ICONS[status.state],
-      command: { command: 'malt.showLiveLog', title: 'Show live reviewer log' },
+      collapsed: false,
     });
     const tooltip = new vscode.MarkdownString();
     tooltip.appendText(`Reviewer: ${STATE_WORDS[status.state]}${status.detail === '' ? '' : ` (${status.detail})`}\n`);
     tooltip.appendText(`Runs as: ${status.backend === undefined ? 'not started' : BACKEND_LABELS[status.backend]}\n`);
-    tooltip.appendText(`Model providers in use: ${status.provider ?? 'unknown'}\n\nClick to watch the live reviewer log.`);
+    tooltip.appendText(`Model providers in use: ${status.provider ?? 'unknown'}\n\nStart the reviewer to manage individual agents.`);
+    result.id = 'reviewers-health';
     result.tooltip = tooltip;
     return result;
   }

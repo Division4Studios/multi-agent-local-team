@@ -6,7 +6,7 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | --- | --- | --- |
 | `malt.reviewer.backend` | `auto` | `auto`, `docker`, or `host`; restart reviewer after changing |
 | `malt.reviewer.autoStart` | `true` | Start when a workspace opens |
-| `malt.reviewer.maxConcurrentReviews` | `2` | Parallel reviewer calls (overviews and rule checks), from 1 to 8 |
+| `malt.reviewer.maxConcurrentReviews` | `2` | Initial agents across all call types; positive integer with no fixed maximum. User-only; restart to apply |
 | `malt.reviewer.claudePath` | `claude` | Host CLI executable; restart reviewer. User (machine) settings only: workspace settings are ignored, so a repository cannot choose what MALT runs |
 | `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise `DOCKER_HOST` or platform default; restart reviewer. User (machine) settings only |
 | `malt.reviewer.<type>Provider` | `claude` | Who answers each review type: `claude` or `copilot` (see **Review providers** below). `<type>` is `triage`, `review`, `consolidation`, `standards` or `investigation`. User (machine) settings only, so a repository can never choose which service receives its code |
@@ -57,7 +57,7 @@ All commands below have the **MALT:** prefix.
 | Finalize Diagram or One-page Answer | Publish a version 1 MALT model. Diagram exports request Chrome checks. One-page answers offer a choice. |
 | Show Architecture File Summaries | Read the reviewer’s file summaries and applicable developer clarifications. |
 | Show Standards Gaps | Reopen the gaps the last scan found as one page. In the Reviewer view, the **Gaps** row lists them; selecting one opens the file at the declaration it names, outlined, with the gap on hover |
-| Show Live Reviewer Log | Watch every model call as it happens: what it is for, the prompt sent and the answer streaming in, with elapsed time and a stall indicator. Nothing is saved (also the **Reviewer** row) |
+| Show Live Reviewer Log | Watch every model call as it happens: what it is for, the prompt sent and the answer streaming in, with elapsed time and a stall indicator. Nothing is saved; individual logs are available under **Reviewers health** |
 | Detect Review Providers | Show which review providers this machine can use (Claude, GitHub Copilot) and their models. The first Copilot check asks your permission |
 | Check Consolidation Across Changes | One reviewer call over the new declarations in every changed block; findings appear at the top of **Changes** |
 | Review Pull Request… | Pick an open pull request on the workspace's GitHub repository (sign in with VS Code's GitHub account), check it out, and list its changed blocks in the **Pull Request** view. Refuses while you have uncommitted changes |
@@ -76,3 +76,20 @@ Structural indexing and branch comparison run locally. **Scan Project Standards*
 ## Theme customization
 
 Use `workbench.colorCustomizations` for `malt.hunkPending`, `malt.hunkPass`, and `malt.hunkFail`. Defaults cover dark, light, and both high-contrast themes. Status icons and text explain the state without requiring color recognition.
+
+## Individual reviewer agents
+
+Expand **Reviewer > Reviewers health** to see each agent. MALT starts two agents by default, shared across all review call types. Set `malt.reviewer.maxConcurrentReviews` in user settings and restart the reviewer to change the initial count. There is no fixed maximum; available memory and provider quotas still govern actual throughput. Repository settings cannot increase this machine-scoped value.
+
+Right-click **Reviewers health** to **Add Reviewer Agent** for this session. Right-click an agent to **Cancel Current Task**, **Stop Agent**, **Start Agent**, or **Show Agent Live Stream Log**. Cancel releases the agent after its operation ends; Stop also removes its capacity until started again. Cancelling leaves that review incomplete and available for an explicit retry. Adding or starting capacity lets already queued work proceed. Changes to the running pool last until the reviewer restarts.
+
+| Agent status | Meaning |
+| --- | --- |
+| Green / working | A provider call is running normally |
+| Yellow / waiting for activity | No provider activity for 60 seconds; the call has not yet failed |
+| Red / error | The last provider call failed |
+| Grey / idle or stopped | No work is running on this agent |
+
+The parent is green when all agents are healthy or idle, including an unused pool. Mixed health or a warning is yellow. When every agent is failed it is red; a mix of failed and idle/stopped agents is yellow. An unavailable service/status check is shown separately. Colors are accompanied by text and distinct icons.
+
+Each agent's log shows only its own calls, including recent in-memory history. Existing redaction, size limits and offline webview protections apply. Agent and task identities are checked by the authenticated service so a stale Cancel/Stop action cannot target newer work. Claude cancellation terminates the call process. Copilot cancellation is propagated through the extension's cancellation token, normally within one second; the slot remains occupied until the delegated operation acknowledges completion or reaches its deadline. A cancelled response cannot become a successful review.
