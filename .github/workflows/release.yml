@@ -188,9 +188,54 @@ jobs:
         run: sha256sum "malt-${TAG#v}.vsix" | tee SHA256SUMS.txt
 
       - name: Build provenance attestation
+        if: github.event_name == 'push'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: malt-*.vsix
+
+      # On a recovery run the workflow comes from main but the source is the tag. attest-build-provenance takes the
+      # source from the workflow's identity token, which would name main; this predicate has the same SLSA v1 shape
+      # and builder identity, but records the tag's commit as the source and the tag input that chose it.
+      - name: Provenance predicate naming the tagged source (recovery runs)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          # The commit this job checked out and packaged: the tag's, verified by the check job.
+          SOURCE_COMMIT=$(git rev-parse HEAD)
+          export SOURCE_COMMIT
+          node -e '
+            const e = process.env, server = e.GITHUB_SERVER_URL, repo = e.GITHUB_REPOSITORY;
+            const predicate = {
+              buildDefinition: {
+                buildType: "https://actions.github.io/buildtypes/workflow/v1",
+                externalParameters: {
+                  workflow: { ref: e.GITHUB_REF, repository: server + "/" + repo, path: e.GITHUB_WORKFLOW_REF.slice(repo.length + 1).split("@")[0] },
+                  inputs: { tag: e.TAG },
+                },
+                internalParameters: { github: {
+                  event_name: e.GITHUB_EVENT_NAME, repository_id: e.GITHUB_REPOSITORY_ID,
+                  repository_owner_id: e.GITHUB_REPOSITORY_OWNER_ID, runner_environment: e.RUNNER_ENVIRONMENT,
+                } },
+                resolvedDependencies: [{ uri: "git+" + server + "/" + repo + "@refs/tags/" + e.TAG, digest: { gitCommit: e.SOURCE_COMMIT } }],
+              },
+              runDetails: {
+                builder: { id: server + "/" + e.GITHUB_WORKFLOW_REF },
+                metadata: { invocationId: server + "/" + repo + "/actions/runs/" + e.GITHUB_RUN_ID + "/attempts/" + e.GITHUB_RUN_ATTEMPT },
+              },
+            };
+            require("fs").writeFileSync(e.RUNNER_TEMP + "/provenance.json", JSON.stringify(predicate));
+          '
+        shell: bash
+
+      - name: Build provenance attestation (recovery runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: malt-*.vsix
+          predicate-type: https://slsa.dev/provenance/v1
+          predicate-path: ${{ runner.temp }}/provenance.json
 
       - name: Draft the release
         env:
