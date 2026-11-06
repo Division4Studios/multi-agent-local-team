@@ -8,6 +8,8 @@ import { reviewInventory } from './reviewInventory';
 export interface EvidenceRequest {
   readonly files: readonly string[];
   readonly reason: string;
+  /** The request asked only for evidence the call already had, so it added nothing (still counted). */
+  readonly alreadySupplied?: true;
 }
 export interface EvidenceScope {
   readonly inventory: readonly string[];
@@ -56,18 +58,21 @@ const expand = async (config: EvidenceConfig, scope: EvidenceScope, request: Evi
   if (request.files.some((path) => !known.has(path))) {
     throw new Error('Reviewer needs evidence outside the eligible source inventory; review remains incomplete');
   }
+  // A request for nothing new (complete component context, or files whose source is already supplied) is answered
+  // by asking again with the request marked: the model has the evidence and must decide from it. It still counts
+  // against the expansions, so asking repeatedly ends the review as incomplete, never with a guessed verdict.
   const supplied = new Set(scope.component?.files.map((file) => file.path) ?? []);
   if (scope.component !== undefined && request.files.every((path) => supplied.has(path))) {
-    throw new Error('Reviewer requested evidence already supplied; review remains incomplete');
+    return { ...scope, requests: [...scope.requests, { ...request, alreadySupplied: true }] };
   }
   const architecture = scope.component === undefined ? await config.loadModules() : scope.architecture;
   const requests = [...scope.requests, request];
-  const requestedPaths = [...new Set(requests.flatMap((entry) => entry.files))];
+  const requestedPaths = [...new Set(requests.filter((entry) => entry.alreadySupplied !== true).flatMap((entry) => entry.files))];
   const component = await collectComponentContext(config.root, config.blocks, architecture, requestedPaths);
   return { inventory: component.inventory, omittedDirectories: component.omittedDirectories, architecture, component, requests };
 };
 
-/** No speculative verdict is substituted when evidence is unsafe, unavailable, repeated or still insufficient. */
+/** No speculative verdict is substituted when evidence is unsafe, unavailable or still insufficient after two expansions. */
 export const reviewWithEvidence = async (
   config: EvidenceConfig, ask: (scope: EvidenceScope) => Promise<unknown>,
 ): Promise<EvidenceResult> => {

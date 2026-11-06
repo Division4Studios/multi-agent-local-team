@@ -47,6 +47,22 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
+    name: 'a request for evidence already supplied is asked again, marked, and the model decides from what it has',
+    run: async (): Promise<void> => {
+      const root = await fixture();
+      const scopes: EvidenceScope[] = [];
+      const result = await reviewWithEvidence(config(root, true), async (scope) => {
+        scopes.push(scope);
+        return await Promise.resolve(scopes.length === 1 ? need([]) : PASS);
+      });
+      assert.deepEqual(result.output, PASS);
+      const [first, second] = scopes;
+      assert.ok(scopes.length === 2 && first !== undefined && second !== undefined);
+      assert.equal(second.requests[0]?.alreadySupplied, true);
+      assert.equal(second.component, first.component, 'nothing new is read for a request that adds nothing');
+    },
+  },
+  {
     name: 'adaptive evidence stops on unsafe, unknown, oversized or repeated evidence instead of a verdict',
     run: async (): Promise<void> => {
       const root = await fixture();
@@ -55,8 +71,12 @@ export const tests: readonly TestCase[] = [
       }
       await writeFile(join(root, 'far', 'elsewhere', 'large.ts'), 'x'.repeat(400_001));
       await assert.rejects(reviewWithEvidence(config(root), async () => await Promise.resolve(need(['far/elsewhere/large.ts']))), /complete source files/u);
-      await assert.rejects(reviewWithEvidence(config(root, true), async () => await Promise.resolve(need([]))), /already supplied/u);
-      await assert.rejects(reviewWithEvidence(config(root), async () => await Promise.resolve(need(['far/elsewhere/other.ts']))), /already supplied/u);
+      let calls = 0;
+      await assert.rejects(reviewWithEvidence(config(root, true), async () => { calls += 1; return await Promise.resolve(need([])); }), /after two expansions/u);
+      assert.equal(calls, 3, 'asking again for what it has ends as incomplete after the two expansions');
+      calls = 0;
+      await assert.rejects(reviewWithEvidence(config(root), async () => { calls += 1; return await Promise.resolve(need(['far/elsewhere/other.ts'])); }), /after two expansions/u);
+      assert.equal(calls, 3);
     },
   },
   {
