@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Releases are made only by the **Release** workflow, run from `dev`: it runs CI and the live reviewer test, waits for a maintainer's approval, then copies the tested commit into `main`, tags it and publishes the release. `main` is no longer a pull request target. See [Releasing](docs/releasing.md).
 - Coordinated MALT colors across diagrams, legends, selected-component notes, discussions, review pages, and exports, with light, dark, editor, and high-contrast support.
 
 ### Fixed

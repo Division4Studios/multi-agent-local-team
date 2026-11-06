@@ -4,7 +4,7 @@ name: Live reviewer
 # rule checks, consolidation, discussion, standards scan, gap investigation) through the extension's own client and
 # protocol parsers: src/test/live/reviewerLive.ts. Mocked tests cannot catch the API rejecting a schema; this can.
 #
-# - release.yml requires it before a release is drafted.
+# - release.yml requires it before a release is published.
 # - It also runs after pushes to dev that change the reviewer, and on demand (Actions tab).
 #
 # Security:

@@ -5,14 +5,16 @@ on:
     branches: [main, dev]
   pull_request:
   workflow_dispatch:
-  # release.yml runs this same matrix on the tagged commit before it builds a release.
+  # release.yml runs this same matrix on the dev commit it is about to release.
   workflow_call:
 
 permissions:
   contents: read
 
+# A called run takes the caller's github context, so the workflow name keeps a Release run's CI from cancelling, or
+# being cancelled by, CI for a push to the same branch.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -52,8 +54,8 @@ jobs:
           name: typescript7-output
           path: out/
           if-no-files-found: error
-          # Kept 14 days on main: a manual Release run of a tag reuses its commit's tested output.
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+          # Only needed within the run (release.yml packages from it).
+          retention-days: 1
 
   verify:
     needs: compile

@@ -1,138 +1,99 @@
 name: Release
 
-# Builds a MALT release when a maintainer pushes a signed vMAJOR.MINOR.PATCH tag. See docs/releasing.md.
+# The only way anything reaches main. Run it from dev (Actions → Release → Run workflow → dev) after the version bump
+# pull request has merged. See docs/releasing.md.
 #
-# 1. check: the tag must be an annotated tag with a signature GitHub verifies, on a commit in main's first-parent
-#    history (a release pull request's merge commit), and match the version in package.json, package-lock.json
-#    and a dated CHANGELOG.md section (scripts/release.mts check).
-# 2. verify: the full CI matrix (ci.yml) on the tagged commit, and live: real Claude calls of every kind against the
-#    reviewer image built from it (reviewer-live.yml). A build whose reviewer does not work is never released.
-# 3. publish: rebuilds the .vsix, fails unless the compiled JavaScript is byte-identical to what CI tested, records a
-#    signed build provenance attestation, and creates a DRAFT release with the .vsix and its SHA-256 checksum.
-#    A maintainer reviews the draft and publishes it. Publishing makes the release immutable (repository setting)
-#    and, because a person does it, triggers the Discord feeds (events made with GITHUB_TOKEN trigger no workflows).
-#
-# Recovery: a tag's own run uses the tag's copy of this file, so a bug here cannot be fixed by re-running it, and a
-# tag cannot be moved. Once the fix reaches main, run this workflow manually from main with the tag. It repeats every
-# check on the tag, requires the tagged commit's own CI run on main to have passed (ci.yml is not re-run on a
-# passed-in ref), runs the live test on the tag, and requires the build to match the output that CI run tested.
+# 1. prepare: the version is dev's (package.json, package-lock.json and a dated CHANGELOG.md section must agree:
+#    scripts/release.mts check), and its tag must not exist yet. Everything below works on the one dev commit this
+#    run started from, so later pushes to dev cannot change what ships.
+# 2. verify: the full CI matrix (ci.yml) on that commit, and live: real Claude calls of every kind against the reviewer
+#    image built from it (reviewer-live.yml). A build whose reviewer does not work is never released.
+# 3. publish (waits for a maintainer's approval in the `release` environment):
+#    - packages the .vsix and fails unless its compiled JavaScript is byte-identical to what CI tested;
+#    - records a signed build provenance attestation (source: this dev commit and this workflow);
+#    - copies the commit into main: a merge commit, signed by GitHub, whose tree is exactly the tested commit's;
+#    - creates the vX.Y.Z tag on it and publishes the release with the .vsix and its SHA-256 checksum.
 #
 # Security:
-# - Only the repository admin can create v* tags, and nobody can move or delete them (the `release tags` ruleset).
-# - The token has no permissions by default; only the publish job can write releases and sign attestations.
-#   Checkouts don't persist credentials, and only the steps that call GitHub receive a token.
-# - The tag name reaches scripts as data (env), and is checked against vMAJOR.MINOR.PATCH before use.
+# - main and v* tags accept updates only from the MALT Release GitHub App (the `main · release only` and
+#   `release tags` rulesets); its key is a secret of the `release` environment, which only dev may use and which
+#   needs a maintainer's approval for every run. Nobody, admins included, can push to main or merge a pull request
+#   into it.
+# - The App token is minted inside the publish job, after approval, for this repository only, with contents and
+#   workflows write (a main update that changes workflow files needs both), and is revoked when the job ends.
+# - GITHUB_TOKEN has no permissions by default; publish can only sign attestations with it. Checkouts don't persist
+#   credentials, and only the steps that call GitHub receive a token. Versions and tags reach scripts as data (env),
+#   checked against MAJOR.MINOR.PATCH first.
 # - Releases never use the npm cache, so a poisoned cache entry from another workflow can't reach a release.
-# - `gh release create` refuses if a release for the tag already exists, so a re-run never replaces one.
+# - Every write step is safe to re-run (Re-run failed jobs): an existing main merge or tag for this commit is reused,
+#   anything else is refused, and an existing release is never replaced.
 on:
-  push:
-    tags: ['v*']
-  # Builds an existing signed tag when its own run could not finish because of a problem in this workflow (a tag's
-  # own run always uses the tag's copy of this file). Run it from main; every check below still applies to the tag.
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing signed release tag to build, for example v1.0.0
-        required: true
-        type: string
 
 permissions: {}
 
 concurrency:
-  group: release-${{ inputs.tag || github.ref_name }}
+  group: release
   cancel-in-progress: false
 
 jobs:
-  check:
-    name: Check release tag
+  prepare:
+    name: Check version
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
-      actions: read # find the tagged commit's CI run (manual runs)
     outputs:
-      ci_run: ${{ steps.ci.outputs.run }}
+      sha: ${{ steps.version.outputs.sha }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
-      - name: Checkout the tagged commit
+      - name: Run from dev only
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/dev" ]; then
+            echo "::error::Run the Release workflow from dev; main is only ever a copy of a released dev commit"; exit 1
+          fi
+
+      - name: Checkout the dev commit this run started from
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ format('refs/tags/{0}', inputs.tag || github.ref_name) }}
-          fetch-depth: 0
+          ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Tag is vMAJOR.MINOR.PATCH, signed, annotated and on main
-        env:
-          TAG: ${{ inputs.tag || github.ref_name }}
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "::error::Run this workflow from main, so the release is built by main's reviewed copy of it"; exit 1
-          fi
-          if ! [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "::error::Release tags are vMAJOR.MINOR.PATCH; got $TAG"; exit 1
-          fi
-          read -r type object < <(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha')
-          if [ "$type" != "tag" ]; then
-            echo "::error::$TAG is a lightweight tag. Create it with: git tag -s $TAG -m \"MALT ${TAG#v}\""; exit 1
-          fi
-          read -r verified target < <(gh api "repos/$GH_REPO/git/tags/$object" --jq '(.verification.verified | tostring) + " " + .object.sha')
-          if [ "$verified" != "true" ]; then
-            echo "::error::GitHub could not verify the signature on $TAG. Sign it with a key on your GitHub account (git tag -s)."; exit 1
-          fi
-          checked_out=$(git rev-parse HEAD)
-          if [ "$target" != "$checked_out" ]; then
-            echo "::error::$TAG points to $target, not the commit this run checked out ($checked_out)"; exit 1
-          fi
-          # The checkout of a tag does not include main; fetch it (public repository, no credentials needed).
-          git fetch --no-tags --quiet origin +refs/heads/main:refs/remotes/origin/main
-          # Write the list first: `rev-list | grep -q` fails under pipefail, because grep exits at the match and
-          # rev-list (still writing, in a fresh clone) dies of SIGPIPE, which reads as "not on main".
-          first_parent="$RUNNER_TEMP/main-first-parent.txt"
-          git rev-list --first-parent origin/main > "$first_parent"
-          if ! grep -qx "$checked_out" "$first_parent"; then
-            echo "::error::$TAG must point to a commit on main (the release pull request's merge commit)"; exit 1
-          fi
-
-      - name: The tagged commit already passed CI on main (manual runs)
-        id: ci
-        if: github.event_name == 'workflow_dispatch'
+      - name: Version agrees everywhere and is not released yet
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          sha=$(git rev-parse HEAD)
-          run=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&branch=main&status=success" --jq '.workflow_runs[0].id // empty')
-          if [ -z "$run" ]; then
-            echo "::error::No successful CI run on main for $sha; a release must be built from a commit CI tested"; exit 1
+          version=$(node -p 'require("./package.json").version')
+          if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::package.json version must be MAJOR.MINOR.PATCH; got $version"; exit 1
           fi
-          echo "run=$run" >> "$GITHUB_OUTPUT"
+          tag="v$version"
+          node scripts/release.mts check "$tag" "$RUNNER_TEMP/release-notes.md"
+          if gh api "repos/$GH_REPO/git/ref/tags/$tag" --silent 2>/dev/null; then
+            echo "::error::$tag already exists. Bump the version on dev first: npm run release:bump -- patch|minor|major"; exit 1
+          fi
+          echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag from dev at $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Tag matches package.json, package-lock.json and CHANGELOG.md
-        env:
-          TAG: ${{ inputs.tag || github.ref_name }}
-        run: node scripts/release.mts check "$TAG" "$RUNNER_TEMP/release-notes.md"
-
-  # Tag pushes run the full CI matrix on the tag. Manual runs use the tagged commit's own passing CI run instead
-  # (found by the check job), so ci.yml never checks out a ref passed in by another run.
   verify:
-    needs: check
-    if: github.event_name == 'push'
+    needs: prepare
     name: CI
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml
 
   live:
-    needs: check
+    needs: prepare
     name: Live reviewer
     permissions:
       contents: read
     uses: ./.github/workflows/reviewer-live.yml
     with:
-      ref: ${{ format('refs/tags/{0}', inputs.tag || github.ref_name) }}
+      ref: ${{ needs.prepare.outputs.sha }}
     # A called workflow gets no secrets unless the caller passes them, environment secrets included (they would
     # resolve to empty strings). Only the two credentials the live test needs are passed, by name.
     secrets:
@@ -140,23 +101,23 @@ jobs:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
   publish:
-    needs: [check, verify, live]
-    if: >-
-      always() && needs.check.result == 'success' && needs.live.result == 'success' &&
-      (needs.verify.result == 'success' || (github.event_name == 'workflow_dispatch' && needs.verify.result == 'skipped'))
-    name: Build and draft release
+    needs: [prepare, verify, live]
+    name: Copy to main and publish
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: release
     permissions:
-      contents: write # create the draft release and upload its assets
       id-token: write # sign the build provenance attestation (Sigstore)
       attestations: write # store the attestation on this repository
-      actions: read # download the tested output from the tagged commit's CI run (manual runs)
+    env:
+      SHA: ${{ needs.prepare.outputs.sha }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      GH_REPO: ${{ github.repository }}
     steps:
-      - name: Checkout the tagged commit
+      - name: Checkout the tested commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ format('refs/tags/{0}', inputs.tag || github.ref_name) }}
+          ref: ${{ needs.prepare.outputs.sha }}
           persist-credentials: false
 
       - name: Set up Node.js
@@ -167,83 +128,91 @@ jobs:
       - name: Install (lockfile only, no install scripts) and enforce dependency policy
         run: npm ci && npm run check-deps
 
-      - name: Download the JavaScript CI tested (this run)
-        if: github.event_name == 'push'
+      - name: Download the JavaScript CI tested
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: typescript7-output
           path: ${{ runner.temp }}/tested-out
-
-      - name: Download the JavaScript CI tested (the tagged commit's CI run)
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: typescript7-output
-          path: ${{ runner.temp }}/tested-out
-          run-id: ${{ needs.check.outputs.ci_run }}
-          github-token: ${{ github.token }}
 
       - name: Package the extension (compiles with TypeScript 7 in the isolated container)
-        env:
-          TAG: ${{ inputs.tag || github.ref_name }}
         run: npx --no-install vsce package --no-dependencies --out "malt-${TAG#v}.vsix"
 
       - name: Shipped JavaScript is byte-identical to what CI tested
         run: diff -r "$RUNNER_TEMP/tested-out" out
 
-      - name: Checksum
-        env:
-          TAG: ${{ inputs.tag || github.ref_name }}
-        run: sha256sum "malt-${TAG#v}.vsix" | tee SHA256SUMS.txt
+      - name: Checksum and release notes
+        run: |
+          set -euo pipefail
+          sha256sum "malt-${TAG#v}.vsix" | tee SHA256SUMS.txt
+          node scripts/release.mts check "$TAG" "$RUNNER_TEMP/release-notes.md"
 
-      # GitHub validates that SLSA provenance names the source of the run that signs it, so this always records
-      # the workflow's own ref: the tag on a tag push, main on a recovery run (the workflow that ran).
       - name: Build provenance attestation
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: malt-*.vsix
 
-      # A recovery run builds the tag's commit with main's workflow, which provenance cannot express. This signed
-      # attestation of MALT's own type records what was packaged: the tag, its commit (checked out here and verified
-      # by the check job) and the CI run whose tested output the build matches byte for byte. See docs/releasing.md.
-      - name: Release source statement (recovery runs)
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          TAG: ${{ inputs.tag || github.ref_name }}
-          CI_RUN: ${{ needs.check.outputs.ci_run }}
-        run: |
-          set -euo pipefail
-          SOURCE_COMMIT=$(git rev-parse HEAD)
-          export SOURCE_COMMIT
-          node -e '
-            const e = process.env, server = e.GITHUB_SERVER_URL, repo = e.GITHUB_REPOSITORY;
-            const statement = {
-              tag: e.TAG,
-              sourceCommit: e.SOURCE_COMMIT,
-              source: "git+" + server + "/" + repo + "@refs/tags/" + e.TAG,
-              testedBy: server + "/" + repo + "/actions/runs/" + e.CI_RUN,
-              builtBy: server + "/" + e.GITHUB_WORKFLOW_REF,
-              run: server + "/" + repo + "/actions/runs/" + e.GITHUB_RUN_ID + "/attempts/" + e.GITHUB_RUN_ATTEMPT,
-            };
-            require("fs").writeFileSync(e.RUNNER_TEMP + "/release-source.json", JSON.stringify(statement));
-          '
-
-      - name: Release source attestation (recovery runs)
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+      - name: Release App token (this repository only)
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          subject-path: malt-*.vsix
-          predicate-type: https://github.com/Division4Studios/multi-agent-local-team/blob/dev/docs/releasing.md#release-source
-          predicate-path: ${{ runner.temp }}/release-source.json
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-workflows: write
 
-      - name: Draft the release
+      - name: Copy the tested commit into main
+        id: main
         env:
-          TAG: ${{ inputs.tag || github.ref_name }}
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
         run: |
           set -euo pipefail
-          node scripts/release.mts check "$TAG" "$RUNNER_TEMP/release-notes.md"
-          gh release create "$TAG" --draft --verify-tag --title "MALT ${TAG#v}" \
+          tree=$(gh api "repos/$GH_REPO/git/commits/$SHA" --jq .tree.sha)
+          main=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)
+          # A re-run finds its own merge already on main and reuses it.
+          read -r main_tree second_parent < <(gh api "repos/$GH_REPO/git/commits/$main" --jq '.tree.sha + " " + (.parents[1].sha // "none")')
+          if [ "$second_parent" = "$SHA" ] && [ "$main_tree" = "$tree" ]; then
+            echo "main already holds this release: $main"
+            echo "commit=$main" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # The merge commit's tree is the tested commit's tree exactly, so main is a copy of what was verified.
+          body=$(jq -n --arg tree "$tree" --arg main "$main" --arg sha "$SHA" --arg tag "$TAG" \
+            '{tree: $tree, parents: [$main, $sha], message: ("release: " + $tag + "\n\nCopies dev at " + $sha + " into main.")}')
+          commit=$(gh api "repos/$GH_REPO/git/commits" --input - --jq .sha <<< "$body")
+          verified=$(gh api "repos/$GH_REPO/commits/$commit" --jq .commit.verification.verified)
+          if [ "$verified" != "true" ]; then
+            echo "::error::GitHub did not sign the release merge commit $commit; main was not changed"; exit 1
+          fi
+          # Not forced: if main moved since it was read, this fails instead of overwriting it.
+          gh api --method PATCH "repos/$GH_REPO/git/refs/heads/main" -f sha="$commit" -F force=false --silent
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "main is now $commit (dev $SHA)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Tag the release
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          COMMIT: ${{ steps.main.outputs.commit }}
+        run: |
+          set -euo pipefail
+          if existing=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha' 2>/dev/null); then
+            read -r type object <<< "$existing"
+            target=$object
+            if [ "$type" = "tag" ]; then target=$(gh api "repos/$GH_REPO/git/tags/$object" --jq .object.sha); fi
+            if [ "$target" != "$COMMIT" ]; then echo "::error::$TAG already exists and points to $target, not $COMMIT"; exit 1; fi
+            echo "$TAG already points to $COMMIT"; exit 0
+          fi
+          body=$(jq -n --arg tag "$TAG" --arg commit "$COMMIT" \
+            '{tag: $tag, message: ("MALT " + ($tag | ltrimstr("v"))), object: $commit, type: "commit"}')
+          object=$(gh api "repos/$GH_REPO/git/tags" --input - --jq .sha <<< "$body")
+          gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$object" --silent
+
+      # Published with the App's token, not GITHUB_TOKEN, so the release event reaches the Discord feeds (events made
+      # with GITHUB_TOKEN trigger no workflows). `gh release create` refuses if the release already exists.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" --verify-tag --title "MALT ${TAG#v}" \
             --notes-file "$RUNNER_TEMP/release-notes.md" "malt-${TAG#v}.vsix" SHA256SUMS.txt
-          echo "Draft release created. Review it, then publish: https://github.com/$GH_REPO/releases" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published: https://github.com/$GH_REPO/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
