@@ -18,6 +18,8 @@
 !bin/**/*.mjs
 !bin/*.mjs
 !docker/Dockerfile
+!docker/codex/Dockerfile
+!docker/codex/run.mjs
 !package.json
 !README.md
 !CHANGELOG.md

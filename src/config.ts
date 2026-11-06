@@ -1,7 +1,7 @@
 /** Typed access to MALT settings. */
 import * as vscode from 'vscode';
 import { agentCount } from './shared/reviewerAgents';
-import { REVIEW_TYPE_INFO, profileFrom } from './shared/reviewProfiles';
+import { REVIEW_TYPE_INFO, isProviderId, modelSettingFor, profileFrom } from './shared/reviewProfiles';
 import type { CallProfile, ReviewProfiles, ReviewType } from './shared/reviewProfiles';
 
 export type BackendSetting = 'auto' | 'docker' | 'host';
@@ -25,7 +25,7 @@ const readProfile = (config: vscode.WorkspaceConfiguration, type: ReviewType): C
   const info = REVIEW_TYPE_INFO[type];
   const provider = config.get<unknown>(info.providerSetting, 'claude');
   // Each provider has its own model setting, so a provider is never paired with another provider's model.
-  const model = config.get<unknown>(provider === 'copilot' ? info.copilotModelSetting : info.modelSetting);
+  const model = config.get<unknown>(isProviderId(provider) ? modelSettingFor(info, provider) : info.modelSetting);
   return profileFrom(type, model, config.get<unknown>(info.effortSetting), provider);
 };
 
