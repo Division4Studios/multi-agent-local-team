@@ -158,6 +158,12 @@ export const registerCommands = (deps: CommandDeps): vscode.Disposable =>
     vscode.commands.registerCommand('malt.showReviewerLogs', async () => { await showLogs(deps); }),
     vscode.commands.registerCommand('malt.setCredentials', async () => { await setCredentials(deps); }),
     vscode.commands.registerCommand('malt.clearCredentials', async () => { await deps.credentials.clear(); }),
+    vscode.commands.registerCommand('malt.setCodexCredentials', async () => {
+      if (await deps.credentials.promptAndStoreCodex()) {
+        void vscode.window.showInformationMessage('MALT: OpenAI API key for Codex saved. Codex calls use it from now on.');
+      }
+    }),
+    vscode.commands.registerCommand('malt.clearCodexCredentials', async () => { await deps.credentials.clearCodex(); }),
     vscode.commands.registerCommand('malt.reviewAll', () => {
       deps.queue.enqueueUnreviewed();
     }),

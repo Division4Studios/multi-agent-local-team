@@ -8,8 +8,9 @@ import { constants } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { posix, win32 } from 'node:path';
 import type { Credentials } from '../backend/credentials';
+import { DockerClient, defaultDockerSocket } from '../backend/dockerApi';
 import { readSettings } from '../config';
-import { PROVIDERS, PROVIDER_LABELS } from '../shared/reviewProfiles';
+import { AUTO_MODEL, PROVIDERS, PROVIDER_LABELS } from '../shared/reviewProfiles';
 import type { ProviderId } from '../shared/reviewProfiles';
 
 export interface ProviderModel {
@@ -87,9 +88,36 @@ const copilotStatus = async (): Promise<ProviderStatus> => {
   }
 };
 
+/** Codex's own default model; any other Codex model id can be typed in the tray. */
+export const CODEX_MODELS: readonly ProviderModel[] = [{ id: AUTO_MODEL, label: AUTO_MODEL, detail: 'Codex’s default model' }];
+
+/** Codex runs in a container per call: it needs Docker and an OpenAI API key stored in MALT. */
+const codexStatus = async (credentials: Credentials): Promise<ProviderStatus> => {
+  const setting = readSettings().dockerSocketPath;
+  const [key, docker] = await Promise.all([credentials.codexApiKey(), new DockerClient(setting === '' ? defaultDockerSocket() : setting).ping()]);
+  const missing = [key === undefined ? 'no OpenAI API key stored (MALT: Set Codex Credentials)' : '', docker ? '' : 'Docker is not running'].filter((part) => part !== '');
+  return {
+    provider: 'codex',
+    available: missing.length === 0,
+    detail: missing.length === 0 ? 'OpenAI API key stored · Docker running (one isolated container per call)' : `Not ready: ${missing.join('; ')}`,
+    models: CODEX_MODELS,
+  };
+};
+
+const providerStatus = async (provider: ProviderId, credentials: Credentials): Promise<ProviderStatus> => {
+  switch (provider) {
+    case 'claude':
+      return await claudeStatus(credentials);
+    case 'copilot':
+      return await copilotStatus();
+    case 'codex':
+      return await codexStatus(credentials);
+  }
+};
+
 /** Every provider's status. Call only from a user action (Copilot consent). */
 export const detectProviders = async (credentials: Credentials): Promise<readonly ProviderStatus[]> =>
-  await Promise.all(PROVIDERS.map(async (provider) => (provider === 'claude' ? await claudeStatus(credentials) : await copilotStatus())));
+  await Promise.all(PROVIDERS.map(async (provider) => await providerStatus(provider, credentials)));
 
 /** "MALT: Detect Review Providers": what is available, then where to choose. */
 export const showProviders = async (credentials: Credentials): Promise<void> => {

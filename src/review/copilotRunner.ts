@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import { MAX_DELEGATED_RESULT_BYTES } from '../shared/delegation';
 import type { DelegatedCall } from '../shared/delegation';
 import { isRecord } from '../shared/guards';
-import { COPILOT_AUTO_MODEL } from '../shared/reviewProfiles';
+import { AUTO_MODEL } from '../shared/reviewProfiles';
 import type { CallRunner } from './delegationWorker';
 
 /** Shown by VS Code when it asks the user to let MALT use Copilot. */
@@ -74,7 +74,7 @@ export const copilotErrorMessage = (code: string, model: string): string => {
 
 /** The chosen model by id, then by family; `auto` (no model chosen) takes the first model Copilot offers. */
 const selectModel = async (model: string): Promise<vscode.LanguageModelChat> => {
-  const [byId] = await vscode.lm.selectChatModels(model === COPILOT_AUTO_MODEL ? { vendor: 'copilot' } : { vendor: 'copilot', id: model });
+  const [byId] = await vscode.lm.selectChatModels(model === AUTO_MODEL ? { vendor: 'copilot' } : { vendor: 'copilot', id: model });
   const chosen = byId ?? (await vscode.lm.selectChatModels({ vendor: 'copilot', family: model }))[0];
   if (chosen === undefined) {
     throw new Error(copilotErrorMessage('NotFound', model));
