@@ -4,6 +4,7 @@
  * own nonce-tagged style.
  */
 import * as vscode from 'vscode';
+import { WEBVIEW_THEME } from './theme';
 import { randomBytes } from 'node:crypto';
 import type { HunkStore } from '../review/hunkStore';
 import type { Finding } from '../shared/protocol';
@@ -30,26 +31,28 @@ const ESCAPES: Readonly<Record<string, string>> = { '&': '&amp;', '<': '&lt;', '
 
 const escapeHtml = (text: string): string => text.replace(/[&<>"']/gu, (character) => ESCAPES[character] ?? '');
 
-const STYLE = `
-body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background);
+const STYLE = `${WEBVIEW_THEME}
+
+body { font-family: var(--vscode-font-family); color: var(--ink); background: var(--surface);
   max-width: 52rem; margin: 0 auto; padding: 1.5rem; line-height: 1.55; }
 h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
-h2 { font-size: 1.05rem; margin-top: 2rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--vscode-panel-border); }
+h2 { color: var(--accent); font-size: 1.05rem; margin-top: 2rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
 h3 { font-size: 0.95rem; margin: 0 0 0.25rem; }
 p { white-space: pre-wrap; margin: 0.25rem 0; }
-.meta, .muted { color: var(--vscode-descriptionForeground); }
+.meta, .muted { color: var(--muted); }
 .status { font-weight: 600; text-transform: uppercase; }
-.fail { color: var(--vscode-errorForeground); }
-.pass { color: var(--vscode-testing-iconPassed); }
+.fail { color: var(--bad); }
+.pass { color: var(--good); }
 nav ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
-nav a, a { color: var(--vscode-textLink-foreground); text-decoration: none; }
-.card { border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0.6rem 0; }
+nav a, a { color: var(--accent); text-decoration: none; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0.6rem 0; border-left: 3px solid var(--accent); }
 .tags { margin-top: 0.4rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.tag { font-size: 0.8em; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--vscode-badge-background);
-  color: var(--vscode-badge-foreground); }
+.tag { font-size: 0.8em; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--panel);
+  color: var(--amber); }
 code { font-family: var(--vscode-editor-font-family); font-size: 0.9em; }
 pre.code { white-space: pre-wrap; word-break: break-word; margin: 0.5rem 0 0; padding: 0.5rem 0.65rem; border-radius: 4px;
-  background: var(--vscode-textCodeBlock-background); }
+  background: var(--surface); }
+a:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .verdict { display: inline-block; font-weight: 600; padding: 0.1rem 0.55rem; border-radius: 999px; }`;
 
 const renderPage = (page: DetailPage, nonce: string): string => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
