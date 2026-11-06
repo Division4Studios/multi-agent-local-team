@@ -37,6 +37,6 @@ The language server runs under VS Code's normal host permissions. It is separate
 
 ## CI and dependency updates
 
-The Linux compile job runs the native compiler and the sandbox checks, then uploads its JavaScript output. Windows, Linux, and macOS jobs download that artifact from the **same workflow run**, run the unchanged strict ESLint rules and dependency checks, and test it in real VS Code hosts. No job falls back to TypeScript 6 compilation, and no privileged follow-up workflow executes artifacts from another run.
+The Linux compile job runs the native compiler and the sandbox checks, then uploads its JavaScript output. Windows, Linux, and macOS jobs download that artifact from the **same workflow run**, run the unchanged strict ESLint rules and dependency checks, and test it in real VS Code hosts. Linux also runs the architecture-publication browser check, and every job checks the VSIX contents with `vsce ls`. No job falls back to TypeScript 6 compilation, and no privileged follow-up workflow executes artifacts from another run.
 
 Dependabot remains enabled for the npm aliases and actions. Review compiler, compatibility-package and TypeScript ESLint updates together; retain exact pins and refresh the lockfile. Run `npm ci`, `npm run verify`, `npm run audit`, and `npm run vsix`. Check `node scripts/compiler.mts version` to confirm the container's compiler version. Keep the reviewed minimatch overrides until each upstream dependency supports a patched release, as described in [SECURITY.md](../SECURITY.md).

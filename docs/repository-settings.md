@@ -134,7 +134,7 @@ The #shipped workflow never checks out or runs pull request code, has no token p
 
 ## Labels
 
-Labels are grouped by prefix. Issue forms apply the type label and `triage`, and maintainers add the area during triage.
+Labels are grouped by prefix. Issue forms apply a type or policy label and `triage` (the baseline-rule form also adds `area: standards`); maintainers add the area during triage.
 
 - **Type:** `bug`, `enhancement`, `documentation`, `review quality`, `security`, `accessibility`, `question`, `breaking change`
 - **Area:** `area: block review`, `area: changes view`, `area: pull request`, `area: standards`, `area: consolidation`, `area: reviewer`, `area: prompt safety`, `area: backend`, `area: live log`, `area: settings`, `area: toolchain`, `area: ci`

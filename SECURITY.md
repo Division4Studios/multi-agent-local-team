@@ -32,7 +32,7 @@ What to expect:
 
 ## The trust boundary
 
-<p align="center"><img src="design/trust.png" alt="The trust boundary: MALT's static instructions and baseline rules go in the system prompt; project rules, patches, file context and the map slice go in a fenced, untrusted data block; Claude runs with no tools; policy checks drop invented rules, files and unsupported quotes before anything reaches the editor, where model text is escaped." width="960" /></p>
+<p align="center"><img src="design/trust.png" alt="The trust boundary: MALT's static instructions and baseline rules go in the system prompt; project rules, patches, file context and the map slice go in a fenced, untrusted data block; the reviewer's Claude calls run with no tools or MCP servers; policy checks drop invented rules, files and unsupported quotes before anything reaches the editor, where model text is escaped. Separately, the agent bridge is a local MCP server your agents connect to: its guidance is signed and verified, and other agents' handoffs are untrusted data." width="960" /></p>
 
 Code under review can try to instruct the reviewer. MALT keeps everything from the repository out of its instructions and checks every answer; the details are under **Prompt-injection boundary** below.
 
