@@ -7,6 +7,8 @@ export interface StartOptions {
   readonly token: string;
   /** Extra environment for the reviewer (models, credentials). */
   readonly env: Readonly<Record<string, string>>;
+  /** The reviewer's initial agents; the Docker backend sizes the container's memory and process limits for them. */
+  readonly agents: number;
 }
 
 export interface ReviewerBackend {
@@ -17,6 +19,8 @@ export interface ReviewerBackend {
   isRunning: () => Promise<boolean>;
   /** Recent reviewer output, for the logs view. */
   recentLogs: () => Promise<string>;
+  /** Makes room for this many agents before one is added at runtime; nothing to do where nothing is capped (host). */
+  resize: (agents: number) => Promise<void>;
 }
 
 export type LogSink = (line: string) => void;
