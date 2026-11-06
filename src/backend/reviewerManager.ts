@@ -4,6 +4,7 @@
  */
 import * as vscode from 'vscode';
 import { AgentMonitor } from './agentMonitor';
+import { serializedAgentAddition } from './agentAddition';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 import { readSettings } from '../config';
@@ -57,6 +58,8 @@ export class ReviewerManager implements vscode.Disposable {
   public readonly onDidChangeStatus = this.statusEmitter.event;
   private currentStatus: ReviewerStatus = { state: 'stopped', detail: 'Not started' };
   private backend: ReviewerBackend | undefined;
+  /** Runtime agent additions, one at a time (see `agentAddition.ts`). */
+  private readonly agentAddition = serializedAgentAddition();
   private activeClient: ReviewerClient | undefined;
   private monitor: NodeJS.Timeout | undefined;
   private failures = 0;
@@ -130,12 +133,23 @@ export class ReviewerManager implements vscode.Disposable {
 
   /** Adds a reviewer agent for this session, first giving the container room for it (Docker). */
   public async addAgent(): Promise<void> {
-    const backend = this.backend;
-    if (backend === undefined || this.client === undefined) {
-      throw new Error('Start the reviewer before managing agents.');
-    }
-    await backend.resize(Math.max(this.agentMonitor.agents.length, readSettings().maxConcurrentReviews) + 1);
-    await this.agentMonitor.control({ action: 'add' });
+    await this.agentAddition(() => {
+      const { backend, client } = this;
+      if (backend === undefined || client === undefined) {
+        throw new Error('Start the reviewer before managing agents.');
+      }
+      return {
+        count: async (): Promise<number> => (await client.agents()).length,
+        resize: async (agents): Promise<void> => { await backend.resize(agents); },
+        add: async (): Promise<void> => {
+          // The room was made in this reviewer's container; a restart since then would put the agent in one without it.
+          if (this.backend !== backend || this.client !== client) {
+            throw new Error('The reviewer restarted while adding an agent. Add it again.');
+          }
+          await this.agentMonitor.control({ action: 'add' });
+        },
+      };
+    });
   }
 
   public async logs(): Promise<string> {
