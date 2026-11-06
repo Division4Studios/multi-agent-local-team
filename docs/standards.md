@@ -19,7 +19,8 @@ MALT stores generated standards and architecture data under the workspace folder
   .gitignore       # contains *; keeps generated output local
   standards.json  # generated project rules used by the reviewer
   architecture.json  # file summaries from the standards scan
-  maps/v1/           # structural snapshots, branch analyses and developer clarifications
+  investigations.json  # saved gap investigations
+  maps/v1/           # structural snapshots, branch analyses, developer clarifications, the signed reviewer map and agent guidance, agents' handoffs and frozen export models
 ```
 
 MALT creates the internal ignore file only if absent and preserves an existing file. It does not modify your project's root `.gitignore`. You can put generated review artifacts anywhere inside `.malt/`; neither scanning nor change tracking will pick them up. Keep authored standards outside this reserved directory.
@@ -52,7 +53,7 @@ Writing boundaries ("UI components live in `src/components`; extend before addin
 
 Every rule check and consolidation review also lets the model request missing evidence before deciding. It can ask for complete component context or up to 20 exact source paths from the eligible inventory. MALT permits at most two expansions, each through the same confined, redacted source reader. The model then reassesses the same rule with that evidence. Unsafe, missing, oversized or repeated requests, or another request after the limit, leave the review incomplete rather than turning uncertainty into a pass. A check therefore uses one to three model calls; extra calls occur only when the model requests more evidence. This does not grant the model tools or permission to execute project code.
 
-Select **File summaries** to see the last scan and current clarifications. Rescan after moving modules to refresh the reviewer summaries.
+In the architecture explorer, select **File summaries** to see the last scan and current clarifications, or run **MALT: Show Architecture File Summaries** for the scan's summaries. Rescan after moving modules to refresh the reviewer summaries.
 
 ## Inferred rules and gaps
 
@@ -69,17 +70,17 @@ Gap hovers and the full gaps page separate observations, consequences and the de
 
 The scan uses file summaries to find gaps. That is enough to notice that two files export the same names, but not to tell whether the code is duplicated or whether both import and implement one shared definition. Before acting on a gap, select the search icon next to it (**Investigate Gap**):
 
-1. MALT reads the real code: the files the gap names, their local imports, and other files that export the same names. Reads stay inside the workspace.
+1. MALT reads the real code: the files the gap names (only mapped source files), their relative JavaScript/TypeScript imports one level deep, and other files that export the same names, at most 12 files. Reads stay inside the workspace.
 2. One reviewer call (the **Gap investigation** profile, Sonnet at medium effort by default) checks the claim against the code.
 3. The result is a verdict, *Confirmed*, *Partly* or *Not a gap*, with a confidence level, a plain-English summary, what the code actually does, quoted evidence, the strongest case that it is not a gap, why it matters and what to do.
 
 Every quote is checked word for word against the files (whitespace aside). Quotes MALT cannot find are discarded, and a verdict that the gap is real with no verified evidence is marked low confidence. The verdict appears on the gap in the Reviewer view; expand it for the summary and evidence (each opens the quoted lines). Results are saved in `.malt/investigations.json` and stay with the gap until its description changes. **Investigate All Standards Gaps** investigates the rest, after saying how many calls it will make.
 
-Architecture documents (`ARCHITECTURE.md`, `DESIGN.md`, and anything under `adr/`, `adrs/`, `decisions/`, `architecture/` or `design/` folders) are read right after agent instructions, so their layering and placement decisions become rules first.
+Architecture documents (`ARCHITECTURE.md`, `DESIGN.md`, and anything under `adr/`, `adrs/`, `decisions/`, `architecture/` or `design/` folders) are read right after agent instructions, together with the top-level README, CONTRIBUTING and lint/format configs, so their layering and placement decisions become rules early.
 
 ## Maintaining rules
 
-Write short, testable instructions with a reason and an example in the source docs. Run **Scan Project Standards** again when those instructions change. A successful scan with rules replaces `standards.json`; it is generated output, so manual edits can be overwritten. An empty scan preserves the previous file.
+Write short, testable instructions with a reason and an example in the source docs. Run **Scan Project Standards** again when those instructions change. A scan that finds rules or gaps replaces `standards.json`; it is generated output, so manual edits can be overwritten. A scan that finds neither keeps the previous file. `architecture.json` is rewritten whenever the scan maps any source files.
 
 Each rule's `category` is its group in the **Changes** view. A scan sorts rules into 3 to 8 groups and reuses the baseline groups (Scope, Quality, Architecture, Security) where they fit; groups with the same name (ignoring case) are shown together.
 

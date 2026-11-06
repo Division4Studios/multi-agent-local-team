@@ -8,10 +8,11 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | `malt.reviewer.autoStart` | `true` | Start when a workspace opens |
 | `malt.reviewer.maxConcurrentReviews` | `2` | Initial agents across all call types; positive integer with no fixed maximum. User-only; restart to apply |
 | `malt.reviewer.claudePath` | `claude` | Host CLI executable; restart reviewer. User (machine) settings only: workspace settings are ignored, so a repository cannot choose what MALT runs |
-| `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise `DOCKER_HOST` or platform default; restart reviewer. User (machine) settings only |
-| `malt.reviewer.<type>Provider` | `claude` | Who answers each review type: `claude` or `copilot` (see **Review providers** below). `<type>` is `triage`, `review`, `consolidation`, `standards` or `investigation`. User (machine) settings only, so a repository can never choose which service receives its code |
+| `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise a `unix://` or `npipe://` `DOCKER_HOST`, else the platform default (TCP hosts are not supported); restart reviewer. User (machine) settings only |
+| `malt.reviewer.<type>Provider` | `claude` | Who answers each review type: `claude`, `copilot` or `codex` (see **Review providers** below). `<type>` is `triage`, `review`, `consolidation`, `standards` or `investigation`. User (machine) settings only, so a repository can never choose which service receives its code |
 | `malt.reviewer.<type>CopilotModel` | `auto` | The GitHub Copilot model for that type when its provider is `copilot`: a model id from **Detect Review Providers**, or `auto` for the first model Copilot offers. Separate from the Claude model and user-only like the provider, so switching provider never pairs one provider with the other's model |
-| `malt.reviewer.triageModel` / `triageEffort` | `sonnet` / `low` | Block overviews: one call per changed block |
+| `malt.reviewer.<type>CodexModel` | `auto` | The Codex model for that type when its provider is `codex`: an OpenAI model id, or `auto` for Codex's default model. User-only like the provider |
+| `malt.reviewer.triageModel` / `triageEffort` | `sonnet` / `low` | Block overviews (purpose, technical, design, which rules apply): one call per changed block. `haiku` is cheaper but argues design less well |
 | `malt.reviewer.reviewModel` / `reviewEffort` | `haiku` / `low` | Rule checks: one call per applicable rule per block, most of the usage |
 | `malt.reviewer.consolidationModel` / `consolidationEffort` | `sonnet` / `low` | The whole-change consolidation check |
 | `malt.reviewer.standardsModel` / `standardsEffort` | `opus` / `medium` | Scan Project Standards (three calls, only when you scan) |
@@ -20,6 +21,11 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | `malt.changes.autoOpenPauseSeconds` | `60` | While you are working (clicking, typing, scrolling, switching files, or opening something from MALT), auto-open waits until you have been idle this long, so it never pulls you away from what you are investigating. New changes still appear in **Changes** right away |
 | `malt.changes.autoReview` | `true` | Queue new blocks automatically |
 | `malt.changes.autoConsolidation` | `true` | Run the whole-change consolidation check (one reviewer call) 30 seconds after new files stop appearing |
+| `malt.architecture.shareAgentHandoffs` | `false` | Let connected local MCP clients post handoffs to other agents. Reading guidance works without it; recopy or reconnect the MCP configuration after changing. User (machine) settings only |
+| `malt.architecture.chromePath` | empty | Chrome or Chromium for publication browser checks. User (machine) settings only |
+| `malt.architecture.nodePath` | empty | Node for the publication task; if empty, MALT asks for it on the first Finalize and saves your choice. User (machine) settings only |
+
+Model and effort changes apply when the reviewer restarts.
 
 For a manual workflow:
 
@@ -33,14 +39,15 @@ For a manual workflow:
 
 ## Review providers
 
-Each review type can be answered by a different provider. Choose them under **Models & effort** in the MALT Reviewer view: select a review type, then a provider, a model and (for Claude) an effort. The search icon on that row, or **MALT: Detect Review Providers**, shows what this machine can use:
+Each review type can be answered by a different provider. Choose them under **Models & effort** in the MALT Reviewer view: select a review type, then a provider, a model and (for Claude and Codex) an effort. The search icon on that row, or **MALT: Detect Review Providers**, shows what this machine can use:
 
 - **Claude** (the default): available when Claude credentials are stored for the Docker reviewer or the Claude Code CLI is on PATH. Calls run in the reviewer with no tools and a schema-enforced answer.
 - **GitHub Copilot**: available when you are signed in to GitHub Copilot in VS Code. VS Code asks once whether MALT may use it. Copilot calls run in the extension through VS Code's Language Model API, and the reviewer still builds every prompt and checks every answer. They count against your Copilot plan's limits.
+- **Codex**: available when Docker is running and an OpenAI API key is saved with **MALT: Set Codex Credentials** (billed per token by OpenAI). Each call runs in its own throwaway container from a pinned image (the Codex CLI at an exact version). The container has no workspace or other mount, a read-only root filesystem, no capabilities and memory and process limits, and Codex's tools (shell, images, apps, agents, web search) are switched off. The container receives only MALT's static instructions, the redacted prompt and the answer schema, and is removed after the call. The first Codex call builds the image, which takes a few minutes. Choose `auto` for Codex's default model, or type an OpenAI model id. The key goes only to these containers, never to the reviewer. Signing in with a ChatGPT account isn't supported yet.
 
-Copilot's separation between instructions and data is weaker than Claude's. VS Code's API has no system role, so MALT's static instructions arrive as the first message and the repository data, in the same marked blocks, as the second. Copilot doesn't enforce the answer's JSON schema either; MALT's own parsers and checks reject anything that doesn't fit. For the details, see [Security](../SECURITY.md#the-trust-boundary).
+Copilot's separation between instructions and data is weaker than Claude's. VS Code's API has no system role, so MALT's static instructions arrive as the first message and the repository data, in the same marked blocks, as the second. Copilot doesn't enforce the answer's JSON schema either; MALT's own parsers and checks reject anything that doesn't fit. For the details, see [Security](../SECURITY.md#the-trust-boundary). Codex keeps Claude's separation: MALT's static instructions replace Codex's own, and Codex enforces the answer's schema.
 
-Changes apply when the reviewer restarts. Codex, more parallel calls and finer per-call settings are planned in [#33](https://github.com/Division4Studios/multi-agent-local-team/issues/33).
+Changes apply when the reviewer restarts. More parallel calls and finer per-call settings are planned in [#33](https://github.com/Division4Studios/multi-agent-local-team/issues/33).
 
 ## Command palette
 
@@ -50,15 +57,16 @@ All commands below have the **MALT:** prefix.
 | --- | --- |
 | Start Reviewer | Start/restart the selected backend |
 | Stop Reviewer | Stop the managed reviewer |
-| Scan Project Standards | Read docs, map the source files, infer undocumented conventions and list gaps; saves `.malt/standards.json` and `.malt/architecture.json` |
+| Scan Project Standards (Rescan) | Read docs, map the source files, infer undocumented conventions and list gaps; saves `.malt/standards.json` and `.malt/architecture.json` |
 | Show Project Standards | Open the saved rules as a page grouped by category, with the MALT baseline checks (also the **Standards** row) |
 | Show Architecture Map | Explore files, symbols and relationships in the **Architecture** row. Compare local branch tips or a branch against saved edits. |
-| Copy Local Agent MCP Configuration | Copy the stdio connection and public verifier for Claude, Codex or another local MCP client. |
+| Copy Local Agent MCP Configuration | Copy the stdio connection and public verifier for Claude, Codex or another local MCP client. The copied entry runs the `node` on your PATH. MALT also offers a "MALT · <folder>" server to VS Code's own MCP support for each trusted folder. Posting handoffs needs `malt.architecture.shareAgentHandoffs`. |
 | Finalize Diagram or One-page Answer | Publish a version 1 MALT model. Diagram exports request Chrome checks. One-page answers offer a choice. |
 | Show Architecture File Summaries | Read the reviewer’s file summaries and applicable developer clarifications. |
 | Show Standards Gaps | Reopen the gaps the last scan found as one page. In the Reviewer view, the **Gaps** row lists them; selecting one opens the file at the declaration it names, outlined, with the gap on hover |
 | Show Live Reviewer Log | Watch every model call as it happens: what it is for, the prompt sent and the answer streaming in, with elapsed time and a stall indicator. Nothing is saved; individual logs are available under **Reviewers health** |
 | Detect Review Providers | Show which review providers this machine can use (Claude, GitHub Copilot) and their models. The first Copilot check asks your permission |
+| Investigate All Standards Gaps | Investigate every gap not yet investigated, after saying how many calls it will make (one per gap) |
 | Check Consolidation Across Changes | One reviewer call over the new declarations in every changed block; findings appear at the top of **Changes** |
 | Review Pull Request… | Pick an open pull request on the workspace's GitHub repository (sign in with VS Code's GitHub account), check it out, and list its changed blocks in the **Pull Request** view. Refuses while you have uncommitted changes |
 | Review All Pull Request Blocks | Review every block of the open pull request, after showing what it will cost |
@@ -68,6 +76,8 @@ All commands below have the **MALT:** prefix.
 | Show Reviewer Logs | Open the MALT Reviewer output channel |
 | Set Claude Credentials | Store credentials; offers to restart the reviewer |
 | Clear Claude Credentials | Remove stored credentials |
+| Set Codex Credentials | Store the OpenAI API key that Codex calls use |
+| Clear Codex Credentials | Remove the stored OpenAI API key |
 
 **Review Again** is available on a block's hover card or sidebar action. **Reveal Change** is invoked by selecting a block in the sidebar; these contextual actions are not listed in the command palette.
 
@@ -75,11 +85,11 @@ Structural indexing and branch comparison run locally. **Scan Project Standards*
 
 ## Theme customization
 
-Use `workbench.colorCustomizations` for `malt.hunkPending`, `malt.hunkPass`, and `malt.hunkFail`. Defaults cover dark, light, and both high-contrast themes. Status icons and text explain the state without requiring color recognition.
+Use `workbench.colorCustomizations` for `malt.hunkPending`, `malt.hunkPass`, and `malt.hunkFail` (block outlines), and `malt.finding` and `malt.findingBackground` (the outline and background of a gap's or consolidation finding's declaration). Defaults cover dark, light, and both high-contrast themes. Status icons and text explain the state without requiring color recognition.
 
 ## Individual reviewer agents
 
-Expand **Reviewer > Reviewers health** to see each agent. MALT starts two agents by default, shared across all review call types. Set `malt.reviewer.maxConcurrentReviews` in user settings and restart the reviewer to change the initial count. There is no fixed maximum; available memory and provider quotas still govern actual throughput. Repository settings cannot increase this machine-scoped value.
+Expand **Reviewer > Reviewers health** to see each agent. MALT starts two agents by default, shared across all review call types. Set `malt.reviewer.maxConcurrentReviews` in user settings and restart the reviewer to change the initial count. There is no fixed maximum; available memory and provider quotas still govern actual throughput. Repository settings cannot increase this machine-scoped value. In Docker, the reviewer container's memory and process limits grow with the agents: 1 GiB and 256 processes for two agents, plus 384 MiB and 32 processes for each further agent, raised on the running container when you add one. Each working agent runs its own Claude CLI process, so make sure Docker Desktop has that much memory to give.
 
 Right-click **Reviewers health** to **Add Reviewer Agent** for this session. Right-click an agent to **Cancel Current Task**, **Stop Agent**, **Start Agent**, or **Show Agent Live Stream Log**. Cancel releases the agent after its operation ends; Stop also removes its capacity until started again. Cancelling leaves that review incomplete and available for an explicit retry. Adding or starting capacity lets already queued work proceed. Changes to the running pool last until the reviewer restarts.
 

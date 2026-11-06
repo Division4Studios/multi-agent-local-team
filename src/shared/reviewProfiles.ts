@@ -6,19 +6,20 @@
 export type ReviewType = 'overview' | 'check' | 'consolidation' | 'standards' | 'investigation';
 
 /**
- * Who answers a call. `claude` runs the Claude Code CLI inside the reviewer; `copilot` is GitHub Copilot through VS
- * Code's Language Model API, so the reviewer delegates those calls to the extension (`DelegatingProvider`).
+ * Who answers a call. `claude` runs the Claude Code CLI inside the reviewer. The reviewer delegates the others to the
+ * extension (`DelegatingProvider`): `copilot` is GitHub Copilot through VS Code's Language Model API, and `codex` is
+ * the Codex CLI in a throwaway container the extension starts per call (`src/backend/codexContainer.ts`).
  */
-export type ProviderId = 'claude' | 'copilot';
-export const PROVIDERS: readonly ProviderId[] = ['claude', 'copilot'];
-export const PROVIDER_LABELS: Readonly<Record<ProviderId, string>> = { claude: 'Claude', copilot: 'GitHub Copilot' };
+export type ProviderId = 'claude' | 'copilot' | 'codex';
+export const PROVIDERS: readonly ProviderId[] = ['claude', 'copilot', 'codex'];
+export const PROVIDER_LABELS: Readonly<Record<ProviderId, string>> = { claude: 'Claude', copilot: 'GitHub Copilot', codex: 'Codex' };
 export const isProviderId = (value: unknown): value is ProviderId => PROVIDERS.some((provider) => provider === value);
 /** Providers whose calls the extension makes, not the reviewer. */
 export const isDelegated = (provider: ProviderId): boolean => provider !== 'claude';
-/** Copilot's model when none is set: the first model Copilot offers. */
-export const COPILOT_AUTO_MODEL = 'auto';
+/** Copilot's and Codex's model when none is set: the first model Copilot offers, or Codex's own default. */
+export const AUTO_MODEL = 'auto';
 /** Whether a provider takes a reasoning effort; Copilot's Language Model API has none. */
-export const takesEffort = (provider: ProviderId): boolean => provider === 'claude';
+export const takesEffort = (provider: ProviderId): boolean => provider !== 'copilot';
 
 /** `default` passes no effort flag, leaving the CLI's built-in default. */
 export type Effort = 'default' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
@@ -44,6 +45,9 @@ export interface ReviewTypeInfo {
    * one workspace never leaves another with a model the provider doesn't have.
    */
   readonly copilotModelSetting: string;
+  /** Codex's model, machine-scoped for the same reason. */
+  readonly codexModelSetting: string;
+  /** Effort for the providers that take one (Claude and Codex). */
   readonly effortSetting: string;
   readonly defaults: CallProfile;
 }
@@ -65,6 +69,7 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     providerSetting: 'reviewer.triageProvider',
     modelSetting: 'reviewer.triageModel',
     copilotModelSetting: 'reviewer.triageCopilotModel',
+    codexModelSetting: 'reviewer.triageCodexModel',
     effortSetting: 'reviewer.triageEffort',
     defaults: { provider: 'claude', model: 'sonnet', effort: 'low' },
   },
@@ -74,6 +79,7 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     providerSetting: 'reviewer.reviewProvider',
     modelSetting: 'reviewer.reviewModel',
     copilotModelSetting: 'reviewer.reviewCopilotModel',
+    codexModelSetting: 'reviewer.reviewCodexModel',
     effortSetting: 'reviewer.reviewEffort',
     defaults: { provider: 'claude', model: 'haiku', effort: 'low' },
   },
@@ -83,6 +89,7 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     providerSetting: 'reviewer.consolidationProvider',
     modelSetting: 'reviewer.consolidationModel',
     copilotModelSetting: 'reviewer.consolidationCopilotModel',
+    codexModelSetting: 'reviewer.consolidationCodexModel',
     effortSetting: 'reviewer.consolidationEffort',
     defaults: { provider: 'claude', model: 'sonnet', effort: 'low' },
   },
@@ -92,6 +99,7 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     providerSetting: 'reviewer.standardsProvider',
     modelSetting: 'reviewer.standardsModel',
     copilotModelSetting: 'reviewer.standardsCopilotModel',
+    codexModelSetting: 'reviewer.standardsCodexModel',
     effortSetting: 'reviewer.standardsEffort',
     defaults: { provider: 'claude', model: 'opus', effort: 'medium' },
   },
@@ -101,6 +109,7 @@ export const REVIEW_TYPE_INFO: Readonly<Record<ReviewType, ReviewTypeInfo>> = {
     providerSetting: 'reviewer.investigationProvider',
     modelSetting: 'reviewer.investigationModel',
     copilotModelSetting: 'reviewer.investigationCopilotModel',
+    codexModelSetting: 'reviewer.investigationCodexModel',
     effortSetting: 'reviewer.investigationEffort',
     defaults: { provider: 'claude', model: 'sonnet', effort: 'medium' },
   },
@@ -113,15 +122,27 @@ export const isModelName = (value: unknown): value is string => typeof value ===
 
 export const isEffort = (value: unknown): value is Effort => EFFORTS.some((effort) => effort === value);
 
+/** The setting that holds a provider's model for a review type. */
+export const modelSettingFor = (info: ReviewTypeInfo, provider: ProviderId): string => {
+  switch (provider) {
+    case 'claude':
+      return info.modelSetting;
+    case 'copilot':
+      return info.copilotModelSetting;
+    case 'codex':
+      return info.codexModelSetting;
+  }
+};
+
 /**
  * A profile from untrusted values (settings or environment); each invalid field falls back to its default. A model
  * name only means something to the provider it was chosen for, so an invalid provider resets the model too: a
- * Copilot model id must never be sent to Claude, or the reverse.
+ * Copilot or Codex model id must never be sent to Claude, or the reverse.
  */
 export const profileFrom = (type: ReviewType, model: unknown, effort: unknown, provider: unknown = 'claude'): CallProfile => {
   const { defaults } = REVIEW_TYPE_INFO[type];
   const known = isProviderId(provider);
-  const fallback = known && provider === 'copilot' ? COPILOT_AUTO_MODEL : defaults.model;
+  const fallback = known && provider !== 'claude' ? AUTO_MODEL : defaults.model;
   return {
     provider: known ? provider : defaults.provider,
     model: known && isModelName(model) ? model : fallback,

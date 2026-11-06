@@ -2,7 +2,7 @@
   "name": "malt",
   "displayName": "MALT",
   "description": "Review changed code against project standards, explore interactive architecture maps, and compare Git branches with a local Claude reviewer.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "division4studios",
   "license": "MIT",
   "homepage": "https://github.com/Division4Studios/multi-agent-local-team#readme",
@@ -121,6 +121,18 @@
       {
         "command": "malt.clearCredentials",
         "title": "Clear Claude Credentials",
+        "category": "MALT",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "malt.setCodexCredentials",
+        "title": "Set Codex Credentials",
+        "category": "MALT",
+        "icon": "$(key)"
+      },
+      {
+        "command": "malt.clearCodexCredentials",
+        "title": "Clear Codex Credentials",
         "category": "MALT",
         "icon": "$(trash)"
       },
@@ -327,6 +339,16 @@
           "group": "settings"
         },
         {
+          "command": "malt.setCodexCredentials",
+          "when": "view == malt.reviewer",
+          "group": "settings"
+        },
+        {
+          "command": "malt.clearCodexCredentials",
+          "when": "view == malt.reviewer",
+          "group": "settings"
+        },
+        {
           "command": "malt.reviewAll",
           "when": "view == malt.changes",
           "group": "navigation@1"
@@ -499,8 +521,8 @@
         },
         "malt.reviewer.triageProvider": {
           "type": "string",
-          "enum": ["claude", "copilot"],
-          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)"],
+          "enum": ["claude", "copilot", "codex"],
+          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)", "Codex, in an isolated container per call (needs Docker and an OpenAI API key: MALT: Set Codex Credentials)"],
           "default": "claude",
           "scope": "machine",
           "markdownDescription": "Who answers **block overviews**. Machine-scoped, so a repository's settings can never choose which service receives its code. Choose a model for the provider too (**Models & effort** in the MALT Reviewer view lists each provider's models). Applies when the reviewer restarts."
@@ -510,6 +532,12 @@
           "default": "auto",
           "scope": "machine",
           "markdownDescription": "GitHub Copilot model for this review type when its provider is `copilot`: a model id from **MALT: Detect Review Providers**, or `auto` for the first model Copilot offers. Kept separate from the Claude model, and user-level like the provider, so switching provider never pairs one provider with another's model."
+        },
+        "malt.reviewer.triageCodexModel": {
+          "type": "string",
+          "default": "auto",
+          "scope": "machine",
+          "markdownDescription": "Codex model for this review type when its provider is `codex`: an OpenAI model id, or `auto` for Codex's default model. Kept separate from the other providers' models, and user-level like the provider, so switching provider never pairs one provider with another's model."
         },
         "malt.reviewer.triageModel": {
           "type": "string",
@@ -527,7 +555,7 @@
             "max"
           ],
           "enumDescriptions": [
-            "Claude Code's own default (no --effort flag)",
+            "The provider's own default (no effort flag)",
             "Quickest, least usage",
             "Balanced",
             "Deeper reasoning, more usage",
@@ -539,8 +567,8 @@
         },
         "malt.reviewer.reviewProvider": {
           "type": "string",
-          "enum": ["claude", "copilot"],
-          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)"],
+          "enum": ["claude", "copilot", "codex"],
+          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)", "Codex, in an isolated container per call (needs Docker and an OpenAI API key: MALT: Set Codex Credentials)"],
           "default": "claude",
           "scope": "machine",
           "markdownDescription": "Who answers **rule checks**. Machine-scoped, so a repository's settings can never choose which service receives its code. Choose a model for the provider too (**Models & effort** in the MALT Reviewer view lists each provider's models). Applies when the reviewer restarts."
@@ -550,6 +578,12 @@
           "default": "auto",
           "scope": "machine",
           "markdownDescription": "GitHub Copilot model for this review type when its provider is `copilot`: a model id from **MALT: Detect Review Providers**, or `auto` for the first model Copilot offers. Kept separate from the Claude model, and user-level like the provider, so switching provider never pairs one provider with another's model."
+        },
+        "malt.reviewer.reviewCodexModel": {
+          "type": "string",
+          "default": "auto",
+          "scope": "machine",
+          "markdownDescription": "Codex model for this review type when its provider is `codex`: an OpenAI model id, or `auto` for Codex's default model. Kept separate from the other providers' models, and user-level like the provider, so switching provider never pairs one provider with another's model."
         },
         "malt.reviewer.reviewModel": {
           "type": "string",
@@ -567,7 +601,7 @@
             "max"
           ],
           "enumDescriptions": [
-            "Claude Code's own default (no --effort flag)",
+            "The provider's own default (no effort flag)",
             "Quickest, least usage",
             "Balanced",
             "Deeper reasoning, more usage",
@@ -579,8 +613,8 @@
         },
         "malt.reviewer.consolidationProvider": {
           "type": "string",
-          "enum": ["claude", "copilot"],
-          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)"],
+          "enum": ["claude", "copilot", "codex"],
+          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)", "Codex, in an isolated container per call (needs Docker and an OpenAI API key: MALT: Set Codex Credentials)"],
           "default": "claude",
           "scope": "machine",
           "markdownDescription": "Who answers **the consolidation check**. Machine-scoped, so a repository's settings can never choose which service receives its code. Choose a model for the provider too (**Models & effort** in the MALT Reviewer view lists each provider's models). Applies when the reviewer restarts."
@@ -590,6 +624,12 @@
           "default": "auto",
           "scope": "machine",
           "markdownDescription": "GitHub Copilot model for this review type when its provider is `copilot`: a model id from **MALT: Detect Review Providers**, or `auto` for the first model Copilot offers. Kept separate from the Claude model, and user-level like the provider, so switching provider never pairs one provider with another's model."
+        },
+        "malt.reviewer.consolidationCodexModel": {
+          "type": "string",
+          "default": "auto",
+          "scope": "machine",
+          "markdownDescription": "Codex model for this review type when its provider is `codex`: an OpenAI model id, or `auto` for Codex's default model. Kept separate from the other providers' models, and user-level like the provider, so switching provider never pairs one provider with another's model."
         },
         "malt.reviewer.consolidationModel": {
           "type": "string",
@@ -607,7 +647,7 @@
             "max"
           ],
           "enumDescriptions": [
-            "Claude Code's own default (no --effort flag)",
+            "The provider's own default (no effort flag)",
             "Quickest, least usage",
             "Balanced",
             "Deeper reasoning, more usage",
@@ -619,8 +659,8 @@
         },
         "malt.reviewer.standardsProvider": {
           "type": "string",
-          "enum": ["claude", "copilot"],
-          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)"],
+          "enum": ["claude", "copilot", "codex"],
+          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)", "Codex, in an isolated container per call (needs Docker and an OpenAI API key: MALT: Set Codex Credentials)"],
           "default": "claude",
           "scope": "machine",
           "markdownDescription": "Who answers **the standards scan**. Machine-scoped, so a repository's settings can never choose which service receives its code. Choose a model for the provider too (**Models & effort** in the MALT Reviewer view lists each provider's models). Applies when the reviewer restarts."
@@ -630,6 +670,12 @@
           "default": "auto",
           "scope": "machine",
           "markdownDescription": "GitHub Copilot model for this review type when its provider is `copilot`: a model id from **MALT: Detect Review Providers**, or `auto` for the first model Copilot offers. Kept separate from the Claude model, and user-level like the provider, so switching provider never pairs one provider with another's model."
+        },
+        "malt.reviewer.standardsCodexModel": {
+          "type": "string",
+          "default": "auto",
+          "scope": "machine",
+          "markdownDescription": "Codex model for this review type when its provider is `codex`: an OpenAI model id, or `auto` for Codex's default model. Kept separate from the other providers' models, and user-level like the provider, so switching provider never pairs one provider with another's model."
         },
         "malt.reviewer.standardsModel": {
           "type": "string",
@@ -647,7 +693,7 @@
             "max"
           ],
           "enumDescriptions": [
-            "Claude Code's own default (no --effort flag)",
+            "The provider's own default (no effort flag)",
             "Quickest, least usage",
             "Balanced",
             "Deeper reasoning, more usage",
@@ -659,8 +705,8 @@
         },
         "malt.reviewer.investigationProvider": {
           "type": "string",
-          "enum": ["claude", "copilot"],
-          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)"],
+          "enum": ["claude", "copilot", "codex"],
+          "enumDescriptions": ["Claude, through the Claude Code CLI in the reviewer", "GitHub Copilot, through VS Code's Language Model API (asks for consent once)", "Codex, in an isolated container per call (needs Docker and an OpenAI API key: MALT: Set Codex Credentials)"],
           "default": "claude",
           "scope": "machine",
           "markdownDescription": "Who answers **gap investigations and architecture discussions**. Machine-scoped, so a repository's settings can never choose which service receives its code. Choose a model for the provider too (**Models & effort** in the MALT Reviewer view lists each provider's models). Applies when the reviewer restarts."
@@ -670,6 +716,12 @@
           "default": "auto",
           "scope": "machine",
           "markdownDescription": "GitHub Copilot model for this review type when its provider is `copilot`: a model id from **MALT: Detect Review Providers**, or `auto` for the first model Copilot offers. Kept separate from the Claude model, and user-level like the provider, so switching provider never pairs one provider with another's model."
+        },
+        "malt.reviewer.investigationCodexModel": {
+          "type": "string",
+          "default": "auto",
+          "scope": "machine",
+          "markdownDescription": "Codex model for this review type when its provider is `codex`: an OpenAI model id, or `auto` for Codex's default model. Kept separate from the other providers' models, and user-level like the provider, so switching provider never pairs one provider with another's model."
         },
         "malt.reviewer.investigationModel": {
           "type": "string",
@@ -687,7 +739,7 @@
             "max"
           ],
           "enumDescriptions": [
-            "Claude Code's own default (no --effort flag)",
+            "The provider's own default (no effort flag)",
             "Quickest, least usage",
             "Balanced",
             "Deeper reasoning, more usage",

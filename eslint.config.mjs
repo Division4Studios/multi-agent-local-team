@@ -213,6 +213,24 @@ export default asErrors(
       },
     },
     {
+      // The Codex launcher runs only inside MALT's Codex container (docker/codex): it starts the pinned Codex CLI with
+      // an argument list, never a shell. It is the only file under docker/ that may start a process.
+      files: ['docker/**/*.mjs'],
+      ignores: ['docker/codex/run.mjs'],
+      rules: {
+        'no-restricted-imports': ['error', { paths: [...PROCESS_IMPORTS, ...VM_IMPORTS] }],
+      },
+    },
+    {
+      files: ['docker/codex/run.mjs'],
+      languageOptions: {
+        globals: { Buffer: 'readonly' },
+      },
+      rules: {
+        'no-restricted-imports': ['error', { paths: VM_IMPORTS }],
+      },
+    },
+    {
       // Webview page scripts run in the browser sandbox of a VS Code webview: browser globals, no Node.
       files: ['media/**/*.js'],
       languageOptions: {

@@ -1,7 +1,8 @@
 <!doctype html>
 <!--
-  Source for design/trust.png (1600×820): the prompt-injection trust boundary. Render with design/render.mjs.
-  Keep it true to src/reviewer/trust.ts, prompts.ts, src/review/copilotRunner.ts and SECURITY.md when any changes.
+  Source for design/trust.png (1600×820): the prompt-injection trust boundary. Render as design/README.md describes.
+  Keep it true to src/reviewer/trust.ts, prompts.ts, providers/claudeCode.ts, src/review/copilotRunner.ts, codexRunner.ts,
+  docker/codex, src/architecture/agentBridge.ts, agentConnections.ts, guidance.ts and SECURITY.md when any of them changes.
 -->
 <html lang="en">
 <head>
@@ -10,7 +11,7 @@
   :root {
     --bg: #0E1217; --text: #E6EAF0; --muted: #8B95A5;
     --mono: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
-    --amber: #E6B85C; --teal: #2BB8A6; --violet: #A78BFA; --orange: #F59E5B; --green: #3FC98A; --red: #F0646E;
+    --amber: #E6B85C; --teal: #2BB8A6; --violet: #A78BFA; --orange: #F59E5B; --green: #3FC98A; --red: #F0646E; --blue: #60A5FA;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 1600px; height: 820px; overflow: hidden; }
@@ -55,8 +56,8 @@
     <div class="item"><b>Patch, file context, map slice</b><span>inside a per-call random-nonce block</span></div>
   </div>
 
-  <div class="node" style="left:590px;top:300px;width:300px;border-color:var(--orange);background:rgba(245,158,91,.10)"><b>Claude</b>
-    <ul><li>no tools, no MCP servers</li><li>no settings or skills loaded</li><li>empty private working folder</li><li>structured JSON output only</li></ul>
+  <div class="node" style="left:590px;top:300px;width:300px;border-color:var(--orange);background:rgba(245,158,91,.10)"><b>Claude or Codex · reviewer calls</b>
+    <ul><li>no tools, no MCP servers</li><li>no settings or skills loaded</li><li>empty private working folder</li><li>structured JSON output only</li><li>Codex: one sealed container each</li></ul>
   </div>
 
   <div class="node" style="left:590px;top:530px;width:300px;border-color:var(--orange);border-style:dashed;background:rgba(245,158,91,.06)"><b>GitHub Copilot · opt-in</b>
@@ -90,12 +91,17 @@
   <span class="tag" style="left:900px;top:398px">answer</span>
   <div class="node" style="left:1010px;top:570px;width:290px;border-color:var(--red);background:rgba(240,100,110,.10)"><b style="color:var(--red)">Dropped</b>invented rules and files, unsupported quotes, anything outside the schema</div>
 
+  <div class="node" style="left:1330px;top:440px;width:240px;border-color:var(--blue);background:rgba(96,165,250,.10)"><b style="color:var(--blue)">Agent bridge (MCP)</b>Your agents connect to MALT; the reviewer never does.
+    <ul style="margin-top:6px"><li>local stdio, trusted folders only</li><li>guidance signed and verified</li><li>agents' handoffs: untrusted data</li><li>stale handoffs refused</li><li>posting handoffs: off unless you allow it</li></ul>
+  </div>
+
   <div class="legend"><b>Legend</b>
     <span><i class="sw" style="border-color:var(--teal);background:rgba(43,184,166,.15)"></i>Trusted</span>
     <span><i class="sw" style="border-color:var(--amber);background:rgba(230,184,92,.15)"></i>Untrusted data</span>
     <span><i class="sw" style="border-color:var(--orange);background:rgba(245,158,91,.15)"></i>Model</span>
     <span><i class="sw" style="border-color:var(--violet);background:rgba(167,139,250,.15)"></i>Checks</span>
     <span><i class="sw" style="border-color:var(--green);background:rgba(63,201,138,.15)"></i>What you see</span>
+    <span><i class="sw" style="border-color:var(--blue);background:rgba(96,165,250,.15)"></i>Local agents</span>
   </div>
 </body>
 </html>

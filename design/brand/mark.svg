@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 24 24" fill="none" role="img" aria-labelledby="title">
   <title id="title">MALT mark: an ear of malt barley</title>
-  <!-- The same paths as media/malt.svg (the activity-bar icon), in brand colors: light facets left, shaded right. -->
+  <!-- The same shape as media/malt.svg (the activity-bar icon; top grain split into two facets, stem starting below it), in brand colors: light facets left, shaded right. -->
   <path d="M5 6 4 3m15 3 1-3" stroke="#E6B85C" stroke-width="1.5" stroke-linecap="round"/>
   <path d="M12 2c-2.5 3-2.5 5.2 0 7.5Z" fill="#F2C66A"/>
   <path d="M12 2c2.5 3 2.5 5.2 0 7.5Z" fill="#D9982F"/>

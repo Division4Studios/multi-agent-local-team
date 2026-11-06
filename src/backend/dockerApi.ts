@@ -3,6 +3,7 @@
  * No Docker CLI and no child processes: MALT never shells out to manage containers.
  */
 import { request as httpRequest } from 'node:http';
+import type { Socket } from 'node:net';
 import { StringDecoder } from 'node:string_decoder';
 import { isRecord, isString } from '../shared/guards';
 import { createLineSplitter } from '../shared/lineSplitter';
@@ -164,11 +165,39 @@ export class DockerClient {
     }
   }
 
-  public async logs(container: string, tail: number): Promise<string> {
+  public async logs(container: string, tail: number | 'all'): Promise<string> {
     const response = await this.send({
       method: 'GET',
       path: `/containers/${encodeURIComponent(container)}/logs?stdout=1&stderr=1&tail=${String(tail)}`,
     });
     return response.status === 200 ? demuxDockerLogs(response.body) : dockerErrorMessage(response);
+  }
+
+  /**
+   * A created container's stdin, as a raw stream (Docker's hijacked attach connection). Attach before starting the
+   * container, so nothing written is lost; the container must be created with `OpenStdin` and `StdinOnce`.
+   */
+  public async attachStdin(container: string): Promise<Socket> {
+    return await new Promise((resolvePromise, reject) => {
+      const req = httpRequest({
+        socketPath: this.socketPath,
+        method: 'POST',
+        path: `/containers/${encodeURIComponent(container)}/attach?stream=1&stdin=1`,
+        headers: { connection: 'Upgrade', upgrade: 'tcp' },
+        timeout: 30_000,
+      });
+      req.on('upgrade', (...[, socket]) => {
+        socket.setTimeout(0);
+        resolvePromise(socket);
+      });
+      req.on('response', (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => { chunks.push(chunk); });
+        response.on('end', () => { reject(new Error(dockerErrorMessage({ status: response.statusCode ?? 0, body: Buffer.concat(chunks) }))); });
+      });
+      req.on('timeout', () => req.destroy(new Error('Docker API timed out: attach')));
+      req.on('error', reject);
+      req.end();
+    });
   }
 }

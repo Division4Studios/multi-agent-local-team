@@ -36,7 +36,7 @@ const main = (): void => {
       profiles: profilesFromEnv(process.env),
       ...(process.env["MALT_MAP_VERIFIER"] === undefined || process.env["MALT_MAP_VERIFIER"] === "" ? {} : { mapVerifier: process.env["MALT_MAP_VERIFIER"] }),
     },
-    { claude: new ClaudeCodeProvider(optional('MALT_CLAUDE_PATH', 'claude')), copilot: new DelegatingProvider(delegation, 'copilot') },
+    { claude: new ClaudeCodeProvider(optional('MALT_CLAUDE_PATH', 'claude')), copilot: new DelegatingProvider(delegation, 'copilot'), codex: new DelegatingProvider(delegation, 'codex') },
     conversations,
   );
   const server = createReviewerServer(service, required('MALT_TOKEN'), conversations, delegation);

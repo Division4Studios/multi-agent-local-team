@@ -1,11 +1,13 @@
 name: Branch policy
 
-# main only accepts pull requests from this repository's dev branch. Everything else targets dev.
+# main is a copy of released dev commits, written only by the Release workflow (release.yml). Pull requests into main
+# are never merged (the `main · release only` ruleset blocks every update but the Release App's); this check tells
+# whoever opens one where the change should go instead.
 #
 # pull_request_target runs this file as it is on the default branch (dev, which is protected), never the copy in the
 # pull request, so a pull request cannot edit the check it is judged by.
-# It is safe here because nothing from the pull request is checked out or executed: the job only compares two names,
-# passed through environment variables rather than interpolated into the script, with no token permissions.
+# It is safe here because nothing from the pull request is checked out or executed, and the job has no token
+# permissions.
 on:
   pull_request_target:
     branches: [main]
@@ -14,19 +16,12 @@ on:
 permissions: {}
 
 jobs:
-  source-branch:
-    name: Source branch is dev
+  no-pull-requests:
+    name: No pull requests into main
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Require dev from this repository
-        env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          BASE_REPO: ${{ github.repository }}
+      - name: Point to dev and the Release workflow
         run: |
-          if [ "$HEAD_REPO" != "$BASE_REPO" ] || [ "$HEAD_REF" != "dev" ]; then
-            echo "::error::Pull requests into main must come from the dev branch of $BASE_REPO. Retarget this pull request to dev."
-            exit 1
-          fi
-          echo "Source is $BASE_REPO:dev."
+          echo "::error::main is updated only by the Release workflow. Target dev instead; a maintainer releases dev with Actions → Release → Run workflow."
+          exit 1

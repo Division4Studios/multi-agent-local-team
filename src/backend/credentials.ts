@@ -1,12 +1,14 @@
 /**
- * Claude credentials for the reviewer, kept in VS Code SecretStorage (OS keychain), never in settings or files.
- * The Docker backend needs one: a long-lived OAuth token from `claude setup-token` (subscription) or an API key.
- * The host backend can also use the user's existing `claude` login.
+ * Review provider credentials, kept in VS Code SecretStorage (OS keychain), never in settings or files.
+ * Claude's go to the reviewer. The Docker backend needs one: a long-lived OAuth token from `claude setup-token`
+ * (subscription) or an API key; the host backend can also use the user's existing `claude` login.
+ * The OpenAI API key for Codex goes only to the Codex containers the extension starts, never to the reviewer.
  */
 import * as vscode from 'vscode';
 
 const OAUTH_KEY = 'malt.claude.oauthToken';
 const API_KEY = 'malt.claude.apiKey';
+const CODEX_KEY = 'malt.codex.apiKey';
 
 export class Credentials {
   private readonly secrets: vscode.SecretStorage;
@@ -59,5 +61,28 @@ export class Credentials {
 
   public async clear(): Promise<void> {
     await Promise.all([this.secrets.delete(OAUTH_KEY), this.secrets.delete(API_KEY)]);
+  }
+
+  public async codexApiKey(): Promise<string | undefined> {
+    return await this.secrets.get(CODEX_KEY);
+  }
+
+  public async promptAndStoreCodex(): Promise<boolean> {
+    const value = await vscode.window.showInputBox({
+      title: 'MALT: OpenAI API key for Codex',
+      prompt: 'Billed per token by OpenAI. Stored in your OS keychain via VS Code SecretStorage. Only passed to MALT’s Codex containers.',
+      password: true,
+      ignoreFocusOut: true,
+      validateInput: (text) => (text.trim() === '' ? 'Value is required' : undefined),
+    });
+    if (value === undefined) {
+      return false;
+    }
+    await this.secrets.store(CODEX_KEY, value.trim());
+    return true;
+  }
+
+  public async clearCodex(): Promise<void> {
+    await this.secrets.delete(CODEX_KEY);
   }
 }

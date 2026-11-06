@@ -9,7 +9,7 @@ Owner: [@Division4Studios](https://github.com/Division4Studios) (a user account,
 | Branch | Role | Merge method |
 |---|---|---|
 | `dev` | Default branch. Every pull request targets it. | Squash only, so `dev` has one signed commit per pull request and a linear history |
-| `main` | Released code. Accepts pull requests from `dev` only. | Merge commit only, so `dev`'s commits reach `main` unchanged and the two branches never diverge |
+| `main` | Released code. Never a pull request target: only the Release workflow writes it, copying a tested `dev` commit | A merge commit per release whose files are exactly that `dev` commit's, so `dev`'s commits reach `main` unchanged |
 
 Rebase merging and auto-merge are off. GitHub suggests updating out-of-date pull request branches, and deletes head branches after merging (never `dev` or `main`, which rulesets protect).
 
@@ -17,7 +17,9 @@ Squash commits take the pull request title and description; merge commits do the
 
 ## Rulesets
 
-Each protected branch has two rulesets. The **gate** has no bypass at all, not even for admins. The **maintainer approval** ruleset can be bypassed only by the repository admin role, and only by merging a pull request, so the sole maintainer can merge their own reviewed work (GitHub doesn't let authors approve themselves). Nobody can bypass the gate: there are no direct pushes, failing checks or new CodeQL alerts for anyone.
+`dev` has two rulesets. The **gate** has no bypass at all, not even for admins. The **maintainer approval** ruleset can be bypassed only by the repository admin role, and only by merging a pull request, so the sole maintainer can merge their own reviewed work (GitHub doesn't let authors approve themselves). Nobody can bypass the gate: there are no direct pushes, failing checks or new CodeQL alerts for anyone.
+
+`main` and release tags have one ruleset each, whose only bypass is the **MALT Release** GitHub App, used by the Release workflow alone.
 
 ### `dev · gate` (no bypass)
 
@@ -34,33 +36,32 @@ Each protected branch has two rulesets. The **gate** has no bypass at all, not e
 
 - One approving review, from a code owner (`.github/CODEOWNERS`), given after the most recent push, with stale approvals dismissed and conversations resolved.
 
-### `main · gate` (no bypass)
+### `main · release only` (bypass: the MALT Release App)
 
-- The same as `dev · gate`, except the merge method is merge commit only and there is no linear-history rule. The branch doesn't need to be up to date: `main` gains merge commits that `dev` doesn't have, and requiring them would force a push to `dev`.
-- One more required check: **`Source branch is dev`**, from `.github/workflows/branch-policy.yml`. It fails unless the pull request comes from this repository's `dev` branch. The workflow uses `pull_request_target`, which GitHub always runs from the default branch (`dev`, protected), so a pull request can't edit the check it is judged by. The workflow has no token permissions and never checks out or runs pull request code.
+- Restrict updates, restrict deletions, block force pushes, require signed commits. Nobody, admins included, can push to `main` or merge a pull request into it.
+- The only bypass is the **MALT Release** GitHub App (see **Releases**). Its merge commits are signed by GitHub.
+- `.github/workflows/branch-policy.yml` fails any pull request opened against `main` with a message pointing to `dev` and the Release workflow. The workflow uses `pull_request_target`, which GitHub always runs from the default branch (`dev`, protected), has no token permissions and never checks out or runs pull request code.
 
-### `main · maintainer approval` (admin bypass, pull requests only)
+### `release tags` (bypass: the MALT Release App)
 
-- The same as `dev · maintainer approval`, merge commit only.
-
-### `release tags` (admin bypass)
-
-- `v*` tags can only be created by the admin role, and nobody can move or delete them.
+- Nobody can create, move or delete `v*` tags; only the Release workflow's App creates them, once per release.
 
 ## Releases
 
-Releases are made by `.github/workflows/release.yml` when the admin pushes a `vMAJOR.MINOR.PATCH` tag; the steps are in [Releasing](releasing.md). The workflow:
+Releases are made by `.github/workflows/release.yml`, run by hand from `dev` (Actions → Release → Run workflow); the steps are in [Releasing](releasing.md). The workflow:
 
-- refuses a tag that isn't annotated, whose signature GitHub can't verify, that isn't on `main`'s first-parent history (a release pull request's merge commit), or whose version doesn't match `package.json`, `package-lock.json` and a dated `CHANGELOG.md` section;
-- runs `ci.yml` (called as a reusable workflow) on the tagged commit, so a release passes the same matrix as a pull request;
-- runs `reviewer-live.yml`, which builds the reviewer image from the tagged commit and makes a real Claude call of every kind through the extension's client (`src/test/live/reviewerLive.ts`). Mocked tests can't catch the API rejecting a request; this can. It also runs after pushes to `dev` that change the reviewer, and from the Actions tab. Its credential is `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the **`reviewer-live`** environment, which only `dev`, `main` and `v*` tags may use, so pull request and fork code never sees it. Each call type runs on the model and effort MALT ships as its default, so the gate proves what users run. With no credential the job fails; it never skips;
-- rebuilds the `.vsix` without the npm cache and fails unless its compiled JavaScript is byte-identical to the output CI tested;
-- signs a build provenance attestation (`id-token: write`, `attestations: write`) and creates a **draft** release (`contents: write`). These permissions belong to that one job; every other job reads only.
+- refuses to run from any branch but `dev`, when `package.json`, `package-lock.json` and a dated `CHANGELOG.md` section disagree, when the version's tag already exists, or when the commit isn't newer than the `dev` commit `main` last released (its tip's second parent). It works on the one `dev` commit the run started from;
+- runs `ci.yml` (called as a reusable workflow) on that commit, so a release passes the same matrix as a pull request. A called run's concurrency group includes the calling workflow, so pushes to `dev` don't cancel it, and a Release run keeps the compiled output 30 days (the longest an environment approval can wait) instead of 1;
+- runs `reviewer-live.yml`, which builds the reviewer image from that commit and makes a real Claude call of every kind through the extension's client (`src/test/live/reviewerLive.ts`). Mocked tests can't catch the API rejecting a request; this can. It also runs after pushes to `dev` that change the reviewer, and from the Actions tab. Its credential is `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the **`reviewer-live`** environment, which only `dev`, `main` and `v*` tags may use, so pull request and fork code never sees it. Each call type runs on the model and effort MALT ships as its default, so the gate proves what users run. With no credential the job fails; it never skips;
+- then the publish job waits for approval in the **`release`** environment: required reviewer @Division4Studios, deployment branches `dev` only. It holds the App's client ID (variable `RELEASE_APP_CLIENT_ID`) and private key (secret `RELEASE_APP_PRIVATE_KEY`);
+- rebuilds the `.vsix` without the npm cache, fails unless its compiled JavaScript is byte-identical to the output CI tested, and signs a build provenance attestation (`id-token: write`, `attestations: write`, the only `GITHUB_TOKEN` permissions it has);
+- mints a token for the **MALT Release** App (this repository only; contents and workflows write, since a `main` update that changes workflow files needs both; revoked at the end of the job). With it, it re-checks that the tested commit is newer than `main`'s last release (so a re-run of an overtaken release can't roll `main` back), creates a merge commit with parents `main` and the tested commit and that commit's tree, checks that GitHub signed it, and fast-forwards `main` to it (never forced). It then creates the annotated `vX.Y.Z` tag and publishes the release. Events made by an App, unlike `GITHUB_TOKEN`, trigger workflows, so publishing posts to #shipped.
 
-If a tag's run fails because of a bug in the workflow itself, a manual run from `main` (`workflow_dispatch` with the tag) builds that existing tag with main's fixed workflow. It refuses to run from any other branch and repeats every check on the tag. Instead of re-running `ci.yml` on a passed-in ref, it requires the tagged commit's own passing CI run on `main` and builds byte-identical to that run's output (kept 14 days on `main`); the live test runs on the tag. Its build provenance names `main` (GitHub only accepts provenance naming the run's own source), and a second signed **release source** attestation records the tag, its commit and the CI run ([Releasing](releasing.md#release-source)).
+Published releases are immutable (see **Features**), so a release is never edited: a fix ships as the next version.
 
-A maintainer publishes the draft. A release made with `GITHUB_TOKEN` triggers no workflows, so publishing by hand is also what posts it to #shipped. Published releases are immutable (see **Features**), so a release is never edited: a fix ships as the next version.
+### The MALT Release App
 
+A private GitHub App owned by @Division4Studios and installed only on this repository. Permissions: **Contents: read and write**, **Workflows: read and write** (Metadata: read is automatic); no webhook, no events. Its private key exists only as the `release` environment secret; if it leaks, delete the key in the App's settings and generate a new one. It is the only bypass on `main` and on `v*` tags; don't add any other.
 
 ### Signed commits
 
@@ -134,12 +135,12 @@ The #shipped workflow never checks out or runs pull request code, has no token p
 
 ## Labels
 
-Labels are grouped by prefix. Issue forms apply the type label and `triage`, and maintainers add the area during triage.
+Labels are grouped by prefix. Issue forms apply a type or policy label and `triage` (the baseline-rule form also adds `area: standards`); maintainers add the area during triage.
 
 - **Type:** `bug`, `enhancement`, `documentation`, `review quality`, `security`, `accessibility`, `question`, `breaking change`
 - **Area:** `area: block review`, `area: changes view`, `area: pull request`, `area: standards`, `area: consolidation`, `area: reviewer`, `area: prompt safety`, `area: backend`, `area: live log`, `area: settings`, `area: toolchain`, `area: ci`
 - **Status:** `triage`, `needs: repro`, `needs: info`, `accepted`, `blocked`, `duplicate`, `invalid`, `wontfix`
-- **Other:** `cost` (changes how many model calls MALT makes), `policy: dependency`, `dependencies` (Dependabot), `release` (a `dev` → `main` pull request), `good first issue`, `help wanted`
+- **Other:** `cost` (changes how many model calls MALT makes), `policy: dependency`, `dependencies` (Dependabot), `release` (a version bump pull request into `dev`), `good first issue`, `help wanted`
 
 ## Set only in the GitHub UI
 

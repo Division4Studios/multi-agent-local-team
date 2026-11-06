@@ -77,11 +77,11 @@ MALT is a layer that works **locally, inside VS Code**, between the code your AI
 | 🧩 **Consolidation across the change** | One call compares the new declarations across every changed file, and against the map, to catch three near-identical components or a second date formatter. It runs on demand, or 30 seconds after new files stop appearing. |
 | 🔀 **Review a pull request** | Pick an open PR on GitHub; MALT checks it out safely, outlines every changed block and reviews it like your own changes. Results stay in VS Code; **Finish** takes you back to your branch. |
 | 🐳 **Always-hot, isolated reviewer** | The reviewer runs in a hardened Docker container (read-only workspace, no privileges, localhost-only), or as a local daemon when Docker isn't available. |
-| 🗂️ **Sidebar & status bar** | A MALT sidebar shows reviewer health and every changed block, and the status bar keeps a running pass/concern/fail count. |
+| 🗂️ **Sidebar & status bar** | The MALT sidebar has four views: **Reviewer** (health, standards, gaps, queue), **Architecture Explorer**, **Changes** (every changed block) and **Pull Request**. The status bar keeps a running passed / changes-requested / waiting count. |
 
 ## 🔁 How it works
 
-<p align="center"><img src="design/pipeline.png" alt="How MALT reviews a change: an edit becomes git blocks; each block gets an overview call and one isolated call per applicable rule in the reviewer sandbox; verdicts appear in the editor and the Changes view; consolidation compares new declarations across the change." width="960" /></p>
+<p align="center"><img src="design/pipeline.png" alt="How MALT reviews a change: an edit becomes git blocks; each block gets an overview call and one isolated call per applicable rule in the reviewer service (sandboxed in Docker, or a host process when Docker is unavailable); verdicts appear in the editor and the Changes view; consolidation compares new declarations across the change." width="960" /></p>
 
 Code under review can try to talk to the reviewer, so repository text only ever reaches the model as fenced data, and every answer is checked before you see it. See [the trust boundary](SECURITY.md#the-trust-boundary).
 
@@ -103,7 +103,7 @@ Code under review can try to talk to the reviewer, so repository text only ever 
 2. In VS Code, run **Extensions: Install from VSIX…** and select the file.
 3. Open a git repository and click the **MALT** icon in the activity bar.
 
-Every release is built by GitHub Actions from a signed tag, with a checksum and a provenance attestation you can check with `gh attestation verify`. See [Install and verify a release](docs/releasing.md#install-and-verify-a-release).
+Every release is built by GitHub Actions from a tested `dev` commit, with a checksum and a provenance attestation you can check with `gh attestation verify`. See [Install and verify a release](docs/releasing.md#install-and-verify-a-release).
 
 **Run from source** instead, to develop MALT. Prerequisites: [Node.js 24+](https://nodejs.org/), [VS Code 1.144+](https://code.visualstudio.com/), and Docker with a running Linux engine. See the [TypeScript 7 toolchain guide](docs/toolchain.md).
 
@@ -129,13 +129,15 @@ Then open the folder in VS Code and press <kbd>F5</kbd>. A new **Extension Devel
 | `malt.docker.socketPath` | empty | Docker socket/pipe override (user settings only) |
 | `malt.reviewer.backend` | `auto` | `auto` (Docker if ready, else host), `docker` or `host` |
 | `malt.reviewer.triageModel` | `sonnet` | Model for each block's overview and rule sorting |
-| `malt.reviewer.reviewModel` | `sonnet` | Model for each per-rule check |
+| `malt.reviewer.reviewModel` | `haiku` | Model for each per-rule check |
 | `malt.reviewer.standardsModel` | `opus` | Model for **Scan Project Standards** |
 | `malt.reviewer.maxConcurrentReviews` | `2` | Initial reviewer agents across all call types, user-only; no fixed maximum. Restart to apply. |
 | Models & effort | Haiku/low for rule checks, Sonnet/low for overviews | Change per review type from **Models & effort** in the Reviewer view |
 | `malt.changes.autoOpen` | `true` | Bring changed files into view (without stealing focus) |
 | `malt.changes.autoOpenPauseSeconds` | `60` | Hold auto-open while you are working, so it never pulls you away from what you are investigating |
 | `malt.changes.autoReview` | `true` | Review new blocks automatically |
+
+All settings, including consolidation, investigation and architecture settings, are in [docs/configuration.md](docs/configuration.md).
 
 ### Commands
 
@@ -151,7 +153,7 @@ Then open the folder in VS Code and press <kbd>F5</kbd>. A new **Extension Devel
 | `npm run test:live` | Build the Docker reviewer and make a real Claude call of every kind on the default models (needs `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`; set `MALT_LIVE_MODEL=haiku` for a cheaper check) |
 | `npm run test:compiler-sandbox` | Actively verify the native compiler container restrictions |
 | `npm test` | Compile, then run the tests inside a real VS Code instance |
-| `npm run verify` | Everything CI runs: deps → types → lint → tests |
+| `npm run verify` | deps → types → lint → toolchain tests → compiler sandbox → VS Code tests (CI also runs the audit and the packaging and publication checks) |
 | `npm run vsix` | Package the extension as a `.vsix` |
 | `npm run release:bump -- <major\|minor\|patch>` | Start a release: set the next version and date its changelog section ([Releasing](docs/releasing.md)) |
 
@@ -164,8 +166,8 @@ A tool that keeps slop out of other repos has to keep it out of its own first. T
 - **No type assertions, no `any`, no `!`, no `@ts-ignore`.** If the types don't prove it, the code doesn't ship.
 - **Isolated native builds.** TypeScript 7 runs in Docker without external network access, with read-only inputs and host writes restricted to `out/`. ESLint uses Microsoft's TypeScript 6 compatibility API and retains Node permission restrictions. Those restrictions are safeguards, not a boundary against malicious code. See the [toolchain guide](docs/toolchain.md).
 - **Tiny, frozen toolchain.** A fixed allowlist of dev tools, exact versions, a committed lockfile, install scripts disabled, and CI that fails if anything else appears. See [Supply-chain policy](SECURITY.md#supply-chain-policy).
-- **Protected, signed history.** Every change reaches `dev` through a reviewed pull request whose commits are all signed, with every check green and no new CodeQL alerts; `main` only takes releases from `dev`. Nobody can bypass that, maintainers included. See [repository settings](docs/repository-settings.md).
-- **Verifiable releases.** Each release is built by GitHub Actions from a signed tag on `main`, after the full CI matrix, from JavaScript byte-identical to what CI tested, with a SHA-256 checksum and a signed provenance attestation. See [Releasing](docs/releasing.md).
+- **Protected, signed history.** Every change reaches `dev` through a reviewed pull request whose commits are all signed, with every check green and no new CodeQL alerts; `main` only changes when the Release workflow copies a tested `dev` commit into it. Nobody can bypass that, maintainers included. See [repository settings](docs/repository-settings.md).
+- **Verifiable releases.** Each release is built by GitHub Actions from a `dev` commit, after the full CI matrix, a live reviewer test and a maintainer's approval, from JavaScript byte-identical to what CI tested, with a SHA-256 checksum and a signed provenance attestation. See [Releasing](docs/releasing.md).
 - **AI-assisted contributions welcome — with disclosure and ownership.** See [CONTRIBUTING.md](CONTRIBUTING.md#ai-assisted-contributions).
 
 ## 💬 Community
@@ -184,7 +186,7 @@ New members can chat straight away. Posting links and files unlocks after a litt
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) before opening a pull request, and follow our [**Code of Conduct**](CODE_OF_CONDUCT.md). Work happens on **`dev`**: branch from it and open pull requests against it. `main` only receives releases from `dev`.
+Contributions are welcome! Please read [**CONTRIBUTING.md**](CONTRIBUTING.md) before opening a pull request, and follow our [**Code of Conduct**](CODE_OF_CONDUCT.md). Work happens on **`dev`**: branch from it and open pull requests against it. `main` only receives releases, from the Release workflow.
 
 - 🐛 Found a bug? [Open a bug report](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=bug_report.yml)
 - 🎯 MALT got a verdict wrong? [Report a wrong review result](https://github.com/Division4Studios/multi-agent-local-team/issues/new?template=review_quality.yml)

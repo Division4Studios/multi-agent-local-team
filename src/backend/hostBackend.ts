@@ -100,6 +100,11 @@ export class HostBackend implements ReviewerBackend {
     clearTimeout(timer);
   }
 
+  /** A host reviewer has no container limits to raise. */
+  public async resize(): Promise<void> {
+    await Promise.resolve();
+  }
+
   public async isRunning(): Promise<boolean> {
     return await Promise.resolve(this.child?.exitCode === null);
   }

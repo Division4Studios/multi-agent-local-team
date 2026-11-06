@@ -182,7 +182,7 @@ const main = async (): Promise<void> => {
   const run = runner();
   try {
     const endpoint = { port: await freePort(), token: randomBytes(32).toString('hex') };
-    await backend.start({ workspaceRoot: root, port: endpoint.port, token: endpoint.token, env });
+    await backend.start({ workspaceRoot: root, port: endpoint.port, token: endpoint.token, env, agents: 2 });
     const client = new ReviewerClient(endpoint);
     await run.step('reviewer health', async () => await waitForHealth(client));
     if (run.failures === 0) {

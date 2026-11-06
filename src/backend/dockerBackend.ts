@@ -77,6 +77,19 @@ const isNativeRootfulEngine = (engine: unknown): boolean => {
     && Array.isArray(security) && security.every((option) => typeof option === 'string' && !option.includes('name=rootless'));
 };
 
+const MIB = 1_048_576;
+
+/**
+ * Memory and process limits for a reviewer with this many agents. Each agent runs its own Claude CLI process (about
+ * 200 MiB and 10 threads before it does any work), so fixed limits would cap the agent count in practice. Two
+ * agents get the limits MALT has always used (1 GiB, 256 processes); each further agent adds 384 MiB and 32.
+ * Swap is not allowed beyond that.
+ */
+export const containerLimits = (agents: number): Readonly<Record<'Memory' | 'MemorySwap' | 'PidsLimit', number>> => {
+  const memory = (256 + 384 * agents) * MIB;
+  return { Memory: memory, MemorySwap: memory, PidsLimit: 192 + 32 * agents };
+};
+
 /** Mode 1777: the reviewer's home and temp folders are writable whichever unprivileged user it runs as. */
 export const containerSpec = (image: string, options: StartOptions, identity: ContainerIdentity): Record<string, unknown> => ({
   Image: image,
@@ -98,8 +111,7 @@ export const containerSpec = (image: string, options: StartOptions, identity: Co
     Tmpfs: { '/tmp': 'rw,nosuid,size=128m,mode=1777', '/home/node': 'rw,nosuid,size=256m,mode=1777' },
     CapDrop: ['ALL'],
     SecurityOpt: ['no-new-privileges'],
-    Memory: 1_073_741_824,
-    PidsLimit: 256,
+    ...containerLimits(options.agents),
   },
 });
 
@@ -153,6 +165,18 @@ export class DockerBackend implements ReviewerBackend {
     const info = await this.client.inspect('containers', this.containerName);
     const state = isRecord(info) ? info['State'] : undefined;
     return isRecord(state) && state['Running'] === true;
+  }
+
+  /** Raises the running container's limits (Docker's update API) so an agent added at runtime has room. */
+  public async resize(agents: number): Promise<void> {
+    if (this.containerName === undefined) {
+      return;
+    }
+    const response = await this.client.sendJson('POST', `/containers/${this.containerName}/update`, containerLimits(agents));
+    if (response.status !== 200) {
+      throw new Error(dockerErrorMessage(response));
+    }
+    this.log(`Container limits raised for ${String(agents)} agents`);
   }
 
   public async recentLogs(): Promise<string> {

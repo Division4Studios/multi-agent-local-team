@@ -1,4 +1,4 @@
-<!-- Target the dev branch. Pull requests into main are only accepted from dev, opened by a maintainer for a release. -->
+<!-- Target the dev branch. main is never a pull request target: the Release workflow copies a tested dev commit into it. -->
 
 ## What and why
 
