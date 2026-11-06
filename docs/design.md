@@ -4,7 +4,7 @@
 
 MALT's identity is an upright ear of malt barley: the sprig from the activity bar, with a pointed top grain, two pairs of sharp leaf-shaped grains and two awns. In color, the grains are amber, light on the left and shaded on the right, on a teal stem. It's warm, crafted and recognizable, and as precise as a developer tool should be. The project artwork (README hero, diagrams, social card) shares one look: a charcoal background with a faint 40 px grid, monospace headlines with one teal accent, and diagrams of rounded, color-coded boxes with dashed boundaries, labeled arrows and a legend.
 
-Keep the interface itself native to VS Code, so the user's theme, file icons, keyboard navigation and accessibility settings keep working. Brand colors belong to artwork, not to the editor UI.
+Keep the interface itself native to VS Code, so the user's theme, file icons, keyboard navigation and accessibility settings keep working. Interactive webviews, architecture notes, and portable publications share the MALT palette in `media/maltTheme.css`. In VS Code theme mode, surfaces and text remain native while diagram roles and note accents use coordinated brand colors; explicit light/dark views use MALT surfaces. High-contrast themes override role colors with editor contrast colors. Native editor decorations and review verdict semantics remain theme-aware.
 
 ## Palette
 
@@ -49,3 +49,9 @@ Use VS Code product icons for actions and review status: play/stop for lifecycle
 Keep inline labels short; the hover owns the explanation. Use text with status icons so meaning survives monochrome display and assistive technology. Keep untrusted reviewer text escaped, including when changing hover layout. Only MALT's retry command is enabled in hover links.
 
 All project assets are distributed under the repository's MIT license.
+
+## Diagram navigation
+
+All interactive diagram canvases support middle-button dragging, primary-button dragging on empty canvas, and Space + primary-button dragging while the canvas is focused. Tab to the canvas and use arrow keys to pan or Home to center. **Center diagram** restores the center without changing zoom; the connection map's **Fit** also scales to the available width. Canvas padding leaves enough room to center edge nodes. Panning never changes diagram geometry or exported image bounds.
+
+Category colors are shared by diagram cards, legends, and the selected component's notes. Teal marks interaction and evidence, amber marks developer clarification, and green/red retain their pass/fail meanings. Text labels, focus outlines, and dashed removed relationships preserve meaning without color.

@@ -1,5 +1,6 @@
 window.startMaltViews = function (send, graphVisit) {
   const el = (id) => document.getElementById(id);
+  window.startMaltViewport?.(el('modelDrawing'), el('modelCenter'));
   const kind = el('modelKind'),
     subject = el('modelSubject'),
     info = el('modelDetail');
@@ -50,6 +51,7 @@ window.startMaltViews = function (send, graphVisit) {
       return;
     }
     info.replaceChildren();
+    info.className = '';
     if (!d) {
       el('modelSvg').replaceChildren();
       el('modelCount').textContent = state.empty;
@@ -91,13 +93,14 @@ window.startMaltViews = function (send, graphVisit) {
     el('modelZone').hidden = d.kind !== 'timeline';
     el('modelFieldsWrap').hidden = d.kind !== 'er' && d.kind !== 'classes';
     el('modelLegend').replaceChildren();
-    for (const group of [...new Set(d.items.map((i) => i.group || 'Component'))]) {
+    for (const group of [...new Set(d.items.map((i) => i.group || ''))]) {
       const key = document.createElement('span');
-      key.className = 'legend-key ' + window.maltPalette(group === 'Component' ? '' : group);
-      key.textContent = group;
+      key.className = 'legend-key ' + window.maltPalette(group);
+      key.textContent = group || 'Component';
       el('modelLegend').append(key);
     }
     if (p) {
+      info.className = window.maltPalette(p.group);
       const heading = document.createElement('h3');
       heading.textContent = p.label;
       info.append(heading);

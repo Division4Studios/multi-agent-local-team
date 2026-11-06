@@ -5,6 +5,7 @@
   window.startMaltTheme?.(host);
   const el = id => document.getElementById(id);
   const svg = el('map');
+  const viewport = window.startMaltViewport?.(el('mapDrawing'), el('mapCenter'));
   const root = 'workspace';
   const pageSize = 7;
   const cardWidth = 304, connectionGap = 92, graphWidth = 3 * cardWidth + 2 * connectionGap + 32;
@@ -68,6 +69,7 @@
   }
   function understanding(n) {
     const box = el('knowledge');
+    box.setAttribute('data-kind', n.kind);
     box.replaceChildren();
     const file = nodes.get('file:' + n.path);
     const k = file && file.understanding;
@@ -77,9 +79,10 @@
         'Select a file or declaration to explore what it does and why.';
       return;
     }
-    function line(label, text) {
+    function line(label, text, kind = 'context') {
       const p = document.createElement('p'), heading = document.createElement('strong');
       heading.textContent = label + ' · ';
+      p.setAttribute('data-note', kind);
       p.append(heading, document.createTextNode(text));
       box.append(p);
     }
@@ -89,7 +92,7 @@
       line(explanation?.evidence ? 'Selected declaration · source excerpt available' : 'Selected declaration', nodeSummary(n));
       if (explanation?.evidence) { line('Declaration evidence', explanation.evidence); }
     }
-    if (k.confirmed) { line('Developer clarification for this file', k.confirmed); }
+    if (k.confirmed) { line('Developer clarification for this file', k.confirmed, 'clarification'); }
     line(k.whatEvidence ? 'File context · source evidence' : 'File context · working hypothesis', k.what);
     if (k.whatEvidence) { line('Evidence', k.whatEvidence); }
     line(k.whyEvidence ? 'Why · documented rationale' : 'Why · working hypothesis', k.why);
@@ -374,7 +377,7 @@
   el('less').addEventListener('click', () => { page = Math.max(0, page - 1); draw(); });
   el('zoomIn').addEventListener('click', () => { zoom = Math.min(3, zoom * 1.25); draw(); });
   el('zoomOut').addEventListener('click', () => { zoom = Math.max(0.4, zoom / 1.25); draw(); });
-  el('fit').addEventListener('click', () => { zoom = Math.max(0.25, Math.min(2, svg.parentElement.clientWidth / graphWidth)); draw(); });
+  el('fit').addEventListener('click', () => { zoom = Math.max(0.25, Math.min(2, (el('mapDrawing').clientWidth - 24) / graphWidth)); draw(); viewport?.center(); });
   window.addEventListener('message', receive);
   post('ready');
 }());

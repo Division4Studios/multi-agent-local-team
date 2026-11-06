@@ -30,7 +30,7 @@ const html = (webview: vscode.Webview, extension: vscode.Uri): string => {
   const asset = (name: string): string => webview.asWebviewUri(vscode.Uri.joinPath(extension, 'media', name)).toString();
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${webview.cspSource};">
-<link rel="stylesheet" href="${asset('changeReview.css')}"><title>Before commit</title></head><body>
+<link rel="stylesheet" href="${asset('maltTheme.css')}"/><link rel="stylesheet" href="${asset('changeReview.css')}"><title>Before commit</title></head><body>
 <header><div class="eyebrow">MALT / HUMAN REVIEW</div><h1>Before commit</h1><p id="scope"></p><p id="freshness" role="status"></p>
 <div class="actions"><button id="analyze">Explain these changes</button><button id="review">Run missing code reviews</button><button id="architecture">Explore architecture</button></div></header>
 <section id="metrics" aria-label="Review status"></section><p id="queueStatus" role="status"></p>

@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - **Review providers.** Each review type (block overview, rule checks, consolidation, standards scan, gap investigation) can be answered by **Claude** or **GitHub Copilot**, each with its own model, and with an effort for Claude. Choose them under **Models & effort** in the Reviewer view. **MALT: Detect Review Providers** shows what this machine can use. Copilot runs through VS Code's Language Model API with your consent, and the reviewer still builds every prompt and checks every answer. Its separation between instructions and data is weaker than Claude's; see [Review providers](docs/configuration.md#review-providers). The provider settings are user-only, so a repository can't choose where its code is sent. ([#33](https://github.com/Division4Studios/multi-agent-local-team/issues/33))
+- Middle-mouse and empty-canvas diagram panning, Space + drag, keyboard arrows, and Center diagram controls in the explorer and portable HTML viewer.
+
+### Changed
+
+- Coordinated MALT colors across diagrams, legends, selected-component notes, discussions, review pages, and exports, with light, dark, editor, and high-contrast support.
 
 ## [1.0.0] - 2026-11-05
 

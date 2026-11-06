@@ -9,8 +9,8 @@ const button = (id, k) => '<button id="' + id + '">' + label(k) + '</button>';
 const select = (id, k, values) =>
   '<label>' + label(k) + ' <select id="' + id + '">' + values.map((v) => '<option>' + v + '</option>').join('') + '</select></label>';
 const checkbox = (id, k) => '<label><input type="checkbox" checked id="' + id + '"> ' + label(k) + '</label>';
-const style = asset('perspectives.css') + '\n' + asset('portable.css');
-const script = ['perspectiveDrawing.js', 'portableLanguages.js', 'portableExport.js', 'portableProbe.js', 'portableViewer.js']
+const style = asset('maltTheme.css') + '\n' + asset('perspectives.css') + '\n' + asset('portable.css') + '\n' + asset('diagramViewport.css');
+const script = ['diagramViewport.js', 'perspectiveDrawing.js', 'portableLanguages.js', 'portableExport.js', 'portableProbe.js', 'portableViewer.js']
   .map(asset)
   .join('\n;\n');
 const token = (text) => "'sha256-" + createHash('sha256').update(text).digest('base64') + "'";
@@ -64,7 +64,7 @@ export function render(model, sourceHash) {
     checkbox('motion', 'motion') +
     checkbox('fields', 'fields') +
     select('zone', 'zone', ['UTC', 'local']) +
-    select('zoom', 'scale', ['1', '0.75', '1.25', '1.5', '2']);
+    select('zoom', 'scale', ['1', '0.75', '1.25', '1.5', '2']) + button('center', 'center');
   const exports =
     select('format', 'formats', ['svg', 'png', 'jpeg', 'webp', 'webm', 'clipboard']) +
     select('scale', 'scale', ['1', '2', '3', '4']) +
@@ -99,7 +99,7 @@ export function render(model, sourceHash) {
     toolbar +
     '</nav><div class="toolbar">' +
     options +
-    '</div><div id="modelDrawing">' +
+    '</div><p id="navigationHint">' + label('panHint') + '</p><div id="modelDrawing" data-diagram-viewport tabindex="0" role="region" aria-label="Diagram canvas" aria-describedby="navigationHint">' +
     (results[0]?.markup ?? '<svg id="modelSvg"></svg>') +
     '</div><aside id="legend" aria-label="Roles"></aside><details open><summary>' +
     label('journey') +
