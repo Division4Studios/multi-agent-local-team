@@ -33,6 +33,12 @@ on:
         description: Ref to check out (release.yml passes the release tag); empty means the triggering ref
         type: string
         default: ''
+    # Passed by release.yml. Either one is enough; the test itself fails, rather than skips, if neither arrives.
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: false
 
 permissions:
   contents: read
