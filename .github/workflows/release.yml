@@ -87,7 +87,11 @@ jobs:
           fi
           # The checkout of a tag does not include main; fetch it (public repository, no credentials needed).
           git fetch --no-tags --quiet origin +refs/heads/main:refs/remotes/origin/main
-          if ! git rev-list --first-parent origin/main | grep -qx "$checked_out"; then
+          # Write the list first: `rev-list | grep -q` fails under pipefail, because grep exits at the match and
+          # rev-list (still writing, in a fresh clone) dies of SIGPIPE, which reads as "not on main".
+          first_parent="$RUNNER_TEMP/main-first-parent.txt"
+          git rev-list --first-parent origin/main > "$first_parent"
+          if ! grep -qx "$checked_out" "$first_parent"; then
             echo "::error::$TAG must point to a commit on main (the release pull request's merge commit)"; exit 1
           fi
 
