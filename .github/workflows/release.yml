@@ -133,6 +133,11 @@ jobs:
     uses: ./.github/workflows/reviewer-live.yml
     with:
       ref: ${{ format('refs/tags/{0}', inputs.tag || github.ref_name) }}
+    # A called workflow gets no secrets unless the caller passes them, environment secrets included (they would
+    # resolve to empty strings). Only the two credentials the live test needs are passed, by name.
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
   publish:
     needs: [check, verify, live]
