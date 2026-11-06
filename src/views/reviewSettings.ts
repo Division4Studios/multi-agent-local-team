@@ -5,14 +5,14 @@
  */
 import * as vscode from 'vscode';
 import { readSettings } from '../config';
-import { EFFORTS, PROVIDER_LABELS, REVIEW_TYPES, REVIEW_TYPE_INFO, isModelName, takesEffort } from '../shared/reviewProfiles';
+import { EFFORTS, PROVIDER_LABELS, REVIEW_TYPES, REVIEW_TYPE_INFO, isModelName, modelSettingFor, takesEffort } from '../shared/reviewProfiles';
 import type { Effort, ProviderId, ReviewType } from '../shared/reviewProfiles';
 import type { Credentials } from '../backend/credentials';
 import { detectProviders } from './providerDetection';
 import type { ProviderStatus } from './providerDetection';
 
 const EFFORT_NOTES: Readonly<Record<Effort, string>> = {
-  default: 'Claude Code’s own default',
+  default: 'The provider’s own default',
   low: 'Quickest, least usage',
   medium: 'Balanced',
   high: 'Deeper reasoning, more usage',
@@ -41,7 +41,7 @@ const pickProvider = async (type: ReviewType, current: ProviderId, statuses: rea
 
 const pickModel = async (type: ReviewType, status: ProviderStatus, current: string): Promise<string | undefined> => {
   const info = REVIEW_TYPE_INFO[type];
-  const custom = status.provider === 'claude' ? [{ label: CUSTOM, description: '', id: CUSTOM }] : [];
+  const custom = status.provider === 'copilot' ? [] : [{ label: CUSTOM, description: '', id: CUSTOM }];
   const items = [...status.models.map((model) => ({ label: model.label, description: `${model.detail}${model.id === current ? ' · current' : ''}`, id: model.id })), ...custom];
   const choice = await vscode.window.showQuickPick(items, { title: `${info.label}: ${PROVIDER_LABELS[status.provider]} model`, placeHolder: info.detail, ignoreFocusOut: true });
   if (choice?.id !== CUSTOM) {
@@ -51,7 +51,7 @@ const pickModel = async (type: ReviewType, status: ProviderStatus, current: stri
     title: `${info.label}: custom model id`,
     value: current,
     ignoreFocusOut: true,
-    validateInput: (text) => (isModelName(text) ? undefined : 'Use a model alias or id, e.g. claude-sonnet-5-5'),
+    validateInput: (text) => (isModelName(text) ? undefined : 'Use a model alias or id, e.g. claude-sonnet-5-5 or gpt-5.5'),
   });
 };
 
@@ -86,7 +86,7 @@ export const configureReviewType = async (type: unknown, credentials: Credential
   }
   const info = REVIEW_TYPE_INFO[type];
   const config = vscode.workspace.getConfiguration('malt');
-  const model = await pickModel(type, status, status.provider === 'copilot' ? config.get<string>(info.copilotModelSetting, '') : config.get<string>(info.modelSetting, ''));
+  const model = await pickModel(type, status, config.get<string>(modelSettingFor(info, status.provider), ''));
   if (model === undefined || !isModelName(model)) {
     return;
   }
@@ -94,12 +94,11 @@ export const configureReviewType = async (type: unknown, credentials: Credential
   if (effort === undefined) {
     return;
   }
-  // Each provider keeps its own model: Copilot's next to the (user-level) provider, Claude's where it already lives.
+  // Each provider keeps its own model: Copilot's and Codex's next to the (user-level) provider, Claude's where it
+  // already lives. Effort is shared by the providers that take one.
   await config.update(info.providerSetting, status.provider, vscode.ConfigurationTarget.Global);
-  if (status.provider === 'copilot') {
-    await config.update(info.copilotModelSetting, model, vscode.ConfigurationTarget.Global);
-  } else {
-    await config.update(info.modelSetting, model, targetFor(info.modelSetting));
+  await config.update(modelSettingFor(info, status.provider), model, status.provider === 'claude' ? targetFor(info.modelSetting) : vscode.ConfigurationTarget.Global);
+  if (takesEffort(status.provider)) {
     await config.update(info.effortSetting, effort, targetFor(info.effortSetting));
   }
 };
@@ -108,7 +107,7 @@ export const configureReviewType = async (type: unknown, credentials: Credential
 export const affectsReviewProfiles = (event: vscode.ConfigurationChangeEvent): boolean =>
   REVIEW_TYPES.some((type) => {
     const info = REVIEW_TYPE_INFO[type];
-    return [info.providerSetting, info.modelSetting, info.copilotModelSetting, info.effortSetting].some((key) => event.affectsConfiguration(`malt.${key}`));
+    return [info.providerSetting, info.modelSetting, info.copilotModelSetting, info.codexModelSetting, info.effortSetting].some((key) => event.affectsConfiguration(`malt.${key}`));
   });
 
 /** After model or effort settings change, offers one restart (changes made together are batched). */

@@ -1,16 +1,18 @@
 /**
  * Delegated model calls: calls for a provider that only the extension can reach (GitHub Copilot, through VS Code's
- * Language Model API). The reviewer still builds every prompt and validates every answer; the extension only runs
+ * Language Model API; Codex, in a container the extension starts). The reviewer still builds every prompt and validates every answer; the extension only runs
  * the call. Both directions cross the HTTP boundary, so both are parsed and bounded here.
  */
 import { isRecord, isString, parseArray } from './guards';
-import { isModelName, isProviderId } from './reviewProfiles';
-import type { ProviderId } from './reviewProfiles';
+import { isEffort, isModelName, isProviderId } from './reviewProfiles';
+import type { Effort, ProviderId } from './reviewProfiles';
 
 export interface DelegatedCall {
   readonly id: string;
   readonly provider: ProviderId;
   readonly model: string;
+  /** Reasoning effort, for providers that take one (Codex); `default` leaves the provider's own. */
+  readonly effort: Effort;
   /** MALT's static system prompt: never repository text. */
   readonly systemPrompt: string;
   /** Repository text appears only inside nonced data blocks, as in every reviewer prompt. */
@@ -53,9 +55,9 @@ export const parseDelegatedCall = (value: unknown): DelegatedCall | undefined =>
   if (!isRecord(value)) {
     return undefined;
   }
-  const { id, provider, model, systemPrompt, userPrompt, schema, timeoutMs } = value;
-  const valid = isDelegationId(id) && isProviderId(provider) && isModelName(model) && isPrompt(systemPrompt) && isPrompt(userPrompt);
-  return valid && isRecord(schema) && isTimeout(timeoutMs) ? { id, provider, model, systemPrompt, userPrompt, schema, timeoutMs } : undefined;
+  const { id, provider, model, effort, systemPrompt, userPrompt, schema, timeoutMs } = value;
+  const valid = isDelegationId(id) && isProviderId(provider) && isModelName(model) && isEffort(effort) && isPrompt(systemPrompt) && isPrompt(userPrompt);
+  return valid && isRecord(schema) && isTimeout(timeoutMs) ? { id, provider, model, effort, systemPrompt, userPrompt, schema, timeoutMs } : undefined;
 };
 
 export const parseDelegatedCalls = (value: unknown): readonly DelegatedCall[] | undefined =>

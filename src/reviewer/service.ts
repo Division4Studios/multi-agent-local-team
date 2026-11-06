@@ -111,7 +111,7 @@ export class ReviewService {
   public constructor(config: ServiceConfig, providers: ReviewProvider | ProviderSet, conversations = new ConversationLog()) {
     this.config = config;
     this.agents = new AgentPool(config.agents);
-    this.providers = 'callStructured' in providers ? { claude: providers, copilot: providers } : providers;
+    this.providers = 'callStructured' in providers ? { claude: providers, copilot: providers, codex: providers } : providers;
     this.conversations = conversations;
   }
 

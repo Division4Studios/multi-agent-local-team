@@ -1,8 +1,8 @@
 <!doctype html>
 <!--
   Source for design/trust.png (1600×820): the prompt-injection trust boundary. Render as design/README.md describes.
-  Keep it true to src/reviewer/trust.ts, prompts.ts, providers/claudeCode.ts, src/review/copilotRunner.ts,
-  src/architecture/agentBridge.ts, agentConnections.ts, guidance.ts and SECURITY.md when any of them changes.
+  Keep it true to src/reviewer/trust.ts, prompts.ts, providers/claudeCode.ts, src/review/copilotRunner.ts, codexRunner.ts,
+  docker/codex, src/architecture/agentBridge.ts, agentConnections.ts, guidance.ts and SECURITY.md when any of them changes.
 -->
 <html lang="en">
 <head>
@@ -56,8 +56,8 @@
     <div class="item"><b>Patch, file context, map slice</b><span>inside a per-call random-nonce block</span></div>
   </div>
 
-  <div class="node" style="left:590px;top:300px;width:300px;border-color:var(--orange);background:rgba(245,158,91,.10)"><b>Claude · reviewer calls</b>
-    <ul><li>no tools, no MCP servers</li><li>no settings or skills loaded</li><li>empty private working folder</li><li>structured JSON output only</li></ul>
+  <div class="node" style="left:590px;top:300px;width:300px;border-color:var(--orange);background:rgba(245,158,91,.10)"><b>Claude or Codex · reviewer calls</b>
+    <ul><li>no tools, no MCP servers</li><li>no settings or skills loaded</li><li>empty private working folder</li><li>structured JSON output only</li><li>Codex: one sealed container each</li></ul>
   </div>
 
   <div class="node" style="left:590px;top:530px;width:300px;border-color:var(--orange);border-style:dashed;background:rgba(245,158,91,.06)"><b>GitHub Copilot · opt-in</b>

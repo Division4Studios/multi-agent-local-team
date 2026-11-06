@@ -37,7 +37,7 @@ const startServer = async (delegation: Delegation, claudeCalls: StructuredCall[]
   await mkdir(join(root, 'src'));
   await writeFile(join(root, 'src', 'a.ts'), 'const a = 1;\nconst b = 2;\n');
   const claude = { name: 'claude', callStructured: async (call: StructuredCall): Promise<unknown> => { claudeCalls.push(call); return await Promise.resolve(OVERVIEW); } };
-  const service = new ReviewService({ workspaceRoot: root, profiles: profiles('copilot') }, { claude, copilot: new DelegatingProvider(delegation, 'copilot') });
+  const service = new ReviewService({ workspaceRoot: root, profiles: profiles('copilot') }, { claude, copilot: new DelegatingProvider(delegation, 'copilot'), codex: new DelegatingProvider(delegation, 'codex') });
   const server = createReviewerServer(service, TOKEN, undefined, delegation);
   await new Promise<void>((resolve) => { server.listen(0, '127.0.0.1', resolve); });
   const address = server.address();
@@ -90,9 +90,9 @@ export const tests: readonly TestCase[] = [
   {
     name: 'providers: delegated calls, answers and text are parsed and bounded at the HTTP boundary',
     run: (): void => {
-      const call = { id: ID, provider: 'copilot', model: 'gpt-5', systemPrompt: 's', userPrompt: 'u', schema: { type: 'object' }, timeoutMs: 1_000 };
+      const call = { id: ID, provider: 'copilot', model: 'gpt-5', effort: 'default', systemPrompt: 's', userPrompt: 'u', schema: { type: 'object' }, timeoutMs: 1_000 };
       assert.deepEqual(parseDelegatedCall(call), call);
-      for (const bad of [{ ...call, id: 'x' }, { ...call, provider: 'openai' }, { ...call, model: '--flag' }, { ...call, timeoutMs: 0 }, { ...call, schema: 'object' }]) {
+      for (const bad of [{ ...call, id: 'x' }, { ...call, provider: 'openai' }, { ...call, model: '--flag' }, { ...call, timeoutMs: 0 }, { ...call, effort: 'turbo' }, { ...call, schema: 'object' }]) {
         assert.equal(parseDelegatedCall(bad), undefined, JSON.stringify(bad));
       }
       assert.deepEqual(parseDelegatedResult({ id: ID, output: { a: 1 } }), { id: ID, output: { a: 1 } });
@@ -251,7 +251,7 @@ export const tests: readonly TestCase[] = [
   {
     name: 'providers: a rejected delivery becomes an explicit error, and a finished call is left alone',
     run: async (): Promise<void> => {
-      const call: DelegatedCall = { id: ID, provider: 'copilot', model: 'gpt-5', systemPrompt: 's', userPrompt: 'u', schema: {}, timeoutMs: 1_000 };
+      const call: DelegatedCall = { id: ID, provider: 'copilot', model: 'gpt-5', effort: 'default', systemPrompt: 's', userPrompt: 'u', schema: {}, timeoutMs: 1_000 };
       const posted: DelegatedResult[] = [];
       const failing = (status: number): { answerModelCall: (result: DelegatedResult) => Promise<void> } => ({
         answerModelCall: async (result): Promise<void> => {

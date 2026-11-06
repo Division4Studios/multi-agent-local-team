@@ -32,7 +32,7 @@ export class Delegation {
     }
     const id = randomUUID();
     const delegated: DelegatedCall = {
-      id, provider, model: call.model, systemPrompt: call.systemPrompt, userPrompt: call.userPrompt, schema: call.schema, timeoutMs: call.timeoutMs,
+      id, provider, model: call.model, effort: call.effort, systemPrompt: call.systemPrompt, userPrompt: call.userPrompt, schema: call.schema, timeoutMs: call.timeoutMs,
     };
     const result = await new Promise<DelegatedResult>((resolve) => {
       const settle = (answer: DelegatedResult): void => {
