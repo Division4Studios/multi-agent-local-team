@@ -25,8 +25,9 @@ name: Release
 #   credentials, and only the steps that call GitHub receive a token. Versions and tags reach scripts as data (env),
 #   checked against MAJOR.MINOR.PATCH first.
 # - Releases never use the npm cache, so a poisoned cache entry from another workflow can't reach a release.
-# - Every write step is safe to re-run (Re-run failed jobs): an existing main merge or tag for this commit is reused,
-#   anything else is refused, and an existing release is never replaced.
+# - Every write step is safe to re-run (Re-run failed jobs): this release's own merge (still main's tip) and tag are
+#   reused, a commit older than main's last release is refused before main changes, and an existing release is
+#   never replaced.
 on:
   workflow_dispatch:
 
@@ -74,6 +75,12 @@ jobs:
           node scripts/release.mts check "$tag" "$RUNNER_TEMP/release-notes.md"
           if gh api "repos/$GH_REPO/git/ref/tags/$tag" --silent 2>/dev/null; then
             echo "::error::$tag already exists. Bump the version on dev first: npm run release:bump -- patch|minor|major"; exit 1
+          fi
+          # The dev commit main last released (its tip's second parent) must be this commit or one of its ancestors.
+          last=$(gh api "repos/$GH_REPO/commits/main" --jq '.parents[1].sha // .sha')
+          status=$(gh api "repos/$GH_REPO/compare/$last...$GITHUB_SHA" --jq .status)
+          if [ "$status" != "ahead" ]; then
+            echo "::error::dev at $GITHUB_SHA is not newer than the last release ($last, $status)"; exit 1
           fi
           echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
@@ -169,11 +176,17 @@ jobs:
           set -euo pipefail
           tree=$(gh api "repos/$GH_REPO/git/commits/$SHA" --jq .tree.sha)
           main=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)
-          # A re-run finds its own merge already on main and reuses it.
-          read -r main_tree second_parent < <(gh api "repos/$GH_REPO/git/commits/$main" --jq '.tree.sha + " " + (.parents[1].sha // "none")')
-          if [ "$second_parent" = "$SHA" ] && [ "$main_tree" = "$tree" ]; then
+          read -r main_tree last < <(gh api "repos/$GH_REPO/git/commits/$main" --jq '.tree.sha + " " + (.parents[1].sha // .sha)')
+          # A re-run whose merge is already main's tip reuses it.
+          if [ "$last" = "$SHA" ] && [ "$main_tree" = "$tree" ]; then
             echo "main already holds this release: $main"
             echo "commit=$main" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # Checked before main changes: a re-run of an older, superseded release must never put its files back on
+          # main. main's last released dev commit has to be an ancestor of this one.
+          status=$(gh api "repos/$GH_REPO/compare/$last...$SHA" --jq .status)
+          if [ "$status" != "ahead" ]; then
+            echo "::error::$SHA is not newer than main's last release ($last, $status); main was not changed"; exit 1
           fi
           # The merge commit's tree is the tested commit's tree exactly, so main is a copy of what was verified.
           body=$(jq -n --arg tree "$tree" --arg main "$main" --arg sha "$SHA" --arg tag "$TAG" \

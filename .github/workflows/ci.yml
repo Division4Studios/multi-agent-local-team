@@ -54,8 +54,9 @@ jobs:
           name: typescript7-output
           path: out/
           if-no-files-found: error
-          # Only needed within the run (release.yml packages from it).
-          retention-days: 1
+          # A Release run packages from it after its approval, which may wait up to 30 days; elsewhere only the run
+          # itself needs it. (A called run's github.workflow is the caller's.)
+          retention-days: ${{ github.workflow == 'Release' && 30 || 1 }}
 
   verify:
     needs: compile

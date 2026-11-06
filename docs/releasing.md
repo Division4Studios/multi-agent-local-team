@@ -24,7 +24,7 @@ A release is a GitHub release with the packaged `malt-X.Y.Z.vsix`, its SHA-256 c
    This sets the version in `package.json` and `package-lock.json` and moves everything under `## [Unreleased]` in `CHANGELOG.md` to a new `## [X.Y.Z] - YYYY-MM-DD` section. It changes nothing else, and refuses if there is nothing under Unreleased. Read the section: it becomes the release notes. Commit it (signed), push, open a pull request to `dev` titled `release: vX.Y.Z` with the `release` label, and merge it as usual.
 
 2. **Run the release.** Open **Actions → Release → Run workflow**, keep **`dev`** selected, and run it. The workflow (`.github/workflows/release.yml`):
-   - **checks the version:** `package.json`, `package-lock.json` and `CHANGELOG.md` must agree (`node scripts/release.mts check`), and the `vX.Y.Z` tag must not exist yet. Everything after this works on the `dev` commit the run started from, so merging more into `dev` meanwhile changes nothing;
+   - **checks the version:** `package.json`, `package-lock.json` and `CHANGELOG.md` must agree (`node scripts/release.mts check`), the `vX.Y.Z` tag must not exist yet, and the commit must be newer than the last release. Everything after this works on the `dev` commit the run started from, so merging more into `dev` meanwhile changes nothing;
    - **runs the full CI matrix** (Linux, Windows and macOS) on that commit;
    - **runs the live reviewer test:** it builds the reviewer image from that commit and makes a real Claude call of every kind (overview, rule checks, consolidation, discussion, standards scan, gap investigation). A release whose reviewer can't complete them never ships. It needs a credential in the `reviewer-live` environment ([repository settings](repository-settings.md#releases)); run it locally with `npm run test:live`;
    - **waits for your approval** (the `release` environment). Check the CI and live results, then select **Review deployments → Approve**;
@@ -34,7 +34,7 @@ A release is a GitHub release with the packaged `malt-X.Y.Z.vsix`, its SHA-256 c
 
 Nothing reaches `main` or a tag until CI, the live test and your approval have all passed.
 
-If a run fails before approval, fix the cause on `dev` (through a pull request) and run the workflow again. If it fails after approval, use **Re-run failed jobs**: each step reuses its own earlier result (the `main` merge, the tag) and refuses anything else, and an existing release is never replaced. A bug in MALT itself ships as the next patch version.
+If a run fails before approval, fix the cause on `dev` (through a pull request) and run the workflow again. If it fails after approval, use **Re-run failed jobs** (within 30 days, while CI's tested output is kept): each step reuses its own earlier result (the `main` merge, the tag), and an existing release is never replaced. A re-run of a release that a newer one has since overtaken is refused before `main` changes, so it can never put older files back on `main`. A bug in MALT itself ships as the next patch version.
 
 ### Release source
 
