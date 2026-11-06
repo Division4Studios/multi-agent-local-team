@@ -37,6 +37,35 @@ const streamedText = (events: readonly ConversationEvent[]): string =>
 
 export const tests: readonly TestCase[] = [
   {
+    name: 'agent logs: separate connections only receive their own start, text and end events',
+    run: (): void => {
+      const statuses = new vscode.EventEmitter<{ readonly state: string }>();
+      const listeners: ((event: ConversationEvent) => void)[] = [];
+      const source: LiveLogSource = {
+        status: { state: 'running' }, onDidChangeStatus: statuses.event,
+        client: { streamConversations: (onEvent): (() => void) => { listeners.push(onEvent); return () => undefined; } },
+      };
+      const first: LiveLogMessage[] = [];
+      const second: LiveLogMessage[] = [];
+      const one = new LiveLogConnection(source, (message) => first.push(message), 20, 'a'.repeat(32));
+      const two = new LiveLogConnection(source, (message) => second.push(message), 20, 'b'.repeat(32));
+      try {
+        for (const agentId of ['a'.repeat(32), 'b'.repeat(32)]) {
+          const events: ConversationEvent[] = [
+            { kind: 'start', agentId, callId: '12345678', at: 1, label: 'task', model: 'test', effort: 'low', prompt: 'p' },
+            { kind: 'text', agentId, callId: '12345678', at: 2, text: 'answer' },
+            { kind: 'end', agentId, callId: '12345678', at: 3, ok: true, error: '' },
+          ];
+          for (const event of events) { listeners.forEach((listener) => { listener(event); }); }
+        }
+        assert.equal(first.filter((message) => message.type === 'event').length, 3);
+        assert.equal(second.filter((message) => message.type === 'event').length, 3);
+        assert.ok(first.every((message) => message.type !== 'event' || message.event.agentId === 'a'.repeat(32)));
+        assert.ok(second.every((message) => message.type !== 'event' || message.event.agentId === 'b'.repeat(32)));
+      } finally { one.dispose(); two.dispose(); statuses.dispose(); }
+    },
+  },
+  {
     name: 'redaction: known credential formats and keyed literals are masked; ordinary code is untouched',
     run: (): void => {
       const text = [

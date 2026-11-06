@@ -83,8 +83,12 @@ const selectModel = async (model: string): Promise<vscode.LanguageModelChat> => 
 };
 
 /** One request: the full answer text, streamed to `onText` as it arrives. */
-const ask = async (chat: vscode.LanguageModelChat, messages: vscode.LanguageModelChatMessage[], timeoutMs: number, onText: (text: string) => void): Promise<string> => {
+const ask = async (chat: vscode.LanguageModelChat, messages: vscode.LanguageModelChatMessage[], options: { readonly timeoutMs: number; readonly onText: (text: string) => void; readonly signal: AbortSignal | undefined }): Promise<string> => {
+  const { timeoutMs, onText, signal } = options;
+  signal?.throwIfAborted();
   const cancel = new vscode.CancellationTokenSource();
+  const abort = (): void => { cancel.cancel(); };
+  signal?.addEventListener('abort', abort, { once: true });
   const timer = setTimeout(() => { cancel.cancel(); }, timeoutMs);
   try {
     const response = await chat.sendRequest(messages, { justification: JUSTIFICATION }, cancel.token);
@@ -104,6 +108,8 @@ const ask = async (chat: vscode.LanguageModelChat, messages: vscode.LanguageMode
     throw error instanceof vscode.LanguageModelError ? new Error(copilotErrorMessage(error.code, chat.id)) : error;
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+    cancel.cancel();
     cancel.dispose();
   }
 };
@@ -119,18 +125,19 @@ const checkSize = async (chat: vscode.LanguageModelChat, messages: readonly vsco
   }
 };
 
-export const runCopilotCall: CallRunner = async (call, onText) => {
+export const runCopilotCall: CallRunner = async (call, onText, signal) => {
+  signal?.throwIfAborted();
   const started = Date.now();
   const chat = await selectModel(call.model);
   const messages = [vscode.LanguageModelChatMessage.User(copilotInstructions(call)), vscode.LanguageModelChatMessage.User(`${DATA_LEAD_IN}\n\n${call.userPrompt}`)];
   await checkSize(chat, messages);
-  const first = extractJsonObject(await ask(chat, messages, call.timeoutMs, onText));
+  const first = extractJsonObject(await ask(chat, messages, { timeoutMs: call.timeoutMs, onText, signal }));
   if (first !== undefined) {
     return first;
   }
   // Not a JSON object: a formatting slip, not an answer. One retry, within the call's original deadline.
   const remaining = call.timeoutMs - (Date.now() - started);
-  const retry = remaining >= MIN_RETRY_MS ? extractJsonObject(await ask(chat, messages, remaining, onText)) : undefined;
+  const retry = remaining >= MIN_RETRY_MS ? extractJsonObject(await ask(chat, messages, { timeoutMs: remaining, onText, signal })) : undefined;
   if (retry === undefined) {
     throw new Error('GitHub Copilot\'s answer was not a JSON object');
   }

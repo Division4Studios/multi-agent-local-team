@@ -15,6 +15,8 @@ import type {
 } from '../shared/protocol';
 import type { ProviderSet, ReviewProvider, StructuredCall } from './providers/provider';
 import { ConversationLog } from './conversations';
+import { AgentPool } from './agentPool';
+import type { AgentTask } from './agentPool';
 import { PROVIDERS, REVIEW_TYPES } from '../shared/reviewProfiles';
 import type { ReviewProfiles } from '../shared/reviewProfiles';
 import type { CallUsage } from '../shared/conversation';
@@ -91,6 +93,7 @@ const blockLabel = (request: ReviewRequest): string =>
 export class UnknownRuleError extends Error {}
 
 export interface ServiceConfig {
+  readonly agents?: number;
   readonly workspaceRoot: string;
   /** Provider, model and effort per kind of call: overview, rule check, consolidation, standards scan, investigation. */
   readonly profiles: ReviewProfiles;
@@ -99,6 +102,7 @@ export interface ServiceConfig {
 }
 
 export class ReviewService {
+  public readonly agents: AgentPool;
   private readonly config: ServiceConfig;
   private readonly providers: ProviderSet;
   private readonly conversations: ConversationLog;
@@ -106,22 +110,29 @@ export class ReviewService {
   /** One provider answers every call (tests), or each provider id has its own. */
   public constructor(config: ServiceConfig, providers: ReviewProvider | ProviderSet, conversations = new ConversationLog()) {
     this.config = config;
+    this.agents = new AgentPool(config.agents);
     this.providers = 'callStructured' in providers ? { claude: providers, copilot: providers } : providers;
     this.conversations = conversations;
   }
 
   /** Every model call goes through here: its prompt is redacted, and the live log sees it start, stream and end. */
   private async ask(label: string, call: StructuredCall): Promise<unknown> {
-    // Every prompt leaves the reviewer redacted, whatever built it and whichever provider answers: patches and file
-    // windows are raw workspace text. System prompts are static constants, so only the user message needs it.
-    const userPrompt = redactSecrets(call.userPrompt);
-    const logged = this.conversations.begin(label, call, userPrompt);
+    // Redact before queuing or calling any provider: patches and file windows are raw workspace text.
+    const safeCall = { ...call, userPrompt: redactSecrets(call.userPrompt) };
+    return await this.agents.run(label, call.timeoutMs, async (task) => await this.askAgent(label, safeCall, task));
+  }
+
+  private async askAgent(label: string, call: StructuredCall, task: AgentTask): Promise<unknown> {
+    const logged = this.conversations.begin(label, { ...call, agentId: task.agentId }, call.userPrompt);
     let usage: CallUsage | undefined;
     try {
       const output = await this.providers[call.provider ?? 'claude'].callStructured({
         ...call,
-        userPrompt,
+        signal: task.signal,
+        timeoutMs: task.timeoutMs,
+        onActivity: () => { task.activity(); call.onActivity?.(); },
         onText: (text) => {
+          task.activity();
           logged.text(text);
           call.onText?.(text);
         },
@@ -129,6 +140,7 @@ export class ReviewService {
           usage = reported;
         },
       });
+      task.signal.throwIfAborted();
       logged.end(undefined, usage);
       return output;
     } catch (error: unknown) {

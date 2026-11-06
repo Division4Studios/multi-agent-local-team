@@ -6,7 +6,7 @@ import { parseUnderstanding } from './understanding';
 import type { Understanding } from './understanding';
 import { isNonNegativeInteger, isRecord, isString, parseArray, readStrings } from './guards';
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 export const STANDARDS_FILE = '.malt/standards.json';
 export const ARCHITECTURE_FILE = '.malt/architecture.json';
 

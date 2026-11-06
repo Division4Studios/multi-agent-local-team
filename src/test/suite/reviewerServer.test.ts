@@ -114,6 +114,27 @@ const withServer = async (
 
 export const tests: readonly TestCase[] = [
   {
+    name: 'agents API: authenticated, validated, and refuses stale task identities',
+    run: async (): Promise<void> => {
+      await withServer(async (port) => {
+        const client = new ReviewerClient({ port, token: TOKEN });
+        const [agent] = await client.agents();
+        assert.ok(agent !== undefined);
+        assert.equal((await client.agents()).length, 2);
+        await assert.rejects(new ReviewerClient({ port, token: 'wrong' }).agents({ action: 'add' }), /401/u);
+        const invalid = await fetch(`http://127.0.0.1:${String(port)}/agents`, {
+          method: 'POST', headers: { authorization: `Bearer ${TOKEN}` }, body: JSON.stringify({ action: 'stop', id: '../outside' }),
+        });
+        assert.equal(invalid.status, 400);
+        await invalid.text();
+        await assert.rejects(client.agents({ action: 'stop', id: agent.id, taskId: 'f'.repeat(32) }), /409/u);
+        assert.equal((await client.agents({ action: 'stop', id: agent.id, taskId: '' }))[0]?.state, 'stopped');
+        assert.equal((await client.agents({ action: 'start', id: agent.id, taskId: '' }))[0]?.state, 'idle');
+        assert.equal((await client.agents({ action: 'add' })).length, 3);
+      });
+    },
+  },
+  {
     name: 'scan stream reports real phases, preserves partial results, and authenticates',
     run: async (): Promise<void> => {
       await withServer(async (port) => {
@@ -175,7 +196,7 @@ export const tests: readonly TestCase[] = [
       await withServer(async (port, calls) => {
         const client = new ReviewerClient({ port, token: TOKEN });
         assert.deepEqual(await client.health(), {
-          ok: true, protocolVersion: 2, provider: 'fake', rulesLoaded: 1, gapsFound: 0, modulesLoaded: 1, architectureScannedAt: ARCHITECTURE.generatedAt,
+          ok: true, protocolVersion: 3, provider: 'fake', rulesLoaded: 1, gapsFound: 0, modulesLoaded: 1, architectureScannedAt: ARCHITECTURE.generatedAt,
         });
         const request = { filePath: 'src/a.ts', startLine: 1, endLine: 1, patch: '@@\n+const helperThing = 2;' };
         const { overview, rules } = await client.review(request);

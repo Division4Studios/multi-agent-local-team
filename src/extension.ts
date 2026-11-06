@@ -156,7 +156,7 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
   const queue = new ReviewQueue({
     store,
     client: (): HunkReviewer | undefined => manager.client,
-    concurrency: (): number => readSettings().maxConcurrentReviews,
+    concurrency: (): number => manager.agentCapacity,
   });
   const consolidation = new ConsolidationCheck(store, () => manager.client);
   const standards = new StandardsModel(vscode.workspace.workspaceFolders?.[0], feedVerifier(noteKey));
@@ -188,6 +188,7 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
     highlight,
     attention,
     manager,
+    manager.agentMonitor.onDidChange(() => { queue.resume(); pullRequests.current?.active?.queue.resume(); }),
     new HunkDecorations(store),
     vscode.languages.registerHoverProvider({ scheme: 'file' }, new ReviewHoverProvider(store)),
     vscode.window.registerTreeDataProvider('malt.reviewer', new ReviewerTreeProvider(manager, store, standards)),

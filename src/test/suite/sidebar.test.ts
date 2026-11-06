@@ -86,8 +86,8 @@ const childLabels = (tree: ReviewerTree, node: Parameters<ReviewerTree['getTreeI
 const assertRows = (tree: ReviewerTree): void => {
   const roots = tree.getChildren();
   const items = roots.map((node) => tree.getTreeItem(node));
-  assert.deepEqual(labels(items), ['Reviewer', 'Models & effort', 'Standards', 'Gaps', 'Architecture', 'Queue'], 'no separate Backend row');
-  assert.deepEqual(items.map((item) => item.command?.command), ['malt.showLiveLog', undefined, 'malt.showStandards', undefined, 'malt.showArchitecture', undefined],
+  assert.deepEqual(labels(items), ['Reviewers health', 'Models & effort', 'Standards', 'Gaps', 'Architecture', 'Queue'], 'no separate Backend row');
+  assert.deepEqual(items.map((item) => item.command?.command), [undefined, undefined, 'malt.showStandards', undefined, 'malt.showArchitecture', undefined],
     'Standards and Architecture open pages; nothing here rescans');
   const [, modelsNode, standardsNode, gapsNode] = roots;
   const types = tree.getChildren(modelsNode).map((node) => tree.getTreeItem(node));

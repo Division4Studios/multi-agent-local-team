@@ -40,11 +40,12 @@ export class ConversationLog {
    * Starts logging one call. Everything logged is secret-redacted first: the prompt and errors as a whole, the
    * streamed answer through a `StreamRedactor` (so a secret split across chunks is still caught).
    */
-  public begin(label: string, profile: { readonly model: string; readonly effort: string }, prompt: string): ConversationCall {
+  public begin(label: string, profile: { readonly model: string; readonly effort: string; readonly agentId?: string }, prompt: string): ConversationCall {
     const callId = randomBytes(8).toString('hex');
+    const agent = profile.agentId === undefined ? {} : { agentId: profile.agentId };
     const redacted = redactSecrets(prompt);
     const shown = redacted.length > MAX_PROMPT_CHARS ? `${redacted.slice(0, MAX_PROMPT_CHARS)}\n… (prompt truncated for display)` : redacted;
-    this.emit({ kind: 'start', callId, at: Date.now(), label, model: profile.model, effort: profile.effort, prompt: shown });
+    this.emit({ ...agent, kind: 'start', callId, at: Date.now(), label, model: profile.model, effort: profile.effort, prompt: shown });
     const redactor = new StreamRedactor();
     let streamed = 0;
     let ended = false;
@@ -54,7 +55,7 @@ export class ConversationLog {
       }
       const piece = text.slice(0, MAX_TEXT_CHARS_PER_CALL - streamed);
       streamed += piece.length;
-      this.emit({ kind: 'text', callId, at: Date.now(), text: piece });
+      this.emit({ ...agent, kind: 'text', callId, at: Date.now(), text: piece });
     };
     return {
       text: (chunk: string): void => {
@@ -69,7 +70,7 @@ export class ConversationLog {
         ended = true;
         release(redactor.flush());
         const message = error === undefined ? '' : redactSecrets(describeError(error));
-        this.emit({ kind: 'end', callId, at: Date.now(), ok: error === undefined, error: message, ...(usage === undefined ? {} : { usage }) });
+        this.emit({ ...agent, kind: 'end', callId, at: Date.now(), ok: error === undefined, error: message, ...(usage === undefined ? {} : { usage }) });
       },
     };
   }
