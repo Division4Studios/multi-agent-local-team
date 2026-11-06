@@ -65,10 +65,10 @@ Rules that are enforced and will not be waived in review:
 | Branch | Role | Accepts |
 |---|---|---|
 | `dev` | Default branch. All work lands here first. | Pull requests from any branch or fork, squash-merged |
-| `main` | What has been released. | Pull requests from `dev` only, opened by a maintainer, merged with a merge commit |
+| `main` | What has been released. | Never a pull request target: the Release workflow copies a tested `dev` commit into it |
 
-- **Branch from `dev` and open your pull request against `dev`.** A pull request into `main` from any other branch fails the *Source branch is dev* check and can't merge.
-- Both branches are protected by repository rulesets. Nobody can push to them directly, force-push or delete them. Every change needs a pull request with an approving code-owner review (the sole maintainer may bypass only that approval rule; see [docs/repository-settings.md](docs/repository-settings.md)), all review conversations resolved, and every CI check passing: the build, tests on Linux, macOS and Windows, CodeQL with no new alerts, and dependency review. New commits dismiss earlier approvals.
+- **Branch from `dev` and open your pull request against `dev`.** A pull request into `main` fails the *No pull requests into main* check and can never merge.
+- Both branches are protected by repository rulesets. Nobody can push to them directly, force-push or delete them. Every change to `dev` needs a pull request with an approving code-owner review (the sole maintainer may bypass only that approval rule; see [docs/repository-settings.md](docs/repository-settings.md)), all review conversations resolved, and every CI check passing: the build, tests on Linux, macOS and Windows, CodeQL with no new alerts, and dependency review. New commits dismiss earlier approvals.
 - **Every commit in your pull request must be signed** with a key on your own GitHub account. It takes a few minutes, once. See [Signing your commits](#signing-your-commits).
 - Release tags (`v*`) can only be created by maintainers, and can't be moved or deleted. How a release is made: [docs/releasing.md](docs/releasing.md).
 
