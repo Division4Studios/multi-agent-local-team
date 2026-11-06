@@ -6,10 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-06
+
 ### Added
 
 - **Individual reviewer agents.** Expand **Reviewers health** to inspect agents, cancel tasks, stop/start agents, add capacity, and open an agent-specific live log. Two agents run by default across call types, with no fixed maximum. Health colors distinguish working, stalled, failed and idle agents. In Docker, the reviewer's memory and process limits grow with the agents, including ones added while it runs. ([#45](https://github.com/Division4Studios/multi-agent-local-team/issues/45))
-
 - **Review providers.** Each review type (block overview, rule checks, consolidation, standards scan, gap investigation) can be answered by **Claude** or **GitHub Copilot**, each with its own model, and with an effort for Claude. Choose them under **Models & effort** in the Reviewer view. **MALT: Detect Review Providers** shows what this machine can use. Copilot runs through VS Code's Language Model API with your consent, and the reviewer still builds every prompt and checks every answer. Its separation between instructions and data is weaker than Claude's; see [Review providers](docs/configuration.md#review-providers). The provider settings are user-only, so a repository can't choose where its code is sent. ([#33](https://github.com/Division4Studios/multi-agent-local-team/issues/33))
 - **Codex as a review provider.** Any review type can be answered by Codex, with its own model and an effort. Each call runs in its own throwaway container with no workspace mount, a read-only filesystem, no capabilities and every Codex tool switched off. It needs Docker and an OpenAI API key, saved with **MALT: Set Codex Credentials**. ([#33](https://github.com/Division4Studios/multi-agent-local-team/issues/33))
 - Middle-mouse and empty-canvas diagram panning, Space + drag, keyboard arrows, and Center diagram controls in the explorer and portable HTML viewer.
@@ -21,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-- Recognizable credentials in changed code are now redacted from every review prompt, for Claude and GitHub Copilot alike; before, only discussions, scans and component context were. The `no-secrets` check still flags a block that contained one.
+- Recognizable credentials in changed code are now redacted from every review prompt, for every provider alike; before, only discussions, scans and component context were. The `no-secrets` check still flags a block that contained one.
 
 ## [1.0.0] - 2026-11-05
 

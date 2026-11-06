@@ -2,7 +2,7 @@
   "name": "malt",
   "displayName": "MALT",
   "description": "Review changed code against project standards, explore interactive architecture maps, and compare Git branches with a local Claude reviewer.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "division4studios",
   "license": "MIT",
   "homepage": "https://github.com/Division4Studios/multi-agent-local-team#readme",
