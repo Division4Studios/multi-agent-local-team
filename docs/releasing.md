@@ -50,6 +50,21 @@ If it fails because of a problem in the Release workflow itself, re-running won'
 
 If a step fails because of the release's own content (a bug in MALT itself), fix it in a new pull request. A pushed tag can't be moved, so the fix ships as the next patch version. No run ever replaces an existing release.
 
+### Release source
+
+A recovery run builds the tag's commit with `main`'s workflow. GitHub only accepts build provenance that names the source of the run that signed it, so a recovery release's provenance names `main`, the workflow that ran. To record what was actually packaged, a recovery release also carries a signed **release source** attestation with this section's URL as its type. It records:
+
+- the tag;
+- its commit, which was checked out and packaged after the check job verified it is the tag's target;
+- the CI run whose tested output the build matched byte for byte;
+- the workflow run that built it.
+
+Read it with:
+
+```sh
+gh attestation verify malt-X.Y.Z.vsix --repo Division4Studios/multi-agent-local-team   --predicate-type https://github.com/Division4Studios/multi-agent-local-team/blob/dev/docs/releasing.md#release-source --format json
+```
+
 ## Install and verify a release
 
 1. Download `malt-X.Y.Z.vsix` from the [releases page](https://github.com/Division4Studios/multi-agent-local-team/releases).
