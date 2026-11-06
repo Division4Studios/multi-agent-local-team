@@ -1,8 +1,10 @@
 /** A model provider the reviewer service can use. Claude Code is first; others implement the same contract. */
 import type { CallUsage } from '../../shared/conversation';
-import type { Effort } from '../../shared/reviewProfiles';
+import type { Effort, ProviderId } from '../../shared/reviewProfiles';
 
 export interface StructuredCall {
+  /** Who answers; Claude when absent. The service routes the call to that provider. */
+  readonly provider?: ProviderId;
   readonly systemPrompt: string;
   readonly userPrompt: string;
   /** JSON Schema the provider must enforce on its output. */
@@ -21,6 +23,9 @@ export interface StructuredCall {
   /** Receives the call's token usage and cost, as the provider reports them. */
   readonly onUsage?: (usage: CallUsage) => void;
 }
+
+/** One provider per provider id. */
+export type ProviderSet = Readonly<Record<ProviderId, ReviewProvider>>;
 
 export interface ReviewProvider {
   readonly name: string;

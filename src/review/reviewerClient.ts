@@ -7,6 +7,8 @@ import { parseConversationEvent } from '../shared/conversation';
 import { parseInterpretation } from '../shared/understanding';
 import type { DiscussionRequest, Interpretation } from '../shared/understanding';
 import { parseGapInvestigation } from '../shared/investigation';
+import { parseDelegatedCalls } from '../shared/delegation';
+import type { DelegatedCall, DelegatedResult, DelegatedText } from '../shared/delegation';
 import type { GapInvestigation } from '../shared/investigation';
 import type { ConversationEvent } from '../shared/conversation';
 import { createLineSplitter } from '../shared/lineSplitter';
@@ -35,6 +37,8 @@ const EVIDENCE_REVIEW_TIMEOUT_MS = 600_000;
 const INVESTIGATION_TIMEOUT_MS = 960_000;
 /** Two scan calls run in parallel, then the gap analysis: up to two provider timeouts plus margin. */
 const SCAN_TIMEOUT_MS = 1_860_000;
+/** The reviewer holds `GET /model-calls` for up to 25 s; this allows for that plus margin. */
+const MODEL_CALL_POLL_TIMEOUT_MS = 40_000;
 
 interface CallOptions {
   readonly method: 'GET' | 'POST';
@@ -165,6 +169,25 @@ export class ReviewerClient {
       throw new Error('Reviewer returned an invalid gap investigation');
     }
     return result;
+  }
+
+  /** Calls the reviewer wants the extension to run; waits up to the reviewer's long-poll window for one. */
+  public async takeModelCalls(): Promise<readonly DelegatedCall[]> {
+    const calls = parseDelegatedCalls(await call(this.endpoint, { method: 'GET', path: '/model-calls', timeoutMs: MODEL_CALL_POLL_TIMEOUT_MS }));
+    if (calls === undefined) {
+      throw new Error('Reviewer returned invalid model calls');
+    }
+    return calls;
+  }
+
+  /** The answer to a delegated call. Rejects if the call has already ended (for example, timed out). */
+  public async answerModelCall(result: DelegatedResult): Promise<void> {
+    await call(this.endpoint, { method: 'POST', path: '/model-calls/result', body: result, timeoutMs: 15_000 });
+  }
+
+  /** Answer text as it streams, for the live log and scan activity. */
+  public async streamModelText(text: DelegatedText): Promise<void> {
+    await call(this.endpoint, { method: 'POST', path: '/model-calls/text', body: text, timeoutMs: 15_000 });
   }
 
   /**

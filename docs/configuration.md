@@ -6,17 +6,16 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | --- | --- | --- |
 | `malt.reviewer.backend` | `auto` | `auto`, `docker`, or `host`; restart reviewer after changing |
 | `malt.reviewer.autoStart` | `true` | Start when a workspace opens |
-| `malt.reviewer.triageModel` | `sonnet` | Model alias or ID for each block's overview (purpose, technical, design) and for sorting out which rules apply; `haiku` is cheaper but argues design less well; restart reviewer |
-| `malt.reviewer.reviewModel` | `sonnet` | Model alias or ID for the per-rule checks (one call per applicable rule); restart reviewer |
-| `malt.reviewer.standardsModel` | `opus` | Model alias or ID for standards scans; restart reviewer |
 | `malt.reviewer.maxConcurrentReviews` | `2` | Parallel reviewer calls (overviews and rule checks), from 1 to 8 |
 | `malt.reviewer.claudePath` | `claude` | Host CLI executable; restart reviewer. User (machine) settings only: workspace settings are ignored, so a repository cannot choose what MALT runs |
 | `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise `DOCKER_HOST` or platform default; restart reviewer. User (machine) settings only |
+| `malt.reviewer.<type>Provider` | `claude` | Who answers each review type: `claude` or `copilot` (see **Review providers** below). `<type>` is `triage`, `review`, `consolidation`, `standards` or `investigation`. User (machine) settings only, so a repository can never choose which service receives its code |
+| `malt.reviewer.<type>CopilotModel` | `auto` | The GitHub Copilot model for that type when its provider is `copilot`: a model id from **Detect Review Providers**, or `auto` for the first model Copilot offers. Separate from the Claude model and user-only like the provider, so switching provider never pairs one provider with the other's model |
 | `malt.reviewer.triageModel` / `triageEffort` | `sonnet` / `low` | Block overviews: one call per changed block |
 | `malt.reviewer.reviewModel` / `reviewEffort` | `haiku` / `low` | Rule checks: one call per applicable rule per block, most of the usage |
 | `malt.reviewer.consolidationModel` / `consolidationEffort` | `sonnet` / `low` | The whole-change consolidation check |
 | `malt.reviewer.standardsModel` / `standardsEffort` | `opus` / `medium` | Scan Project Standards (three calls, only when you scan) |
-| `malt.reviewer.investigationModel` / `investigationEffort` | `sonnet` / `medium` | Investigate Gap (one call per gap you investigate) |
+| `malt.reviewer.investigationModel` / `investigationEffort` | `sonnet` / `medium` | Investigate Gap (one call per gap you investigate), and questions about architecture views and changes |
 | `malt.changes.autoOpen` | `true` | Show newly changed files in preview tabs, preserving keyboard focus |
 | `malt.changes.autoOpenPauseSeconds` | `60` | While you are working (clicking, typing, scrolling, switching files, or opening something from MALT), auto-open waits until you have been idle this long, so it never pulls you away from what you are investigating. New changes still appear in **Changes** right away |
 | `malt.changes.autoReview` | `true` | Queue new blocks automatically |
@@ -31,6 +30,17 @@ For a manual workflow:
   "malt.changes.autoReview": false
 }
 ```
+
+## Review providers
+
+Each review type can be answered by a different provider. Choose them under **Models & effort** in the MALT Reviewer view: select a review type, then a provider, a model and (for Claude) an effort. The search icon on that row, or **MALT: Detect Review Providers**, shows what this machine can use:
+
+- **Claude** (the default): available when Claude credentials are stored for the Docker reviewer or the Claude Code CLI is on PATH. Calls run in the reviewer with no tools and a schema-enforced answer.
+- **GitHub Copilot**: available when you are signed in to GitHub Copilot in VS Code. VS Code asks once whether MALT may use it. Copilot calls run in the extension through VS Code's Language Model API, and the reviewer still builds every prompt and checks every answer. They count against your Copilot plan's limits.
+
+Copilot's separation between instructions and data is weaker than Claude's. VS Code's API has no system role, so MALT's static instructions arrive as the first message and the repository data, in the same marked blocks, as the second. Copilot doesn't enforce the answer's JSON schema either; MALT's own parsers and checks reject anything that doesn't fit. For the details, see [Security](../SECURITY.md#the-trust-boundary).
+
+Changes apply when the reviewer restarts. Codex, more parallel calls and finer per-call settings are planned in [#33](https://github.com/Division4Studios/multi-agent-local-team/issues/33).
 
 ## Command palette
 
@@ -48,6 +58,7 @@ All commands below have the **MALT:** prefix.
 | Show Architecture File Summaries | Read the reviewer’s file summaries and applicable developer clarifications. |
 | Show Standards Gaps | Reopen the gaps the last scan found as one page. In the Reviewer view, the **Gaps** row lists them; selecting one opens the file at the declaration it names, outlined, with the gap on hover |
 | Show Live Reviewer Log | Watch every model call as it happens: what it is for, the prompt sent and the answer streaming in, with elapsed time and a stall indicator. Nothing is saved (also the **Reviewer** row) |
+| Detect Review Providers | Show which review providers this machine can use (Claude, GitHub Copilot) and their models. The first Copilot check asks your permission |
 | Check Consolidation Across Changes | One reviewer call over the new declarations in every changed block; findings appear at the top of **Changes** |
 | Review Pull Request… | Pick an open pull request on the workspace's GitHub repository (sign in with VS Code's GitHub account), check it out, and list its changed blocks in the **Pull Request** view. Refuses while you have uncommitted changes |
 | Review All Pull Request Blocks | Review every block of the open pull request, after showing what it will cost |

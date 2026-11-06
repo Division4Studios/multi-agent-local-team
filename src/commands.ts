@@ -16,6 +16,7 @@ import { registerStandardsCommands, showFindingLocation } from './standards/stan
 import { ConversationPanel } from './views/conversationPanel';
 import type { PullRequestReview } from './pullRequest/pullRequestReview';
 import { configureReviewType } from './views/reviewSettings';
+import { showProviders } from './views/providerDetection';
 import { registerChangeReview } from './views/changeReview';
 
 export interface CommandDeps {
@@ -207,7 +208,10 @@ const registerViewCommands = (deps: CommandDeps): vscode.Disposable =>
       }
     }),
     vscode.commands.registerCommand('malt.configureReviewType', async (type: unknown) => {
-      await configureReviewType(type);
+      await configureReviewType(type, deps.credentials);
+    }),
+    vscode.commands.registerCommand('malt.detectProviders', async () => {
+      await showProviders(deps.credentials);
     }),
     userCommand(deps, 'malt.showLiveLog', () => {
       ConversationPanel.show(deps.manager, deps.extensionUri);

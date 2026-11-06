@@ -16,11 +16,11 @@ import type { ScanProgress } from '../../shared/scanProgress';
 
 /** Distinct per type, so tests can see which profile each kind of call used. */
 const TEST_PROFILES: ReviewProfiles = {
-  overview: { model: 'overview-model', effort: 'low' },
-  check: { model: 'check-model', effort: 'low' },
-  consolidation: { model: 'consolidation-model', effort: 'medium' },
-  standards: { model: 'standards-model', effort: 'high' },
-  investigation: { model: 'investigation-model', effort: 'max' },
+  overview: { provider: 'claude', model: 'overview-model', effort: 'low' },
+  check: { provider: 'claude', model: 'check-model', effort: 'low' },
+  consolidation: { provider: 'claude', model: 'consolidation-model', effort: 'medium' },
+  standards: { provider: 'claude', model: 'standards-model', effort: 'high' },
+  investigation: { provider: 'claude', model: 'investigation-model', effort: 'max' },
 };
 import {
   ARCHITECTURE_SCHEMA,
