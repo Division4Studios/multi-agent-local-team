@@ -49,7 +49,7 @@ export const BASELINE_RULES: readonly Rule[] = [
   {
     id: 'no-secrets',
     title: 'No secrets or unsafe input handling',
-    check: 'Is it free of hard-coded secrets, and does it avoid passing unvalidated input to shells, SQL, HTML or eval?',
+    check: 'Is it free of hard-coded secrets ([REDACTED] marks one MALT found and removed before review), and does it avoid passing unvalidated input to shells, SQL, HTML or eval?',
     category: 'Security',
     source: 'MALT baseline',
   },

@@ -110,13 +110,17 @@ export class ReviewService {
     this.conversations = conversations;
   }
 
-  /** Every model call goes through here, so the live log sees it start, stream and end, with its usage. */
+  /** Every model call goes through here: its prompt is redacted, and the live log sees it start, stream and end. */
   private async ask(label: string, call: StructuredCall): Promise<unknown> {
-    const logged = this.conversations.begin(label, call, call.userPrompt);
+    // Every prompt leaves the reviewer redacted, whatever built it and whichever provider answers: patches and file
+    // windows are raw workspace text. System prompts are static constants, so only the user message needs it.
+    const userPrompt = redactSecrets(call.userPrompt);
+    const logged = this.conversations.begin(label, call, userPrompt);
     let usage: CallUsage | undefined;
     try {
       const output = await this.providers[call.provider ?? 'claude'].callStructured({
         ...call,
+        userPrompt,
         onText: (text) => {
           logged.text(text);
           call.onText?.(text);
