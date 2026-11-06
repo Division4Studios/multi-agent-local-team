@@ -1,0 +1,6 @@
+[data-diagram-viewport] { overflow: auto; overscroll-behavior: contain; overflow-anchor: none; cursor: grab; }
+[data-diagram-viewport]:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
+.diagram-stage { width: max-content; padding: var(--pan-y, 0px) var(--pan-x, 0px); }
+.diagram-stage > svg { display: block; margin: 0 !important; max-width: none; }
+[data-diagram-viewport].is-panning, [data-diagram-viewport].is-panning * { cursor: grabbing; user-select: none; }
+[data-diagram-viewport].pan-ready, [data-diagram-viewport].pan-ready * { cursor: grab; }

@@ -1,0 +1,66 @@
+/* Shared MALT palette for webviews, notes, portable pages and SVG exports. */
+:root {
+  color-scheme: light;
+  --surface: #f7f5ef; --panel: #fffdf8; --ink: #191d24;
+  --muted: #596471; --border: #c8cdc8;
+  --teal: #08796c; --amber: #8a5c14; --purple: #7954ad;
+  --orange: #a34c19; --green: #197647; --red: #bc3446;
+  --blue: #286f9c; --slate: #596879;
+  --accent: var(--teal); --focus: var(--accent);
+  --good: var(--green); --bad: var(--red); --line: var(--border);
+  --dot: color-mix(in srgb, var(--muted) 18%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --surface: #0e1217; --panel: #191d24; --ink: #f7efda;
+    --muted: #b2b9bd; --border: #414a50;
+    --teal: #2bb8a6; --amber: #e6b85c; --purple: #a78bfa;
+    --orange: #f59e5b; --green: #3fc98a; --red: #f0646e;
+    --blue: #78b9df; --slate: #b2b9bd;
+  }
+}
+:root[data-theme='light'], body.vscode-light:not([data-appearance='dark']), body.vscode-high-contrast-light, body[data-appearance='light'] {
+  color-scheme: light;
+  --surface: #f7f5ef; --panel: #fffdf8; --ink: #191d24;
+  --muted: #596471; --border: #c8cdc8;
+  --teal: #08796c; --amber: #8a5c14; --purple: #7954ad;
+  --orange: #a34c19; --green: #197647; --red: #bc3446;
+  --blue: #286f9c; --slate: #596879;
+}
+:root[data-theme='dark'], body.vscode-dark:not([data-appearance='light']), body.vscode-high-contrast, body[data-appearance='dark'] {
+  color-scheme: dark;
+  --surface: #0e1217; --panel: #191d24; --ink: #f7efda;
+  --muted: #b2b9bd; --border: #414a50;
+  --teal: #2bb8a6; --amber: #e6b85c; --purple: #a78bfa;
+  --orange: #f59e5b; --green: #3fc98a; --red: #f0646e;
+  --blue: #78b9df; --slate: #b2b9bd;
+}
+/* Resolve aliases here too: custom properties resolve where they are declared. */
+body {
+  --accent: var(--teal); --focus: var(--vscode-focusBorder, var(--accent));
+  --good: var(--green); --bad: var(--red); --line: var(--border);
+  --dot: color-mix(in srgb, var(--muted) 18%, transparent);
+}
+body:is(.vscode-light, .vscode-dark):not([data-appearance='light']):not([data-appearance='dark']) {
+  --surface: var(--vscode-editor-background); --panel: var(--vscode-sideBar-background, var(--surface));
+  --ink: var(--vscode-foreground); --muted: var(--vscode-descriptionForeground);
+  --border: var(--vscode-panel-border, var(--slate));
+}
+body:is(.vscode-high-contrast, .vscode-high-contrast-light) {
+  --surface: var(--vscode-editor-background); --panel: var(--surface);
+  --ink: var(--vscode-foreground); --muted: var(--ink);
+  --border: var(--vscode-contrastBorder, var(--ink));
+  --accent: var(--vscode-focusBorder, var(--ink)); --focus: var(--accent);
+  --teal: var(--ink); --amber: var(--ink); --purple: var(--ink);
+  --orange: var(--ink); --green: var(--ink); --red: var(--ink);
+  --blue: var(--ink); --slate: var(--ink);
+}
+@media (forced-colors: active) {
+  :root, body {
+    --surface: Canvas; --panel: Canvas; --ink: CanvasText; --muted: CanvasText;
+    --border: CanvasText; --accent: Highlight; --focus: Highlight;
+    --teal: CanvasText; --amber: CanvasText; --purple: CanvasText; --orange: CanvasText;
+    --green: CanvasText; --red: CanvasText; --blue: CanvasText; --slate: CanvasText;
+  }
+}

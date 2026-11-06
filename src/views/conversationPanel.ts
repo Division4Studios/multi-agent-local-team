@@ -8,27 +8,29 @@
  * (`media/liveLog.js`) only ever sets `textContent`, so streamed text cannot inject markup or script.
  */
 import * as vscode from 'vscode';
+import { WEBVIEW_THEME } from './theme';
 import { randomBytes } from 'node:crypto';
 import type { ConversationEvent } from '../shared/conversation';
 
 const RECONNECT_MS = 3_000;
 
-const STYLE = `
-body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); margin: 0; }
-header { position: sticky; top: 0; background: var(--vscode-editor-background); padding: 0.6rem 1rem; border-bottom: 1px solid var(--vscode-panel-border); z-index: 1; }
-header h1 { font-size: 1rem; margin: 0; } #status, #usage { color: var(--vscode-descriptionForeground); font-size: 0.85em; }
+const STYLE = `${WEBVIEW_THEME}
+
+body { font-family: var(--vscode-font-family); color: var(--ink); background: var(--surface); margin: 0; }
+header { position: sticky; top: 0; background: var(--surface); padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); z-index: 1; }
+header h1 { font-size: 1rem; margin: 0; } #status, #usage { color: var(--muted); font-size: 0.85em; }
 #calls { padding: 0.5rem 1rem 2rem; }
-.call { border: 1px solid var(--vscode-panel-border); border-radius: 6px; margin: 0.6rem 0; padding: 0.5rem 0.75rem; }
+.call { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; margin: 0.6rem 0; padding: 0.5rem 0.75rem; border-left: 3px solid var(--purple); }
 .head { display: flex; gap: 0.6rem; align-items: baseline; flex-wrap: wrap; }
-.label { font-weight: 600; } .model, .time, .usage { color: var(--vscode-descriptionForeground); font-size: 0.85em; }
+.label { font-weight: 600; color: var(--purple); } .model, .time, .usage { color: var(--muted); font-size: 0.85em; }
 .usage { margin-top: 0.35rem; }
-.state { font-size: 0.8em; padding: 0 0.45rem; border-radius: 999px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
-.state.ok { background: var(--vscode-testing-iconPassed); color: var(--vscode-editor-background); }
-.state.err, .state.stalled { background: var(--vscode-errorForeground); color: var(--vscode-editor-background); }
-details { margin-top: 0.35rem; } summary { cursor: pointer; color: var(--vscode-descriptionForeground); font-size: 0.85em; }
+.state { font-size: 0.8em; padding: 0 0.45rem; border-radius: 999px; background: var(--panel); color: var(--amber); }
+.state.ok { background: var(--good); color: var(--surface); }
+.state.err, .state.stalled { background: var(--bad); color: var(--surface); }
+details { margin-top: 0.35rem; } summary { cursor: pointer; color: var(--muted); font-size: 0.85em; }
 pre { white-space: pre-wrap; word-break: break-word; font-family: var(--vscode-editor-font-family); font-size: 0.85em; margin: 0.35rem 0 0; }
-.prompt { max-height: 18rem; overflow: auto; color: var(--vscode-descriptionForeground); }
-.error { color: var(--vscode-errorForeground); }`;
+.prompt { max-height: 18rem; overflow: auto; color: var(--muted); }
+.error { color: var(--bad); }`;
 
 export type LiveLogMessage =
   | { readonly type: 'status'; readonly text: string }

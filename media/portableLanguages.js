@@ -1,7 +1,7 @@
 /* Ordered keys keep all reader controls in the same vocabulary across display languages. */
 globalThis.maltLabels = (() => {
   const keys =
-    'view part find theme motion fields zone play pause previous next journey export scale save ask parent source formats language copy inspect prompt'.split(
+    'view part find theme motion fields zone play pause previous next journey export scale save ask parent source formats language copy inspect prompt center panHint'.split(
       ' ',
     );
   const rows = {
@@ -29,6 +29,8 @@ globalThis.maltLabels = (() => {
       'Copy',
       'Inspect',
       'Clarify this passage or component',
+      'Center diagram',
+      'Drag with the middle mouse button or drag empty canvas. With the canvas focused, use Space + drag, arrow keys, or Home to center.',
     ],
     'zh-CN': [
       '视图',
@@ -54,6 +56,8 @@ globalThis.maltLabels = (() => {
       '复制',
       '检查',
       '请解释所选段落或组件',
+      '居中图表',
+      '用鼠标中键或拖动空白画布平移。画布获得焦点后，可按空格并拖动、使用方向键，或按 Home 居中。',
     ],
     'zh-TW': [
       '檢視',
@@ -79,6 +83,8 @@ globalThis.maltLabels = (() => {
       '複製',
       '檢視',
       '請解釋所選段落或元件',
+      '置中圖表',
+      '用滑鼠中鍵或拖動空白畫布平移。畫布取得焦點後，可按空白鍵並拖動、使用方向鍵，或按 Home 置中。',
     ],
     es: [
       'Vista',
@@ -104,6 +110,8 @@ globalThis.maltLabels = (() => {
       'Copiar',
       'Inspeccionar',
       'Aclara este pasaje o componente',
+      'Centrar diagrama',
+      'Arrastra con el botón central o sobre el lienzo vacío. Con el lienzo enfocado, usa Espacio y arrastra, las flechas o Inicio para centrar.',
     ],
     ko: [
       '보기',
@@ -129,6 +137,8 @@ globalThis.maltLabels = (() => {
       '복사',
       '검토',
       '이 구절이나 구성 요소를 설명해 주세요',
+      '다이어그램 중앙 정렬',
+      '마우스 가운데 버튼이나 빈 캔버스를 드래그하세요. 캔버스에 초점을 맞춘 후 스페이스와 드래그, 방향키 또는 Home으로 이동하거나 중앙 정렬하세요.',
     ],
   };
   return Object.fromEntries(

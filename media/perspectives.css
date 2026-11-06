@@ -20,13 +20,13 @@
 .lifeline, .lane { stroke: var(--muted); stroke-width: 1; }
 .lifeline, .dependency, .implements, .realization { stroke-dasharray: 5 4; }
 .lane { opacity: .25; }
-.role0 { --role: var(--blue, #468ed1); }
-.role1 { --role: var(--purple, #ba7ac8); }
-.role2 { --role: var(--green, #40a499); }
-.role3 { --role: var(--amber, #bf8750); }
-.role4 { --role: var(--pink, #dd697e); }
-.role5 { --role: var(--lime, #82a451); }
-.role6 { --role: var(--slate, #9496ca); }
+.role0 { --role: var(--teal); }
+.role1 { --role: var(--purple); }
+.role2 { --role: var(--green); }
+.role3 { --role: var(--amber); }
+.role4 { --role: var(--orange); }
+.role5 { --role: var(--blue); }
+.role6 { --role: var(--slate); }
 .timebar { fill: var(--role); }
 #modelDetail div { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
 #modelDetail button { display: block; margin: 8px 0; max-width: 100%; }
@@ -47,3 +47,5 @@
   #modelSvg[data-motion='live'] .wire[data-active='true'] { stroke-dasharray: 9 5; animation: malt-flow 1.4s linear infinite; }
 }
 @keyframes malt-flow { to { stroke-dashoffset: -28; } }
+
+.model-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
