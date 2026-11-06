@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Server } from 'node:http';
 import { Delegation, DelegatingProvider, MAX_WAITING } from '../../reviewer/delegation';
-import { OVERVIEW_SYSTEM_PROMPT } from '../../reviewer/prompts';
+import { BASELINE_RULES, OVERVIEW_SCHEMA, OVERVIEW_SYSTEM_PROMPT } from '../../reviewer/prompts';
 import { createReviewerServer } from '../../reviewer/server';
 import { ReviewService } from '../../reviewer/service';
 import type { StructuredCall } from '../../reviewer/providers/provider';
@@ -244,6 +244,45 @@ export const tests: readonly TestCase[] = [
       posted.length = 0;
       await deliver(failing(200), call, { id: ID, output: { big: 'x'.repeat(MAX_DELEGATED_RESULT_BYTES) } });
       assert.ok(posted[0] !== undefined && 'error' in posted[0] && posted[0].error.includes('larger than MALT accepts'), 'measured before sending');
+    },
+  },
+  {
+    name: 'providers: every prompt is redacted before any provider sees it, Claude and delegated alike',
+    run: async (): Promise<void> => {
+      const secret = ['sk', 'ant', 'api03', 'r'.repeat(32)].join('-');
+      const root = await mkdtemp(join(tmpdir(), 'malt-redact-'));
+      await mkdir(join(root, 'src'));
+      await writeFile(join(root, 'src', 'a.ts'), `const a = 1;
+const key = "${secret}";
+`);
+      const request = { filePath: 'src/a.ts', startLine: 1, endLine: 1, patch: `@@
++const key = "${secret}";` };
+      const prompts: string[] = [];
+      const claude = { name: 'claude', callStructured: async (call: StructuredCall): Promise<unknown> => {
+        prompts.push(call.userPrompt);
+        return await Promise.resolve(call.schema === OVERVIEW_SCHEMA ? OVERVIEW : { status: 'pass', note: 'n', detail: 'd' });
+      } };
+      const service = new ReviewService({ workspaceRoot: root, profiles: profiles('claude') }, claude);
+      await service.review(request);
+      await service.check({ ...request, ruleId: 'focused-change' });
+      assert.equal(prompts.length, 2);
+      assert.ok(prompts.every((prompt) => !prompt.includes(secret) && prompt.includes('[REDACTED]')), 'patch and file window are redacted for Claude');
+      assert.ok(prompts[1]?.includes('[REDACTED] marks one MALT found and removed') === false, 'focused-change sees only its own rule');
+      assert.ok(BASELINE_RULES.find((rule) => rule.id === 'no-secrets')?.check.includes('[REDACTED] marks one MALT found and removed') === true, 'no-secrets still knows a removed credential was there');
+
+      const delegation = new Delegation();
+      const { server, client } = await startServer(delegation, []);
+      const delegated: string[] = [];
+      const worker = new DelegationWorker(() => client, { copilot: async (call): Promise<unknown> => { delegated.push(call.userPrompt); return await Promise.resolve(OVERVIEW); } });
+      try {
+        worker.start();
+        await client.review(request);
+        assert.ok(delegated.length === 1 && delegated[0]?.includes(secret) === false, 'the prompt that crosses to the extension is already redacted');
+      } finally {
+        worker.dispose();
+        delegation.close();
+        server.close();
+      }
     },
   },
 ];

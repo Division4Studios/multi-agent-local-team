@@ -15,6 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Coordinated MALT colors across diagrams, legends, selected-component notes, discussions, review pages, and exports, with light, dark, editor, and high-contrast support.
 
+### Fixed
+
+- Recognizable credentials in changed code are now redacted from every review prompt, for Claude and GitHub Copilot alike; before, only discussions, scans and component context were. The `no-secrets` check still flags a block that contained one.
+
 ## [1.0.0] - 2026-11-05
 
 ### Added
