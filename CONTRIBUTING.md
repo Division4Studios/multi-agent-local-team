@@ -49,7 +49,7 @@ Before pushing, run:
 npm run verify
 ```
 
-This runs, in order: the dependency policy check, strict type-checking, lint (zero warnings), dependency policy and file-selection regression tests, and the extension tests inside a real VS Code instance. CI runs the same checks plus `npm run audit`, CodeQL and dependency review. **A PR cannot merge unless all of them pass.**
+This runs, in order: the dependency policy check, strict type-checking, lint (zero warnings), the toolchain regression tests (dependency guard, compiler aliases, security overrides, ESLint/VSCE file selection, architecture view), the compiler sandbox check (Docker), and the extension tests inside a real VS Code instance. CI runs the same checks plus `npm run audit`, an architecture-publication browser check (Linux), a VSIX contents check (`vsce ls`), CodeQL and dependency review. **A PR cannot merge unless all of them pass.**
 
 Rules that are enforced and will not be waived in review:
 
@@ -68,7 +68,7 @@ Rules that are enforced and will not be waived in review:
 | `main` | What has been released. | Pull requests from `dev` only, opened by a maintainer, merged with a merge commit |
 
 - **Branch from `dev` and open your pull request against `dev`.** A pull request into `main` from any other branch fails the *Source branch is dev* check and can't merge.
-- Both branches are protected by repository rulesets. Nobody can push to them directly, force-push or delete them. Every change needs a pull request with an approving code-owner review, all review conversations resolved, and every CI check passing: the build, tests on Linux, macOS and Windows, CodeQL with no new alerts, and dependency review. New commits dismiss earlier approvals.
+- Both branches are protected by repository rulesets. Nobody can push to them directly, force-push or delete them. Every change needs a pull request with an approving code-owner review (the sole maintainer may bypass only that approval rule; see [docs/repository-settings.md](docs/repository-settings.md)), all review conversations resolved, and every CI check passing: the build, tests on Linux, macOS and Windows, CodeQL with no new alerts, and dependency review. New commits dismiss earlier approvals.
 - **Every commit in your pull request must be signed** with a key on your own GitHub account. It takes a few minutes, once. See [Signing your commits](#signing-your-commits).
 - Release tags (`v*`) can only be created by maintainers, and can't be moved or deleted. How a release is made: [docs/releasing.md](docs/releasing.md).
 

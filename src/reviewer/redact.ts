@@ -3,7 +3,8 @@
  * copied from the workspace; the log masks recognizable ones before they are kept or sent to a viewer.
  *
  * Redaction is best effort (it cannot know every secret format), so the log also stays in memory only, needs the
- * reviewer's token, and is never written to disk. It never changes what the model is sent or what MALT stores.
+ * reviewer's token, and is never written to disk. Every prompt is also redacted before any provider sees it
+ * (`ReviewService.ask`); the `no-secrets` rule tells the model that `[REDACTED]` marks a credential MALT removed.
  */
 
 const MASK = '[REDACTED]';

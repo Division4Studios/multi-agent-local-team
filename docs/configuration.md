@@ -8,10 +8,10 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | `malt.reviewer.autoStart` | `true` | Start when a workspace opens |
 | `malt.reviewer.maxConcurrentReviews` | `2` | Initial agents across all call types; positive integer with no fixed maximum. User-only; restart to apply |
 | `malt.reviewer.claudePath` | `claude` | Host CLI executable; restart reviewer. User (machine) settings only: workspace settings are ignored, so a repository cannot choose what MALT runs |
-| `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise `DOCKER_HOST` or platform default; restart reviewer. User (machine) settings only |
+| `malt.docker.socketPath` | empty | Docker socket/pipe override; otherwise a `unix://` or `npipe://` `DOCKER_HOST`, else the platform default (TCP hosts are not supported); restart reviewer. User (machine) settings only |
 | `malt.reviewer.<type>Provider` | `claude` | Who answers each review type: `claude` or `copilot` (see **Review providers** below). `<type>` is `triage`, `review`, `consolidation`, `standards` or `investigation`. User (machine) settings only, so a repository can never choose which service receives its code |
 | `malt.reviewer.<type>CopilotModel` | `auto` | The GitHub Copilot model for that type when its provider is `copilot`: a model id from **Detect Review Providers**, or `auto` for the first model Copilot offers. Separate from the Claude model and user-only like the provider, so switching provider never pairs one provider with the other's model |
-| `malt.reviewer.triageModel` / `triageEffort` | `sonnet` / `low` | Block overviews: one call per changed block |
+| `malt.reviewer.triageModel` / `triageEffort` | `sonnet` / `low` | Block overviews (purpose, technical, design, which rules apply): one call per changed block. `haiku` is cheaper but argues design less well |
 | `malt.reviewer.reviewModel` / `reviewEffort` | `haiku` / `low` | Rule checks: one call per applicable rule per block, most of the usage |
 | `malt.reviewer.consolidationModel` / `consolidationEffort` | `sonnet` / `low` | The whole-change consolidation check |
 | `malt.reviewer.standardsModel` / `standardsEffort` | `opus` / `medium` | Scan Project Standards (three calls, only when you scan) |
@@ -20,6 +20,11 @@ Open VS Code Settings and search `@ext:division4studios.malt`, or edit your user
 | `malt.changes.autoOpenPauseSeconds` | `60` | While you are working (clicking, typing, scrolling, switching files, or opening something from MALT), auto-open waits until you have been idle this long, so it never pulls you away from what you are investigating. New changes still appear in **Changes** right away |
 | `malt.changes.autoReview` | `true` | Queue new blocks automatically |
 | `malt.changes.autoConsolidation` | `true` | Run the whole-change consolidation check (one reviewer call) 30 seconds after new files stop appearing |
+| `malt.architecture.shareAgentHandoffs` | `false` | Let connected local MCP clients post handoffs to other agents. Reading guidance works without it; recopy or reconnect the MCP configuration after changing. User (machine) settings only |
+| `malt.architecture.chromePath` | empty | Chrome or Chromium for publication browser checks. User (machine) settings only |
+| `malt.architecture.nodePath` | empty | Node for the publication task; if empty, MALT asks for it on the first Finalize and saves your choice. User (machine) settings only |
+
+Model and effort changes apply when the reviewer restarts.
 
 For a manual workflow:
 
@@ -50,15 +55,16 @@ All commands below have the **MALT:** prefix.
 | --- | --- |
 | Start Reviewer | Start/restart the selected backend |
 | Stop Reviewer | Stop the managed reviewer |
-| Scan Project Standards | Read docs, map the source files, infer undocumented conventions and list gaps; saves `.malt/standards.json` and `.malt/architecture.json` |
+| Scan Project Standards (Rescan) | Read docs, map the source files, infer undocumented conventions and list gaps; saves `.malt/standards.json` and `.malt/architecture.json` |
 | Show Project Standards | Open the saved rules as a page grouped by category, with the MALT baseline checks (also the **Standards** row) |
 | Show Architecture Map | Explore files, symbols and relationships in the **Architecture** row. Compare local branch tips or a branch against saved edits. |
-| Copy Local Agent MCP Configuration | Copy the stdio connection and public verifier for Claude, Codex or another local MCP client. |
+| Copy Local Agent MCP Configuration | Copy the stdio connection and public verifier for Claude, Codex or another local MCP client. The copied entry runs the `node` on your PATH. MALT also offers a "MALT · <folder>" server to VS Code's own MCP support for each trusted folder. Posting handoffs needs `malt.architecture.shareAgentHandoffs`. |
 | Finalize Diagram or One-page Answer | Publish a version 1 MALT model. Diagram exports request Chrome checks. One-page answers offer a choice. |
 | Show Architecture File Summaries | Read the reviewer’s file summaries and applicable developer clarifications. |
 | Show Standards Gaps | Reopen the gaps the last scan found as one page. In the Reviewer view, the **Gaps** row lists them; selecting one opens the file at the declaration it names, outlined, with the gap on hover |
 | Show Live Reviewer Log | Watch every model call as it happens: what it is for, the prompt sent and the answer streaming in, with elapsed time and a stall indicator. Nothing is saved; individual logs are available under **Reviewers health** |
 | Detect Review Providers | Show which review providers this machine can use (Claude, GitHub Copilot) and their models. The first Copilot check asks your permission |
+| Investigate All Standards Gaps | Investigate every gap not yet investigated, after saying how many calls it will make (one per gap) |
 | Check Consolidation Across Changes | One reviewer call over the new declarations in every changed block; findings appear at the top of **Changes** |
 | Review Pull Request… | Pick an open pull request on the workspace's GitHub repository (sign in with VS Code's GitHub account), check it out, and list its changed blocks in the **Pull Request** view. Refuses while you have uncommitted changes |
 | Review All Pull Request Blocks | Review every block of the open pull request, after showing what it will cost |
@@ -75,7 +81,7 @@ Structural indexing and branch comparison run locally. **Scan Project Standards*
 
 ## Theme customization
 
-Use `workbench.colorCustomizations` for `malt.hunkPending`, `malt.hunkPass`, and `malt.hunkFail`. Defaults cover dark, light, and both high-contrast themes. Status icons and text explain the state without requiring color recognition.
+Use `workbench.colorCustomizations` for `malt.hunkPending`, `malt.hunkPass`, and `malt.hunkFail` (block outlines), and `malt.finding` and `malt.findingBackground` (the outline and background of a gap's or consolidation finding's declaration). Defaults cover dark, light, and both high-contrast themes. Status icons and text explain the state without requiring color recognition.
 
 ## Individual reviewer agents
 
