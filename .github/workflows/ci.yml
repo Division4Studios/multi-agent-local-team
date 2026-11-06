@@ -52,7 +52,8 @@ jobs:
           name: typescript7-output
           path: out/
           if-no-files-found: error
-          retention-days: 1
+          # Kept 14 days on main: a manual Release run of a tag reuses its commit's tested output.
+          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
 
   verify:
     needs: compile
