@@ -3,6 +3,7 @@
  * unavailable (or has no credentials) unless the user pinned a backend in settings.
  */
 import * as vscode from 'vscode';
+import { AgentMonitor } from './agentMonitor';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
 import { readSettings } from '../config';
@@ -51,6 +52,7 @@ const delay = async (ms: number): Promise<void> => { await new Promise((resolveP
   }); };
 
 export class ReviewerManager implements vscode.Disposable {
+  public readonly agentMonitor = new AgentMonitor(() => this.client);
   private readonly statusEmitter = new vscode.EventEmitter<ReviewerStatus>();
   public readonly onDidChangeStatus = this.statusEmitter.event;
   private currentStatus: ReviewerStatus = { state: 'stopped', detail: 'Not started' };
@@ -69,6 +71,11 @@ export class ReviewerManager implements vscode.Disposable {
     this.credentials = credentials;
     this.output = output;
     this.mapVerifier = mapVerifier;
+  }
+
+  public get agentCapacity(): number {
+    return this.agentMonitor.agents.length === 0 ? readSettings().maxConcurrentReviews
+      : this.agentMonitor.agents.filter((agent) => agent.state !== 'stopped').length;
   }
 
   public get status(): ReviewerStatus {
@@ -92,11 +99,13 @@ export class ReviewerManager implements vscode.Disposable {
       const env = {
         ...profilesToEnv(settings.profiles),
         MALT_MAP_VERIFIER: this.mapVerifier,
+        MALT_REVIEWER_AGENTS: String(settings.maxConcurrentReviews),
         ...(await this.credentials.env()),
       };
       await backend.start({ workspaceRoot, port: endpoint.port, token: endpoint.token, env });
       this.activeClient = new ReviewerClient(endpoint);
       await this.waitForHealthy(this.activeClient);
+      this.agentMonitor.start();
       this.monitor = setInterval(() => void this.checkHealth(), HEALTH_INTERVAL_MS);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -107,6 +116,7 @@ export class ReviewerManager implements vscode.Disposable {
   }
 
   public async stop(): Promise<void> {
+    this.agentMonitor.stop();
     clearInterval(this.monitor);
     this.monitor = undefined;
     this.activeClient = undefined;
@@ -125,6 +135,7 @@ export class ReviewerManager implements vscode.Disposable {
   public dispose(): void {
     void this.stop();
     this.statusEmitter.dispose();
+    this.agentMonitor.dispose();
   }
 
   private async chooseBackend(): Promise<ReviewerBackend> {

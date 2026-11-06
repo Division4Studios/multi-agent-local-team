@@ -28,6 +28,7 @@ interface ProcessResult {
 }
 
 interface ProcessOptions {
+  readonly signal?: AbortSignal;
   readonly input: string;
   readonly timeoutMs: number;
   readonly cwd: string;
@@ -69,11 +70,16 @@ export const eventReader = (onEvent: (event: unknown) => void): LineSplitter =>
 
 const runProcess = async (command: string, args: readonly string[], options: ProcessOptions): Promise<ProcessResult> =>
   await new Promise((resolvePromise, reject) => {
+    options.signal?.throwIfAborted();
     const child = spawn(command, args, { cwd: options.cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const abort = (): void => { child.kill('SIGKILL'); };
+    options.signal?.addEventListener('abort', abort, { once: true });
     const stderr: Buffer[] = [];
     let stdoutBytes = 0;
     let stderrBytes = 0;
     let result: unknown;
+    let inputError: Error | undefined;
+    child.stdin.on('error', (error: Error) => { inputError = error; child.kill('SIGKILL'); });
     const timer = setTimeout(() => child.kill(), options.timeoutMs);
     const reader = eventReader((event) => {
       if (isRecord(event) && event['type'] === 'result') {
@@ -97,11 +103,15 @@ const runProcess = async (command: string, args: readonly string[], options: Pro
     });
     child.on('error', (error) => {
       clearTimeout(timer);
+      options.signal?.removeEventListener('abort', abort);
       reject(error);
     });
     child.on('close', (code) => {
       clearTimeout(timer);
+      options.signal?.removeEventListener('abort', abort);
       reader.end();
+      if (options.signal?.aborted === true) { reject(new Error('Reviewer task cancelled')); return; }
+      if (inputError !== undefined) { reject(inputError); return; }
       resolvePromise({ code, result, stderr: Buffer.concat(stderr).toString('utf8') });
     });
     child.stdin.end(options.input);
@@ -195,6 +205,7 @@ export class ClaudeCodeProvider implements ReviewProvider {
   }
 
   public async callStructured(call: StructuredCall): Promise<unknown> {
+    call.signal?.throwIfAborted();
     const started = Date.now();
     let result = await this.attempt(call, call.timeoutMs);
     let usage = usageFrom(result.result);
@@ -222,7 +233,7 @@ export class ClaudeCodeProvider implements ReviewProvider {
       }
     };
     try {
-      return await runProcess(this.claudePath, args, { input: call.userPrompt, timeoutMs, cwd: workDir, onEvent });
+      return await runProcess(this.claudePath, args, { input: call.userPrompt, timeoutMs, cwd: workDir, onEvent, ...(call.signal === undefined ? {} : { signal: call.signal }) });
     } finally {
       await rm(workDir, { recursive: true, force: true });
     }

@@ -77,6 +77,11 @@
       }
     ],
     "commands": [
+      {"command": "malt.addReviewerAgent", "title": "Add Reviewer Agent", "category": "MALT"},
+      {"command": "malt.cancelReviewerAgent", "title": "Cancel Current Task", "category": "MALT"},
+      {"command": "malt.stopReviewerAgent", "title": "Stop Agent", "category": "MALT"},
+      {"command": "malt.startReviewerAgent", "title": "Start Agent", "category": "MALT"},
+      {"command": "malt.showAgentLog", "title": "Show Agent Live Stream Log", "category": "MALT"},
       {
         "command": "malt.startReviewer",
         "title": "Start Reviewer",
@@ -358,6 +363,11 @@
         }
       ],
       "view/item/context": [
+        {"command": "malt.addReviewerAgent", "when": "view == malt.reviewer && (viewItem == reviewersHealth)", "group": "agents"},
+        {"command": "malt.cancelReviewerAgent", "when": "view == malt.reviewer && (viewItem == reviewerAgentWorking)", "group": "agents"},
+        {"command": "malt.stopReviewerAgent", "when": "view == malt.reviewer && (viewItem == reviewerAgentWorking || viewItem == reviewerAgentIdle)", "group": "agents"},
+        {"command": "malt.startReviewerAgent", "when": "view == malt.reviewer && (viewItem == reviewerAgentStopped)", "group": "agents"},
+        {"command": "malt.showAgentLog", "when": "view == malt.reviewer && (viewItem == reviewerAgentWorking || viewItem == reviewerAgentIdle || viewItem == reviewerAgentStopped)", "group": "agents"},
         {
           "command": "malt.detectProviders",
           "when": "view == malt.reviewer && viewItem == reviewModels",
@@ -691,8 +701,8 @@
           "type": "integer",
           "default": 2,
           "minimum": 1,
-          "maximum": 8,
-          "description": "How many reviewer calls (block overviews and rule checks) run in parallel."
+          "scope": "machine",
+          "description": "Initial reviewer agents across all call types (default 2). No fixed maximum. Restart the reviewer to apply; add or stop agents from Reviewers health for the current session."
         },
         "malt.reviewer.claudePath": {
           "type": "string",

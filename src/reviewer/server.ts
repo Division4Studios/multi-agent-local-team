@@ -19,6 +19,7 @@ import { parseDiscussion } from '../shared/understanding';
 import { isGapId } from '../shared/investigation';
 import { parseDelegatedResult, parseDelegatedText } from '../shared/delegation';
 import { Delegation } from './delegation';
+import { parseAgentControl } from '../shared/reviewerAgents';
 
 const MAX_BODY_BYTES = 1_000_000;
 
@@ -118,6 +119,8 @@ export const MODEL_CALL_WAIT_MS = 25_000;
  */
 const delegationRoute = async (delegation: Delegation, key: string, request: IncomingMessage): Promise<unknown> => {
   switch (key) {
+    case 'GET /model-calls/active':
+      return delegation.active();
     case 'GET /model-calls':
       return { calls: await delegation.take(MODEL_CALL_WAIT_MS) };
     case 'POST /model-calls/result': {
@@ -223,9 +226,18 @@ export const shutdownReviewerServer = (server: Server): void => {
   server.closeAllConnections();
 };
 
+const agentRoute = async (service: ReviewService, request: IncomingMessage): Promise<unknown> => {
+  if (request.method === 'GET') { return service.agents.snapshot(); }
+  if (request.method !== 'POST') { throw new HttpError(405, 'Method not allowed'); }
+  const control = await readRequest(request, parseAgentControl, 'agent control');
+  if (!service.agents.control(control)) { throw new HttpError(409, 'Agent or task changed; refresh and try again'); }
+  return service.agents.snapshot();
+};
+
 /** Delegated-call routes and review routes are kept apart; both sit behind the same token check. */
 const dispatch = async (service: ReviewService, delegation: Delegation, request: IncomingMessage): Promise<unknown> => {
   const path = request.url ?? '';
+  if (path === '/agents') { return await agentRoute(service, request); }
   return path === '/model-calls' || path.startsWith('/model-calls/')
     ? await delegationRoute(delegation, `${request.method ?? ''} ${path}`, request)
     : await route(service, request);

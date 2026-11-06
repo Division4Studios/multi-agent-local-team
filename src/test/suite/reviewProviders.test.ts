@@ -1,10 +1,11 @@
 /** Review providers (#33): a provider per call type, delegated calls through the extension, and Copilot's runner. */
 import assert from 'node:assert/strict';
+import { waitFor } from './testUtils';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Server } from 'node:http';
-import { Delegation, DelegatingProvider, MAX_WAITING } from '../../reviewer/delegation';
+import { Delegation, DelegatingProvider } from '../../reviewer/delegation';
 import { BASELINE_RULES, OVERVIEW_SCHEMA, OVERVIEW_SYSTEM_PROMPT } from '../../reviewer/prompts';
 import { createReviewerServer } from '../../reviewer/server';
 import { ReviewService } from '../../reviewer/service';
@@ -45,6 +46,34 @@ const startServer = async (delegation: Delegation, claudeCalls: StructuredCall[]
 };
 
 export const tests: readonly TestCase[] = [
+  {
+    name: 'agents: HTTP cancellation reaches the delegated runner and rejects a late successful answer',
+    run: async (): Promise<void> => {
+      const delegation = new Delegation();
+      const { server, client } = await startServer(delegation, []);
+      let started = false;
+      let aborted = false;
+      const worker = new DelegationWorker(() => client, { copilot: async (call, onText, signal): Promise<unknown> => {
+        assert.equal(call.provider, 'copilot');
+        onText('starting ' );
+        assert.ok(signal !== undefined);
+        started = true;
+        await new Promise<void>((resolve) => { signal.addEventListener('abort', () => { aborted = true; resolve(); }, { once: true }); });
+        return OVERVIEW;
+      } });
+      try {
+        worker.start();
+        const reviewed = assert.rejects(client.review({ filePath: 'src/a.ts', startLine: 1, endLine: 1, patch: '@@\n+const b = 2;' }), /cancelled/u);
+        await waitFor(() => started, 'delegated call started', 3_000);
+        const agent = (await client.agents()).find((candidate) => candidate.taskId !== '');
+        assert.ok(agent !== undefined);
+        await client.agents({ action: 'cancel', id: agent.id, taskId: agent.taskId });
+        await reviewed;
+        assert.ok(aborted, 'the actual runner received its abort signal');
+        assert.equal((await client.agents()).find((candidate) => candidate.id === agent.id)?.state, 'idle');
+      } finally { worker.dispose(); delegation.close(); server.close(); }
+    },
+  },
   {
     name: 'providers: each profile names its provider, and an invalid provider never keeps another provider\u2019s model',
     run: (): void => {
@@ -98,12 +127,12 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
-    name: 'providers: a full queue refuses new calls, and shutdown fails waiting ones',
+    name: 'providers: explicit capacity has no fixed call cap, and shutdown fails waiting ones',
     run: async (): Promise<void> => {
       const delegation = new Delegation();
       const failure = async (): Promise<string> => await delegation.run('copilot', CALL).then(() => '', (error: unknown) => (error instanceof Error ? error.message : ''));
-      const waiting = Array.from({ length: MAX_WAITING }, failure);
-      await assert.rejects(delegation.run('copilot', CALL), /too many calls are waiting/u);
+      const waiting = Array.from({ length: 80 }, failure);
+      assert.equal(delegation.active().length, 80);
       delegation.close();
       assert.ok((await Promise.all(waiting)).every((message) => message === 'The reviewer is shutting down'));
       await assert.rejects(delegation.run('copilot', CALL), /shutting down/u);

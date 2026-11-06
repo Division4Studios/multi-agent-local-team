@@ -3,6 +3,7 @@ import type { CallUsage } from '../../shared/conversation';
 import type { Effort, ProviderId } from '../../shared/reviewProfiles';
 
 export interface StructuredCall {
+  readonly signal?: AbortSignal;
   /** Who answers; Claude when absent. The service routes the call to that provider. */
   readonly provider?: ProviderId;
   readonly systemPrompt: string;
