@@ -85,7 +85,7 @@ Use `workbench.colorCustomizations` for `malt.hunkPending`, `malt.hunkPass`, and
 
 ## Individual reviewer agents
 
-Expand **Reviewer > Reviewers health** to see each agent. MALT starts two agents by default, shared across all review call types. Set `malt.reviewer.maxConcurrentReviews` in user settings and restart the reviewer to change the initial count. There is no fixed maximum; available memory and provider quotas still govern actual throughput. Repository settings cannot increase this machine-scoped value.
+Expand **Reviewer > Reviewers health** to see each agent. MALT starts two agents by default, shared across all review call types. Set `malt.reviewer.maxConcurrentReviews` in user settings and restart the reviewer to change the initial count. There is no fixed maximum; available memory and provider quotas still govern actual throughput. Repository settings cannot increase this machine-scoped value. In Docker, the reviewer container's memory and process limits grow with the agents: 1 GiB and 256 processes for two agents, plus 384 MiB and 32 processes for each further agent, raised on the running container when you add one. Each working agent runs its own Claude CLI process, so make sure Docker Desktop has that much memory to give.
 
 Right-click **Reviewers health** to **Add Reviewer Agent** for this session. Right-click an agent to **Cancel Current Task**, **Stop Agent**, **Start Agent**, or **Show Agent Live Stream Log**. Cancel releases the agent after its operation ends; Stop also removes its capacity until started again. Cancelling leaves that review incomplete and available for an explicit retry. Adding or starting capacity lets already queued work proceed. Changes to the running pool last until the reviewer restarts.
 

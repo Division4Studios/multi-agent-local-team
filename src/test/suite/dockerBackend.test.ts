@@ -1,6 +1,6 @@
 /** The Docker reviewer's identity and hardening (#34): it reads exactly what the developer can, and never runs as root. */
 import assert from 'node:assert/strict';
-import { containerIdentity, containerSpec } from '../../backend/dockerBackend';
+import { containerIdentity, containerLimits, containerSpec } from '../../backend/dockerBackend';
 import type { UserContext } from '../../backend/dockerBackend';
 import { isRecord } from '../../shared/guards';
 import type { TestCase } from './harness';
@@ -36,7 +36,7 @@ export const tests: readonly TestCase[] = [
   {
     name: 'docker reviewer: the container keeps its hardening whichever identity it runs as',
     run: (): void => {
-      const options = { workspaceRoot: '/home/dev/project', port: 4321, token: 't', env: {} };
+      const options = { workspaceRoot: '/home/dev/project', port: 4321, token: 't', env: {}, agents: 2 };
       const spec = containerSpec('malt-reviewer:test', options, { user: '1001:1002', groups: ['1000'] });
       assert.equal(spec['User'], '1001:1002');
       const host = spec['HostConfig'];
@@ -51,6 +51,23 @@ export const tests: readonly TestCase[] = [
       assert.deepEqual(host['PortBindings'], { '8787/tcp': [{ HostIp: '127.0.0.1', HostPort: '4321' }] });
       const plain = containerSpec('malt-reviewer:test', options, node)['HostConfig'];
       assert.ok(isRecord(plain) && !('GroupAdd' in plain), 'no GroupAdd when there are no extra groups');
+      assert.equal(host['Memory'], 1_073_741_824, 'two agents keep the 1 GiB the reviewer always had');
+      assert.equal(host['PidsLimit'], 256);
+      assert.equal(host['MemorySwap'], host['Memory'], 'no swap beyond the limit');
+    },
+  },
+  {
+    name: 'docker reviewer: memory and process limits grow with the agents, so more agents are not starved',
+    run: (): void => {
+      assert.deepEqual(containerLimits(8), { Memory: 3_489_660_928, MemorySwap: 3_489_660_928, PidsLimit: 448 });
+      for (const agents of [1, 2, 3, 16, 64]) {
+        const limits = containerLimits(agents);
+        const next = containerLimits(agents + 1);
+        assert.ok(next.Memory - limits.Memory >= 384 * 1_048_576 && next.PidsLimit > limits.PidsLimit, `room for agent ${String(agents + 1)}`);
+      }
+      const options = { workspaceRoot: '/w', port: 1, token: 't', env: {}, agents: 8 };
+      const host = containerSpec('malt-reviewer:test', options, node)['HostConfig'];
+      assert.ok(isRecord(host) && host['Memory'] === containerLimits(8).Memory && host['PidsLimit'] === 448);
     },
   },
 ];

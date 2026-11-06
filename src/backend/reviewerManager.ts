@@ -102,7 +102,7 @@ export class ReviewerManager implements vscode.Disposable {
         MALT_REVIEWER_AGENTS: String(settings.maxConcurrentReviews),
         ...(await this.credentials.env()),
       };
-      await backend.start({ workspaceRoot, port: endpoint.port, token: endpoint.token, env });
+      await backend.start({ workspaceRoot, port: endpoint.port, token: endpoint.token, env, agents: settings.maxConcurrentReviews });
       this.activeClient = new ReviewerClient(endpoint);
       await this.waitForHealthy(this.activeClient);
       this.agentMonitor.start();
@@ -126,6 +126,16 @@ export class ReviewerManager implements vscode.Disposable {
       await backend.stop();
     }
     this.setStatus({ state: 'stopped', detail: 'Stopped' });
+  }
+
+  /** Adds a reviewer agent for this session, first giving the container room for it (Docker). */
+  public async addAgent(): Promise<void> {
+    const backend = this.backend;
+    if (backend === undefined || this.client === undefined) {
+      throw new Error('Start the reviewer before managing agents.');
+    }
+    await backend.resize(Math.max(this.agentMonitor.agents.length, readSettings().maxConcurrentReviews) + 1);
+    await this.agentMonitor.control({ action: 'add' });
   }
 
   public async logs(): Promise<string> {

@@ -13,7 +13,7 @@ export const registerAgentCommands = (manager: ReviewerManager, extensionUri: vs
     const agent = isRecord(argument) ? parseReviewerAgent(argument['agent']) : undefined;
     if (action !== 'add' && agent === undefined) { return; }
     try {
-      if (action === 'add') { await manager.agentMonitor.control({ action }); }
+      if (action === 'add') { await manager.addAgent(); }
       else if (agent !== undefined) { await manager.agentMonitor.control({ action, id: agent.id, taskId: agent.taskId }); }
     } catch (error: unknown) {
       void vscode.window.showWarningMessage(`MALT: ${error instanceof Error ? error.message : 'Agent action failed'}`);
