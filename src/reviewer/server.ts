@@ -17,6 +17,8 @@ import { redactSecrets } from './redact';
 import { isRecord } from '../shared/guards';
 import { parseDiscussion } from '../shared/understanding';
 import { isGapId } from '../shared/investigation';
+import { parseDelegatedResult, parseDelegatedText } from '../shared/delegation';
+import { Delegation } from './delegation';
 
 const MAX_BODY_BYTES = 1_000_000;
 
@@ -107,6 +109,36 @@ const investigate = async (service: ReviewService, request: IncomingMessage): Pr
 const lines = (request: ReviewRequest): string =>
   `${request.filePath}:${String(request.startLine + 1)}-${String(request.endLine + 1)}`;
 
+/** How long `GET /model-calls` waits for a call before answering with none (the extension then asks again). */
+export const MODEL_CALL_WAIT_MS = 25_000;
+
+/**
+ * Delegated calls (`delegation.ts`): the extension takes calls, streams their text and posts their answers. The
+ * answer is untrusted model output, validated by the same parsers as any provider's.
+ */
+const delegationRoute = async (delegation: Delegation, key: string, request: IncomingMessage): Promise<unknown> => {
+  switch (key) {
+    case 'GET /model-calls':
+      return { calls: await delegation.take(MODEL_CALL_WAIT_MS) };
+    case 'POST /model-calls/result': {
+      const result = await readRequest(request, parseDelegatedResult, 'model call result');
+      if (!delegation.settle(result)) {
+        throw new HttpError(404, 'Unknown or finished model call');
+      }
+      return { ok: true };
+    }
+    case 'POST /model-calls/text': {
+      const text = await readRequest(request, parseDelegatedText, 'model call text');
+      if (!delegation.text(text.id, text.text)) {
+        throw new HttpError(404, 'Unknown or finished model call');
+      }
+      return { ok: true };
+    }
+    default:
+      throw new HttpError(404, 'Not found');
+  }
+};
+
 const route = async (service: ReviewService, request: IncomingMessage): Promise<unknown> => {
   const key = `${request.method ?? ''} ${request.url ?? ''}`;
   switch (key) {
@@ -191,7 +223,15 @@ export const shutdownReviewerServer = (server: Server): void => {
   server.closeAllConnections();
 };
 
-export const createReviewerServer = (service: ReviewService, token: string, conversations = new ConversationLog()): Server =>
+/** Delegated-call routes and review routes are kept apart; both sit behind the same token check. */
+const dispatch = async (service: ReviewService, delegation: Delegation, request: IncomingMessage): Promise<unknown> => {
+  const path = request.url ?? '';
+  return path === '/model-calls' || path.startsWith('/model-calls/')
+    ? await delegationRoute(delegation, `${request.method ?? ''} ${path}`, request)
+    : await route(service, request);
+};
+
+export const createReviewerServer = (service: ReviewService, token: string, conversations = new ConversationLog(), delegation = new Delegation()): Server =>
   createServer((request, response) => {
     if (!isAuthorized(request, token)) {
       sendJson(response, 401, { error: 'Unauthorized' });
@@ -205,7 +245,7 @@ export const createReviewerServer = (service: ReviewService, token: string, conv
       void streamScan(service, response);
       return;
     }
-    route(service, request).then(
+    dispatch(service, delegation, request).then(
       (body) => {
         sendJson(response, 200, body);
       },

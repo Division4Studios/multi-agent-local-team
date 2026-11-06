@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
   Source for design/trust.png (1600×820): the prompt-injection trust boundary. Render with design/render.mjs.
-  Keep it true to src/reviewer/trust.ts, prompts.ts and SECURITY.md when either changes.
+  Keep it true to src/reviewer/trust.ts, prompts.ts, src/review/copilotRunner.ts and SECURITY.md when any changes.
 -->
 <html lang="en">
 <head>
@@ -59,6 +59,10 @@
     <ul><li>no tools, no MCP servers</li><li>no settings or skills loaded</li><li>empty private working folder</li><li>structured JSON output only</li></ul>
   </div>
 
+  <div class="node" style="left:590px;top:530px;width:300px;border-color:var(--orange);border-style:dashed;background:rgba(245,158,91,.06)"><b>GitHub Copilot · opt-in</b>
+    <ul><li>no tools</li><li>instructions sent as the first message (no system role)</li><li>JSON not enforced: the checks decide</li></ul>
+  </div>
+
   <div class="node" style="left:1010px;top:240px;width:290px;border-color:var(--violet);background:rgba(167,139,250,.10)"><b>Policy checks</b>
     <ul><li>parsed by the shared protocol</li><li>only rule ids MALT knows</li><li>only files MALT sent</li><li>evidence quoted verbatim</li><li>MALT's own titles, not the model's</li></ul>
   </div>
@@ -77,6 +81,7 @@
       <path d="M462 595H530Q550 595 550 575V420H586" stroke="#8B95A5" stroke-dasharray="7 6" marker-end="url(#a)"/>
       <path d="M892 380H950Q970 380 970 360V330H1006" stroke="#8B95A5" marker-end="url(#a)"/>
       <path d="M1302 330H1356" stroke="#8B95A5" marker-end="url(#a)"/>
+      <path d="M892 610H950Q970 610 970 590V400" stroke="#8B95A5" stroke-dasharray="7 6"/>
       <path d="M1155 446V560" stroke="#F0646E" stroke-dasharray="6 6" marker-end="url(#r)"/>
     </g>
   </svg>

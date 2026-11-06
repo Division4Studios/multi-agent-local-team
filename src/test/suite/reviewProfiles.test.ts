@@ -26,23 +26,23 @@ export const tests: readonly TestCase[] = [
         assert.equal(isModelName(bad), false, String(bad));
       }
       assert.deepEqual(profileFrom('check', '--settings', 'turbo'), REVIEW_TYPE_INFO.check.defaults);
-      assert.deepEqual(profileFrom('check', 'opus', 'max'), { model: 'opus', effort: 'max' });
+      assert.deepEqual(profileFrom('check', 'opus', 'max'), { provider: 'claude', model: 'opus', effort: 'max' });
     },
   },
   {
     name: 'profiles: survive the trip to the reviewer process through environment variables',
     run: (): void => {
       const profiles: ReviewProfiles = {
-        overview: { model: 'sonnet', effort: 'medium' },
-        check: { model: 'haiku', effort: 'low' },
-        consolidation: { model: 'opus', effort: 'default' },
-        standards: { model: 'claude-opus-5-5', effort: 'high' },
-        investigation: { model: 'opus', effort: 'xhigh' },
+        overview: { provider: 'claude', model: 'sonnet', effort: 'medium' },
+        check: { provider: 'claude', model: 'haiku', effort: 'low' },
+        consolidation: { provider: 'claude', model: 'opus', effort: 'default' },
+        standards: { provider: 'claude', model: 'claude-opus-5-5', effort: 'high' },
+        investigation: { provider: 'claude', model: 'opus', effort: 'xhigh' },
       };
       assert.deepEqual(profilesFromEnv(profilesToEnv(profiles)), profiles);
       assert.deepEqual(profilesFromEnv({ MALT_MODEL_CHECK: '--evil', MALT_EFFORT_CHECK: 'nope' }).check, REVIEW_TYPE_INFO.check.defaults);
-      assert.equal(describeProfile({ model: 'haiku', effort: 'low' }), 'haiku · low effort');
-      assert.equal(describeProfile({ model: 'opus', effort: 'default' }), 'opus · default effort');
+      assert.equal(describeProfile({ provider: 'claude', model: 'haiku', effort: 'low' }), 'haiku · low effort');
+      assert.equal(describeProfile({ provider: 'claude', model: 'opus', effort: 'default' }), 'opus · default effort');
     },
   },
   {

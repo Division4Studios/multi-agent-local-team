@@ -3,6 +3,7 @@
  * Configuration comes from environment variables set by the extension.
  */
 import { ClaudeCodeProvider } from './providers/claudeCode';
+import { Delegation, DelegatingProvider } from './delegation';
 import { createReviewerServer, shutdownReviewerServer } from './server';
 import { ReviewService } from './service';
 import { ConversationLog } from './conversations';
@@ -26,21 +27,23 @@ const main = (): void => {
   const port = Number.parseInt(required('MALT_PORT'), 10);
   const host = optional('MALT_HOST', '127.0.0.1');
   const conversations = new ConversationLog();
+  const delegation = new Delegation();
   const service = new ReviewService(
     {
       workspaceRoot: required('MALT_WORKSPACE'),
       profiles: profilesFromEnv(process.env),
       ...(process.env["MALT_MAP_VERIFIER"] === undefined || process.env["MALT_MAP_VERIFIER"] === "" ? {} : { mapVerifier: process.env["MALT_MAP_VERIFIER"] }),
     },
-    new ClaudeCodeProvider(optional('MALT_CLAUDE_PATH', 'claude')),
+    { claude: new ClaudeCodeProvider(optional('MALT_CLAUDE_PATH', 'claude')), copilot: new DelegatingProvider(delegation, 'copilot') },
     conversations,
   );
-  const server = createReviewerServer(service, required('MALT_TOKEN'), conversations);
+  const server = createReviewerServer(service, required('MALT_TOKEN'), conversations, delegation);
   server.listen(port, host, () => {
     log(`listening on ${host}:${String(port)} (provider: ${service.providerName})`);
   });
   const shutdown = (): void => {
     log('shutting down');
+    delegation.close();
     shutdownReviewerServer(server);
   };
   process.on('SIGTERM', shutdown);
