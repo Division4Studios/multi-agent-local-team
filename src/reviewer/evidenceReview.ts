@@ -5,9 +5,13 @@ import { collectComponentContext } from './reviewContext';
 import type { ComponentContext } from './reviewContext';
 import { reviewInventory } from './reviewInventory';
 
+/** What the model may ask for: exactly these two fields (`requestedEvidence` rejects any other). */
 export interface EvidenceRequest {
   readonly files: readonly string[];
   readonly reason: string;
+}
+/** A request as MALT records it. Only `expand` sets `alreadySupplied`; the model can never supply it. */
+export interface RecordedRequest extends EvidenceRequest {
   /** The request asked only for evidence the call already had, so it added nothing (still counted). */
   readonly alreadySupplied?: true;
 }
@@ -16,7 +20,7 @@ export interface EvidenceScope {
   readonly omittedDirectories: readonly string[];
   readonly architecture: readonly ArchitectureModule[];
   readonly component?: ComponentContext;
-  readonly requests: readonly EvidenceRequest[];
+  readonly requests: readonly RecordedRequest[];
 }
 interface EvidenceConfig {
   readonly root: string;
@@ -53,7 +57,9 @@ const initialScope = async (config: EvidenceConfig): Promise<EvidenceScope> => {
   return { inventory: inventory.paths, omittedDirectories: inventory.omittedDirectories, architecture: [], requests: [] };
 };
 
-const expand = async (config: EvidenceConfig, scope: EvidenceScope, request: EvidenceRequest): Promise<EvidenceScope> => {
+const expand = async (config: EvidenceConfig, scope: EvidenceScope, asked: EvidenceRequest): Promise<EvidenceScope> => {
+  // Rebuilt from the two model fields, so nothing else from the model reaches what MALT records or reads.
+  const request: EvidenceRequest = { files: asked.files, reason: asked.reason };
   const known = new Set(scope.inventory);
   if (request.files.some((path) => !known.has(path))) {
     throw new Error('Reviewer needs evidence outside the eligible source inventory; review remains incomplete');
@@ -66,7 +72,7 @@ const expand = async (config: EvidenceConfig, scope: EvidenceScope, request: Evi
     return { ...scope, requests: [...scope.requests, { ...request, alreadySupplied: true }] };
   }
   const architecture = scope.component === undefined ? await config.loadModules() : scope.architecture;
-  const requests = [...scope.requests, request];
+  const requests: RecordedRequest[] = [...scope.requests, request];
   const requestedPaths = [...new Set(requests.filter((entry) => entry.alreadySupplied !== true).flatMap((entry) => entry.files))];
   const component = await collectComponentContext(config.root, config.blocks, architecture, requestedPaths);
   return { inventory: component.inventory, omittedDirectories: component.omittedDirectories, architecture, component, requests };

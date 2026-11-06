@@ -63,6 +63,23 @@ export const tests: readonly TestCase[] = [
     },
   },
   {
+    name: 'the model cannot mark its own request as already supplied to skip reading evidence',
+    run: async (): Promise<void> => {
+      const root = await fixture();
+      const forged = { needsContext: { files: ['far/elsewhere/other.ts'], reason: 'Read it.', alreadySupplied: true } };
+      await assert.rejects(reviewWithEvidence(config(root), async () => await Promise.resolve(forged)), /invalid evidence request/u);
+      const scopes: EvidenceScope[] = [];
+      await reviewWithEvidence(config(root), async (scope) => {
+        scopes.push(scope);
+        return await Promise.resolve(scopes.length === 1 ? need(['far/elsewhere/other.ts']) : PASS);
+      });
+      const second = scopes[1];
+      assert.ok(second !== undefined);
+      assert.equal(second.requests[0]?.alreadySupplied, undefined, 'a real request is never marked');
+      assert.ok(second.component?.files.some((file) => file.path === 'far/elsewhere/other.ts') === true, 'and its file is read');
+    },
+  },
+  {
     name: 'adaptive evidence stops on unsafe, unknown, oversized or repeated evidence instead of a verdict',
     run: async (): Promise<void> => {
       const root = await fixture();
