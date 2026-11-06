@@ -8,6 +8,15 @@ window.maltBrowserProbe = function (model) {
     theme.value = 'dark';
     theme.dispatchEvent(new window.Event('change'));
     checks.themeControl = document.documentElement.dataset.theme === 'dark';
+    document.body.classList.add('vscode-dark');
+    document.body.setAttribute('data-appearance', 'light');
+    checks.lightOverride = window.getComputedStyle(document.body).getPropertyValue('--surface').trim() === '#f7f5ef';
+    document.body.classList.replace('vscode-dark', 'vscode-light');
+    document.body.setAttribute('data-appearance', 'dark');
+    checks.darkOverride = window.getComputedStyle(document.body).getPropertyValue('--surface').trim() === '#0e1217';
+    document.body.classList.remove('vscode-light');
+    document.body.removeAttribute('data-appearance');
+
     const box = el('legend').getBoundingClientRect(),
       canvas = el('modelDrawing').getBoundingClientRect();
     checks.legendClearance = !model.diagrams || box.top >= canvas.bottom - 1;

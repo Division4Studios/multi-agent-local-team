@@ -27,6 +27,8 @@ import { watchReviewSettings } from './views/reviewSettings';
 import { PullRequestController } from './pullRequest/pullRequestController';
 import type { PullRequestReview } from './pullRequest/pullRequestReview';
 import { createStatusBar } from './views/statusBar';
+import { DelegationWorker } from './review/delegationWorker';
+import { runCopilotCall } from './review/copilotRunner';
 import { registerCommands, revealHunk, startReviewer } from './commands';
 import type { CommandDeps } from './commands';
 
@@ -119,6 +121,20 @@ const createPullRequests = (deps: CommandDeps): { readonly controller: PullReque
   return { controller, disposable: vscode.Disposable.from(controller, commands) };
 };
 
+/**
+ * Runs the calls the reviewer delegates to the extension (GitHub Copilot) whenever the reviewer is running. The
+ * worker stops by itself when the reviewer goes away, and restarts with the next healthy status.
+ */
+const delegatedCalls = (deps: CommandDeps): vscode.Disposable => {
+  const worker = new DelegationWorker(() => deps.manager.client, { copilot: runCopilotCall });
+  const subscription = deps.manager.onDidChangeStatus((status) => {
+    if (status.state === 'running') {
+      worker.start();
+    }
+  });
+  return vscode.Disposable.from(worker, subscription);
+};
+
 /** Restarts the reviewer when its settings change, and reviews the backlog once it is running (if enabled). */
 const reviewerTriggers = (deps: CommandDeps): vscode.Disposable[] => [
   watchReviewSettings(() => deps.manager.status.state === 'running', async () => {
@@ -180,6 +196,7 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
     registerCommands(deps),
     pullRequestFeature.disposable,
     ...reviewerTriggers(deps),
+    delegatedCalls(deps),
   );
   await vscode.commands.executeCommand('setContext', 'malt.reviewerState', 'stopped');
   await startTracking(context, deps, noteKey);

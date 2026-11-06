@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const el = (id) => document.getElementById(id);
+  window.startMaltViewport(el('modelDrawing'), el('center'));
   const make = (tag, text) => {
     const n = document.createElement(tag);
     if (text !== undefined) n.textContent = text;
@@ -64,6 +65,7 @@
     const p = d?.items.find((i) => i.id === id) || panel,
       box = el('detail');
     box.replaceChildren();
+    box.className = p ? window.maltPalette(p.group) : '';
     if (!p) return;
     box.append(make('h2', p.label || p.title));
     if (p.change) box.append(make('strong', p.change));
@@ -116,15 +118,13 @@
     for (const edge of svg.querySelectorAll('[data-wire]')) edge.classList.toggle('active', Number(edge.dataset.wire) === route[at]);
     const groups = new Map();
     for (const p of visible) {
-      if (!groups.has(p.group || 'Component')) groups.set(p.group || 'Component', true);
+      if (!groups.has(p.group || '')) groups.set(p.group || '', true);
     }
     const legend = el('legend');
     legend.replaceChildren();
     for (const label of groups.keys()) {
-      let h = 0;
-      for (const c of label === 'Component' ? 'component' : label) h = (h * 31 + c.charCodeAt(0)) | 0;
-      const n = make('span', label);
-      n.className = 'role' + (Math.abs(h) % 7);
+      const n = make('span', label || 'Component');
+      n.className = window.maltPalette(label);
       legend.append(n);
     }
   }

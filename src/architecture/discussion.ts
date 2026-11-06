@@ -67,12 +67,12 @@ const html = (view: vscode.Webview, media: vscode.Uri): string => {
   const asset = (path: string): string => view.asWebviewUri(vscode.Uri.joinPath(media, path)).toString();
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${view.cspSource};">
-<link rel="stylesheet" href="${asset('architecture.css')}"><title>Architecture discussion</title></head><body>
+<link rel="stylesheet" href="${asset('maltTheme.css')}"/><link rel="stylesheet" href="${asset('architecture.css')}"><title>Architecture discussion</title></head><body>
 <header><div class="kicker">MALT / ARCHITECTURE DISCUSSION</div><h1 id="subject">Clarify understanding</h1><p id="scope"></p></header>
 <main><div id="thread" role="log" aria-live="polite"></div><form id="replyForm"><label>Your perspective
 <textarea id="reply" rows="3" maxlength="1600" placeholder="Explain the intent, correct an assumption, or ask for evidence."></textarea></label>
 <button id="send">Send to reviewer</button></form><p id="notice" role="status"></p>
-<section><h2>Developer clarification</h2><p>Edit the statement you want MALT to remember for this file on this branch.</p>
+<section class="clarification"><h2>Developer clarification</h2><p>Edit the statement you want MALT to remember for this file on this branch.</p>
 <label>Statement to save<textarea id="proposal" rows="3" maxlength="1600"></textarea></label><button id="apply">Apply to architecture map</button></section>
 </main><script nonce="${nonce}" src="${asset('architectureChat.js')}"></script></body></html>`;
 };

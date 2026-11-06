@@ -13,8 +13,9 @@ import type {
   RuleCheck,
   StandardsScan,
 } from '../shared/protocol';
-import type { ReviewProvider, StructuredCall } from './providers/provider';
+import type { ProviderSet, ReviewProvider, StructuredCall } from './providers/provider';
 import { ConversationLog } from './conversations';
+import { PROVIDERS, REVIEW_TYPES } from '../shared/reviewProfiles';
 import type { ReviewProfiles } from '../shared/reviewProfiles';
 import type { CallUsage } from '../shared/conversation';
 import { ground, groundModules, DISCUSSION_PROMPT } from './understanding';
@@ -91,7 +92,7 @@ export class UnknownRuleError extends Error {}
 
 export interface ServiceConfig {
   readonly workspaceRoot: string;
-  /** Model and effort per kind of call: overview, rule check, consolidation, standards scan. */
+  /** Provider, model and effort per kind of call: overview, rule check, consolidation, standards scan, investigation. */
   readonly profiles: ReviewProfiles;
   /** Public key that verifies the extension-signed branch map; without it, developer confirmations are ignored. */
   readonly mapVerifier?: string;
@@ -99,22 +100,27 @@ export interface ServiceConfig {
 
 export class ReviewService {
   private readonly config: ServiceConfig;
-  private readonly provider: ReviewProvider;
+  private readonly providers: ProviderSet;
   private readonly conversations: ConversationLog;
 
-  public constructor(config: ServiceConfig, provider: ReviewProvider, conversations = new ConversationLog()) {
+  /** One provider answers every call (tests), or each provider id has its own. */
+  public constructor(config: ServiceConfig, providers: ReviewProvider | ProviderSet, conversations = new ConversationLog()) {
     this.config = config;
-    this.provider = provider;
+    this.providers = 'callStructured' in providers ? { claude: providers, copilot: providers } : providers;
     this.conversations = conversations;
   }
 
-  /** Every model call goes through here, so the live log sees it start, stream and end, with its usage. */
+  /** Every model call goes through here: its prompt is redacted, and the live log sees it start, stream and end. */
   private async ask(label: string, call: StructuredCall): Promise<unknown> {
-    const logged = this.conversations.begin(label, call, call.userPrompt);
+    // Every prompt leaves the reviewer redacted, whatever built it and whichever provider answers: patches and file
+    // windows are raw workspace text. System prompts are static constants, so only the user message needs it.
+    const userPrompt = redactSecrets(call.userPrompt);
+    const logged = this.conversations.begin(label, call, userPrompt);
     let usage: CallUsage | undefined;
     try {
-      const output = await this.provider.callStructured({
+      const output = await this.providers[call.provider ?? 'claude'].callStructured({
         ...call,
+        userPrompt,
         onText: (text) => {
           logged.text(text);
           call.onText?.(text);
@@ -131,8 +137,10 @@ export class ReviewService {
     }
   }
 
+  /** The providers the configured profiles use, e.g. "claude" or "claude, copilot": the UI shows where code goes. */
   public get providerName(): string {
-    return this.provider.name;
+    const used = new Set(REVIEW_TYPES.map((type) => this.config.profiles[type].provider));
+    return [...new Set(PROVIDERS.filter((provider) => used.has(provider)).map((provider) => this.providers[provider].name))].join(', ');
   }
 
   /** Project rules from `.malt/standards.json`, sanitized; never shadow or replace the baseline rules. */
