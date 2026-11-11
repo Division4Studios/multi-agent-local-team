@@ -123,3 +123,31 @@ credited as the executed code.
 
 Source for event fields and per-file versus cumulative summaries:
 [Node 24 test runner](https://nodejs.org/docs/latest-v24.x/api/test.html#event-testsummary).
+
+## Reporter orchestration boundary
+
+`scripts/aws-evidence-reporter.mts` exports the separately testable orchestration:
+
+```ts
+export const writeTestEvidence = (
+  events: AsyncIterable<unknown>, runtimeRoot: string,
+): Promise<boolean>;
+```
+
+It removes any previous `<runtimeRoot>/aws/test-evidence.json` before consuming
+events, captures the runtime digest, then collects the original event envelopes.
+Return true only after normal stream completion, a successful collector result,
+an unchanged digest and atomic publication of the format-v1 evidence envelope.
+An unsuccessful or incomplete run returns false and leaves no evidence artifact.
+A throwing stream or filesystem/digest failure rejects and leaves no successful
+artifact. Temporary publication files are owned, remain under aws/, and are
+removed on failure. Reject linked/nonregular existing destinations; never follow
+one or change outside bytes. An existing ordinary artifact must be invalidated
+even when runtime validation or event consumption subsequently fails.
+
+The same module's default export is a Node custom reporter accepting TestsStream
+events; it uses out/ relative to the repository and calls this orchestration.
+CLI test execution uses an additional standard reporter for human diagnostics.
+There is no successful receipt before EOF, including after a success summary.
+The public function permits owned fixture roots for independent tests without
+adding a production environment override or parsing invented console output.

@@ -94,7 +94,8 @@ terminal named `MALT Local AWS` using `vscode.window.createTerminal`. Set:
 - AWS_ACCESS_KEY_ID=test and AWS_SECRET_ACCESS_KEY=test;
 - AWS_REGION and AWS_DEFAULT_REGION to the configured region;
 - AWS_EC2_METADATA_DISABLED=true and AWS_PAGER empty;
-- remove inherited AWS_SESSION_TOKEN, AWS_SECURITY_TOKEN and AWS_PROFILE so
+- remove inherited AWS_SESSION_TOKEN, AWS_SECURITY_TOKEN, AWS_PROFILE and
+  AWS_DEFAULT_PROFILE so
   real credentials cannot override the local setup.
 
 Opt-in terminal injection uses EnvironmentVariableCollection only while the
@@ -102,8 +103,25 @@ gateway is running; stop/dispose clears it. Changing endpoint/region refreshes
 the collection for new terminals. Expose the pure environment function in
 `src/cloud/terminal.ts` as `terminalEnvironment(endpoint, region)` for tests.
 It returns `Record<string, string | null>` matching TerminalOptions.env, using
-null for inherited values that must be deleted. Environment injection calls the
-collection's delete/replace methods as appropriate rather than literal null.
+null for inherited values that must be deleted.
+
+The collection's `delete` removes a mutator, not an inherited environment
+variable. For opt-in injection, use `replace` with empty session/security tokens
+and an isolated `malt-local` profile instead. Write a fixed `terminal-profile.ini`
+under the contained state directory, refusing linked/nonregular destinations.
+It contains only `[profile malt-local]` with the configured region and
+`[malt-local]` with dummy `test` access/secret keys. Set both AWS_PROFILE and
+AWS_DEFAULT_PROFILE to `malt-local`, and both AWS_CONFIG_FILE and
+AWS_SHARED_CREDENTIALS_FILE to this file. Never read or rewrite the user's AWS
+files. The collection is nonpersistent and is cleared on stop/dispose; existing
+terminals retain their environment until closed, as with VS Code's standard
+process-creation mutations. Dedicated Local AWS terminals still use null removals.
+
+Authority: VS Code 1.144 `EnvironmentVariableCollection.delete/replace` semantics
+and network-disabled Boto3 1.42.97 probes. Empty/default named profiles without
+configuration failed with ProfileNotFound; the isolated dummy-profile setup
+successfully created a local SQS client with dummy credentials and no session
+token. Actual gateway round trips remain part of Task 5 acceptance.
 
 ## Verification
 
