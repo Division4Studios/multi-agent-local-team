@@ -3,7 +3,9 @@
 **
 !out/*.js
 !out/architecture/**/*.js
+!out/aws/**/*.js
 !out/backend/**/*.js
+!out/cloud/**/*.js
 !out/diff/**/*.js
 !out/editor/**/*.js
 !out/git/**/*.js
@@ -24,4 +26,9 @@
 !README.md
 !CHANGELOG.md
 !LICENSE
+!THIRD_PARTY.md
+!models/aws/LICENSE
+!models/aws/NOTICE
+!models/aws/protocol-tests/LICENSE
+!models/aws/protocol-tests/NOTICE
 !docs/**

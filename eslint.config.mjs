@@ -1,6 +1,8 @@
 // @ts-check
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * MALT lint policy:
@@ -47,6 +49,75 @@ const REVIEWER_PATTERNS = [
     message: 'The reviewer image contains only src/reviewer and src/shared; move pure helpers into src/shared.',
   },
 ];
+
+const SOURCE_ROOT = resolve(import.meta.dirname, 'src');
+const sourceArea = (filename) => relative(SOURCE_ROOT, filename).replaceAll('\\', '/').split('/')[0]?.toLowerCase();
+const isolatedAreas = new Set(['aws', 'reviewer', 'shared']);
+
+const permittedArea = (from, to) => {
+  if (from === 'shared') {
+    return to === 'shared';
+  }
+  if (isolatedAreas.has(from)) {
+    return to === from || to === 'shared';
+  }
+  return from === 'test' || to !== 'aws';
+};
+
+const importArea = (filename, specifier) => {
+  if (specifier === 'vscode') {
+    return 'vscode';
+  }
+  if (specifier.startsWith('file:')) {
+    try {
+      return sourceArea(fileURLToPath(specifier));
+    } catch {
+      return 'invalid-file-url';
+    }
+  }
+  return specifier.startsWith('.') || isAbsolute(specifier)
+    ? sourceArea(resolve(dirname(filename), specifier)) : undefined;
+};
+
+// Resolve relative paths instead of matching directory words: shared/aws is shared,
+// and ../shared/../reviewer must not evade service isolation. Existing import bans remain active.
+/** @type {import('eslint').Rule.RuleModule} */
+const serviceImports = {
+  meta: {
+    type: 'problem', schema: [],
+    messages: {
+      boundary: '{{from}} cannot import {{target}}. Services use only their own code/shared; extension cloud uses the admin boundary.',
+      literal: 'Runtime module paths must be string literals so service isolation can be checked.',
+    },
+  },
+  create(context) {
+    const from = sourceArea(context.filename);
+    const check = (node, source, runtime = false) => {
+      if (source?.type !== 'Literal' || typeof source.value !== 'string') {
+        if (runtime && from !== 'test') {
+          context.report({ node, messageId: 'literal' });
+        }
+        return;
+      }
+      const specifier = source.value;
+      const to = importArea(context.filename, specifier);
+      if (to !== undefined && !permittedArea(from, to)) {
+        context.report({ node, messageId: 'boundary', data: { from: from ?? 'extension', target: specifier } });
+      }
+    };
+    return {
+      ImportDeclaration: node => check(node, node.source),
+      ExportNamedDeclaration: node => check(node, node.source),
+      ExportAllDeclaration: node => check(node, node.source),
+      ImportExpression: node => check(node, node.source, true),
+      CallExpression: node => {
+        if (node.callee.type === 'Identifier' && node.callee.name === 'require') {
+          check(node, node.arguments[0], true);
+        }
+      },
+    };
+  },
+};
 
 /** @param {import('eslint').Linter.Config[]} configs */
 const asErrors = (configs) =>
@@ -161,6 +232,20 @@ export default asErrors(
         'max-params': ['error', 4],
         'max-lines-per-function': ['error', { max: 60, skipBlankLines: true, skipComments: true }],
         'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
+      },
+    },
+    {
+      files: ['src/**/*.ts'],
+      plugins: { malt: { rules: { 'service-imports': serviceImports } } },
+      rules: { 'malt/service-imports': 'error' },
+    },
+    {
+      files: ['src/aws/**/*.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          { paths: [...PROCESS_IMPORTS, ...VM_IMPORTS, ...NO_VSCODE_IN_REVIEWER], patterns: TOOLING_PATTERNS },
+        ],
       },
     },
     {

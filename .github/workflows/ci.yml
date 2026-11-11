@@ -40,6 +40,9 @@ jobs:
       - name: Type-check with native TypeScript 7
         run: npm run check-types
 
+      - name: Verify pinned AWS model integrity and generated data
+        run: npm run check:aws-models
+
       - name: Verify compiler isolation
         run: npm run test:compiler-sandbox
         env:
@@ -88,6 +91,9 @@ jobs:
 
       - name: Dependency policy
         run: npm run check-deps
+
+      - name: Verify pinned AWS model integrity and generated data
+        run: npm run check:aws-models
 
       - name: Audit and registry signatures
         run: npm run audit
