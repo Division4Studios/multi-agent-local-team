@@ -138,11 +138,24 @@ describe('actual ESLint runtime import boundaries', { concurrency: false }, () =
   }
 });
 
-describe('fresh Docker-compiled VSIX boundaries', { concurrency: false }, () => {
+describe('precompiled VSIX boundaries', { concurrency: false }, () => {
   let fixture;
-  before(async () => { fixture = await packageFixture(); });
+  let outputBefore;
+  let manifestBefore;
+  before(async () => {
+    outputBefore = await snapshot(path.join(REPOSITORY, 'out'));
+    manifestBefore = await snapshot(path.join(REPOSITORY, 'package.json'));
+    fixture = await packageFixture();
+  });
   after(async () => { if (fixture) { await fixture.dispose(); } });
-  test('the archive contains byte-identical freshly compiled AWS and shared modules', async () => {
+  test('packaging without Docker preserves the repository manifest and compiled artifact', async () => {
+    assert.doesNotMatch(fixture.output, /vscode:prepublish/u);
+    const stagedManifest = JSON.parse(await fs.readFile(path.join(fixture.workspace, 'package.json'), 'utf8'));
+    assert.equal(stagedManifest.scripts['vscode:prepublish'], undefined);
+    assert.deepEqual(await snapshot(path.join(REPOSITORY, 'package.json')), manifestBefore);
+    assert.deepEqual(await snapshot(path.join(REPOSITORY, 'out')), outputBefore);
+  });
+  test('the archive contains byte-identical precompiled AWS and shared modules', async () => {
     for (const directory of ['out/aws', 'out/shared']) {
       const files = (await fileDigests(path.join(REPOSITORY, directory))).filter(([name]) => name.endsWith('.js'));
       assert.ok(files.length > 0, directory);
