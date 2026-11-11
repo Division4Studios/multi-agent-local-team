@@ -56,11 +56,20 @@ interface AwsBackend {
 }
 ```
 
-`src/cloud/manager.ts` exports `AwsManager` and its dependencies/start types.
+`src/cloud/manager.ts` exports `AwsManager`, `AwsStatus` and its dependency/start
+types below.
 Use structural interfaces so tests can supply bounded fake backend/network/UI
 promises without replacing global VS Code methods or private class internals.
 
 ```ts
+interface AwsStatus {
+  readonly state: 'stopped' | 'starting' | 'running' | 'stopping' | 'unhealthy' | 'error';
+  readonly requestCount: number;
+  readonly detail: string; // sanitized human-readable text
+  readonly backend?: 'host' | 'docker';
+  readonly endpoint?: AwsEndpoint;
+  readonly region?: string;
+}
 interface AwsStartRequest {
   readonly workspaceRoot: string;
   readonly trusted: boolean;
@@ -86,10 +95,9 @@ interface AwsManagerDependencies {
 `AwsAdminApi` is the structural client interface with the methods above, using
 shared parsed response types. `new AwsManager(dependencies)` provides:
 
-- readonly `status`: `{ state, requestCount, detail, backend?, endpoint?, region? }`,
-  with the lifecycle state union from extension.md;
+- readonly `status: AwsStatus`;
 - readonly `client: AwsAdminApi | undefined`, available only while running;
-- `onDidChangeStatus`, a VS Code event carrying the same status shape;
+- `onDidChangeStatus: vscode.Event<AwsStatus>`;
 - `start(request): Promise<void>`, `stop(): Promise<void>`,
   `checkHealth(): Promise<void>`, and `dispose(): void`.
 
@@ -115,6 +123,25 @@ failure as error rather than claiming state was saved. A stopped backend does
 not retain timers or client access. Restart is
 stop then start using fresh settings at the command adapter.
 
+### Socket consent persistence
+
+`src/cloud/socketConsent.ts` exports `AwsSocketConsent`:
+
+```ts
+class AwsSocketConsent {
+  constructor(state: Pick<vscode.Memento, 'get' | 'update'>);
+  has(): boolean;
+  grant(): Promise<void>;
+}
+```
+
+`has()` accepts only the exact record `{ version: 1, granted: true }` at
+`malt.aws.dockerSocketConsent`. Missing, false, old-version, malformed or
+extra-field values do not grant permission. `grant()` stores that exact record
+and propagates persistence failure. Production passes extension global state and
+wires `hasSocketConsent` / `storeSocketConsent` to `has` / `grant`; grant is called
+only after affirmative consent.
+
 ## Command adapter
 
 `src/cloud/commands.ts` exports these structural dependencies and entry points.
@@ -139,15 +166,24 @@ interface AwsCommandDependencies {
   readonly onUserFocus: () => void;
   readonly reportError: (message: string) => void;
 }
+export type AwsCommandRegistrar = (
+  id: string, handler: (...args: unknown[]) => Promise<void>
+) => vscode.Disposable;
 export function createAwsCommandHandlers(deps: AwsCommandDependencies):
   ReadonlyMap<string, (...args: unknown[]) => Promise<void>>;
-export function registerAwsCommands(deps: AwsCommandDependencies): vscode.Disposable;
+export function registerAwsCommands(
+  deps: AwsCommandDependencies, registerCommand?: AwsCommandRegistrar
+): vscode.Disposable;
 ```
 
 The map contains exactly the nine IDs with prefix `malt.aws.`: `start`, `stop`,
 `restart`, `reset`, `refresh`, `showCoverage`, `showTraces`, `openResource` and
-`openTerminal`. Registration uses these same handlers with native
-`vscode.commands.registerCommand`; its disposable unregisters all nine.
+`openTerminal`. Registration uses these same handlers; `registerCommand` defaults
+to native `vscode.commands.registerCommand`. On registration failure, dispose all
+already-created registrations before throwing. The returned disposable
+unregisters all nine. Tests may inject a structural registrar to inspect ownership
+and cleanup without colliding with the activated extension's command IDs; native
+manifest/activation checks still apply.
 
 Each returned handler calls `onUserFocus` and validates the current
 `startRequest()`: undefined means no workspace, and `trusted: false` is refused.
@@ -171,6 +207,44 @@ Tests invoke returned handlers with structural manager/UI fakes. Runtime wiring
 uses native document, terminal and confirmation APIs; no global VS Code methods
 need replacement to test trust, reset refusal, ordering, focus or error handling.
 
+## Terminal injection
+
+`src/cloud/terminalInjection.ts` exports:
+
+```ts
+interface AwsTerminalTarget {
+  readonly workspaceRoot: string;
+  readonly stateDirectory: string; // absolute, strictly inside workspace
+  readonly endpoint: string; // advertised gateway origin
+  readonly region: string;
+}
+class AwsTerminalInjection {
+  constructor(collection: Pick<vscode.EnvironmentVariableCollection, 'persistent' | 'replace' | 'clear'>);
+  update(target: AwsTerminalTarget | undefined): Promise<void>;
+  dispose(): void;
+}
+```
+
+Construction immediately sets `persistent = false` and clears prior mutations.
+Before writing, validate real workspace containment, no linked path components,
+and the fixed `terminal-profile.ini` destination (absent or a regular file).
+Use the exact dummy-profile contents and variable replacements in
+[extension](extension.md#ui-and-terminals); never read or rewrite user AWS files.
+
+`update(undefined)` clears immediately. A defined target replaces the complete
+collection only after a successful contained profile write. A failed update
+rejects and, if still current, leaves the collection clear. Concurrent updates
+are latest-wins; superseded completions cannot overwrite newer profile contents
+or alter newer collection mutations. `update(undefined)` and `dispose()`
+invalidate pending updates so they cannot restore mutations. Dispose clears
+immediately; all later updates reject, including undefined targets. Stop does not
+delete the fixed dummy-profile file; it contains no real secret.
+
+Runtime wiring supplies a target iff `malt.aws.terminal.inject` is enabled and
+the manager is running, using its gateway endpoint and resolved absolute state
+directory. Endpoint, region or settings changes update the target; other states
+clear it. Dispose the adapter with the feature.
+
 ## Native views and testable adapters
 
 `src/cloud/resourcesView.ts` exports `AwsResourcesProvider(manager)` implementing
@@ -182,9 +256,15 @@ or counts. Product icons and text labels convey state; refresh never opens an
 editor. Queue items invoke `malt.aws.openResource` with parsed resource data.
 
 `src/cloud/documents.ts` exports `AwsDocuments`, a TextDocumentContentProvider
-with `add(kind, value): vscode.Uri` and `provideTextDocumentContent(uri): string`.
-Kinds are `resource`, `coverage`, `traces`; serialize validated values as JSON
-under the `malt-aws` URI scheme. Keep an owned in-memory bounded cache, no user
+with `add(kind, value): vscode.Uri`, `provideTextDocumentContent(uri): string`
+and `dispose(): void`. Kinds are `resource`, `coverage`, `traces`; serialize the
+matching validated DTO as JSON. Every add returns a fresh owned `malt-aws` URI.
+The in-memory cache holds at most 32 documents and 8 MiB (8 * 1024 * 1024 bytes)
+total UTF-8 of serialized displayed JSON. Validate kind/input and serialize
+before mutating the cache. One oversized document rejects without evicting
+existing entries. Evict oldest insertions until both limits hold; reads do not
+reorder entries. Unknown, foreign or evicted URIs and operations after disposal
+throw a clear static error. Dispose clears the owned cache. No arbitrary
 filesystem paths or writable editors. Register/dispose it with the feature.
 
 `src/cloud/terminal.ts` exports the `terminalEnvironment` function already
@@ -195,7 +275,14 @@ do not add a production command that bypasses these boundaries for tests.
 
 Real host/Docker startup, terminal-created CLI/SDK requests, and theme/focus
 acceptance remain integration checks; fake dependencies alone do not establish
-those results. `AwsHostBackend` is exported from the existing approved
+those results. Actual content-provider registration, read-only editor behavior
+and whole-feature disposal require acceptance/static wiring review. The token's
+32 cryptographically random bytes, minimal child environment and exact Docker
+context provenance require source review plus real integration evidence;
+sampling tokens cannot prove entropy. The fixed host entry-point boundary in
+extension.md still applies.
+
+`AwsHostBackend` is exported from the existing approved
 `src/backend/hostBackend.ts`; `AwsDockerBackend` is exported from
 `src/cloud/dockerBackend.ts` and uses the existing Docker HTTP client. Both
 constructors accept one options object `{ extensionRoot, log }`, with `socketPath`
