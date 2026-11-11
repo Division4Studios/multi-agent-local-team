@@ -69,3 +69,57 @@ status without needing a self-referential artifact; a subsequent fresh process
 verifies that the generated artifact credits only the executed operation/kind
 pairs. The existing verification and packaging commands explicitly order Docker
 compilation, runtime tests/reporting, and VSIX creation (npm hooks are disabled).
+
+## Independently testable APIs
+
+`src/aws/coverage/evidence.ts` exports:
+
+```ts
+interface EvidenceCase {
+  readonly id: string;
+  readonly operations: readonly string[];
+  readonly kind: 'unit' | 'protocol' | 'lifecycle' | 'workflow' | 'differential';
+}
+export const runtimeDigest = (runtimeRoot: string): Promise<string>;
+export const parseEvidence = (
+  value: unknown, expectedDigest: string,
+): readonly EvidenceCase[] | undefined;
+```
+
+`runtimeRoot` is the parent of the aws/ and shared/ directories (out/ in tests,
+/app in Docker). Match the digest algorithm above. Both directories must exist;
+exclude non-JS files but reject links in the traversed tree, including linked
+roots. `parseEvidence` validates formatVersion, a lowercase 64-hex digest, exact
+digest equality, every case's nonempty ID, known kind and nonempty unique list
+of `service.Operation` strings. Reject duplicate case IDs and unknown fields.
+The coverage builder ignores well-formed operations absent from its model map.
+
+`scripts/aws-evidence-collector.mts` exports:
+
+```ts
+interface EvidenceCollector {
+  accept(event: unknown): void;
+  result(): readonly EvidenceCase[] | undefined;
+}
+export const createEvidenceCollector = (): EvidenceCollector;
+```
+
+Feed original Node TestsStream event envelopes `{ type, data }`. Only genuine
+`test:pass` events with a valid evidence-form name, `details.type !== 'suite'`,
+and no skip/todo/expectFailure marker contribute cases. Ordinary unnamed-as-AWS
+tests still affect success/failure but contribute no AWS operation claims.
+Malformed evidence-form names contribute no claims. Any test:fail or interruption
+poisons the run; success summaries cannot undo it. Ignore unrelated event types.
+
+`result()` is undefined before a valid final cumulative `test:summary` event
+(its `data.file` is absent), with `success: true`, finite nonnegative integer
+counts and zero failed/cancelled. Per-file summaries do not complete the run.
+A failed/malformed summary invalidates it. Skip/todo counts are allowed but those
+cases are excluded; duplicates of a case ID are rejected as ambiguous evidence.
+Sort successful cases and operation IDs deterministically. The reporter writes
+the result only after the event stream ends normally and the runtime digest is
+unchanged from its start. This prevents a compilation during testing from being
+credited as the executed code.
+
+Source for event fields and per-file versus cumulative summaries:
+[Node 24 test runner](https://nodejs.org/docs/latest-v24.x/api/test.html#event-testsummary).

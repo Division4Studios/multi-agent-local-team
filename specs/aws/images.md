@@ -35,13 +35,15 @@ The gateway reuses MALT's already pinned Node image:
   Linux amd64 manifest: `sha256:05c4801c0499448f07f05691e76c2a3e53a2049e0e801336d5655b080f3e0a2f`;
   arm64: `sha256:3485c43c58e6106e2191c25b4afd77a28c2dc755a615fea979f58de3820880a6`.
   Upstream tag resolves to `aws/aws-cli@73b1a02188f5b68e8018852f6d6931ffd95c8337`.
-- Python acceptance-client base:
-  `docker.io/library/python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90`.
-  Manifest reports 3.13.18-slim-trixie; source
-  `docker-library/python@152874b138f0b1c4699fbdcb52b174608cfbfff5`.
-- Boto3 1.44.0 is the selected SDK version, observed in PyPI metadata. Its entire
-  external client dependency closure and hashes must be pinned before building
-  the acceptance image. This is test tooling, not a MALT package dependency.
+- Boto3 1.42.97, already bundled in the pinned Python Lambda image above. Run
+  its `/var/lang/bin/python` entry point for the external SDK probe. The image
+  digest pins the entire SDK dependency closure without another package install.
+
+Both pinned client images were pulled and their versions executed successfully
+on 2026-11-11 with network disabled, read-only root, user 1000:1000, dropped
+capabilities and no-new-privileges. CLI reported `aws-cli/2.40.1`; Python printed
+`boto3.__version__` as `1.42.97`. These version probes do not establish gateway
+compatibility; the actual round trips still need to run.
 
 Record pull/build/run results separately when the gateway is available. Updating
 these pins requires new observed digests and a reviewed change; never silently
