@@ -29,6 +29,13 @@ Each compiler invocation has no external network, a read-only root filesystem, n
 
 Do not run `npx tsc` as a substitute for the npm scripts: it invokes the native compiler on the host, outside the build container. `npm run test:compiled` deliberately skips compilation and tests the existing `out/`; use it only with output just built for the current source. Normal `npm test` always compiles first.
 
+`npm run verify` compiles before the tooling suite, then reuses that output for
+editor tests. Tooling's VSIX regression packages an owned staging copy of current
+`out/` with only the staged prepublish hook removed. It proves the compiled
+files remain byte-identical while Docker is unavailable. Run `npm run compile`
+before a standalone full `npm run test:toolchain` in a fresh checkout; CI supplies
+its same-run compiled artifact instead.
+
 ## Editor
 
 Install Microsoft's [TypeScript 7 extension](https://marketplace.visualstudio.com/items?itemName=typescriptteam.native-preview), which the workspace recommends. Workspace settings enable TypeScript 7 and point to `node_modules/@typescript/native`. Keep the ESLint extension enabled: compiler diagnostics and lint diagnostics are complementary.

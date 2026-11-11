@@ -12,7 +12,7 @@ This repo must model the anti-slop bar it will enforce elsewhere. Keep diffs sma
 
 ```sh
 npm ci                 # install (install scripts are disabled by .npmrc)
-npm run verify         # check-deps → check-types → lint → test:toolchain → test:compiler-sandbox → test (CI also runs audit, the publication browser check and vsce ls)
+npm run verify         # deps → AWS models → types → lint → Docker compile → tooling → sandbox → compiled editor tests (CI also audits and checks publication/VSIX)
 npm run compile        # TypeScript 7 in Docker → out/
 npm run check-types    # extension (tsconfig.json) + scripts (scripts/tsconfig.json)
 npm run lint           # ESLint, --max-warnings 0

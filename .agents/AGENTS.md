@@ -13,13 +13,13 @@ Commands and code paths below are relative to the repository root.
 - `npm run compile`, `npm run check-types`, and `npm run watch` run TypeScript 7 in Docker; there is no host fallback. Do not substitute `npx tsc`. The host reviewer still needs Docker for compilation. The first compiler image build needs network access; see [the toolchain guide](../docs/toolchain.md).
 - Keep the two compiler aliases distinct: `@typescript/native` supplies TypeScript 7; `typescript` supplies Microsoft's TypeScript 6 compatibility API for ESLint. Do not replace the latter with TypeScript 7 or bypass peer checks with `--force` / `--legacy-peer-deps`.
 - F5 launches the Extension Development Host with `npm run watch` as its prelaunch task. `tsconfig.json` emits `src/` to CommonJS in `out/`; `scripts/tsconfig.json` is no-emit, and its `.mts` files run directly through Node's type stripping. `check-types` checks both projects.
-- Before pushing, run `npm run verify`: dependency policy → AWS model integrity/drift → types → lint → toolchain tests → compiler sandbox → extension tests. CI additionally runs `npm run audit`, `npx --no-install vsce ls --no-dependencies`, and, on Linux, `xvfb-run -a node scripts/verify-architecture-publication.mjs --browser-check` (requires Chrome).
+- Before pushing, run `npm run verify`: dependency policy → AWS model integrity/drift → types → lint → Docker compilation → toolchain tests → compiler sandbox → compiled extension tests. CI additionally runs `npm run audit`, `npx --no-install vsce ls --no-dependencies`, and, on Linux, `xvfb-run -a node scripts/verify-architecture-publication.mjs --browser-check` (requires Chrome).
 
 ## Tests
 
 - `npm test` compiles, then runs tests in a downloaded VS Code instance. `npm run test:compiled` skips compilation: use it only with current `out/`. Headless Linux needs `xvfb-run -a npm run test:compiled` after compiling. CI compiles once on Linux and tests that same output on Linux, Windows and macOS.
 - Extension tests in `src/test/suite/*.test.ts` export `tests: TestCase[]` from the local `harness.ts` and use `node:assert/strict`. Keep this harness rather than introducing Mocha or `node:test` into the extension host. There is no CLI single-test filter; `src/test/suite/index.ts` discovers every adjacent compiled `*.test.js`.
-- Tooling tests use Node's test runner: `npm run test:toolchain`, or one file with `node --test scripts/test/compiler.test.mjs`. A focused case is `node --test --test-name-pattern="compiler launcher" scripts/test/compiler.test.mjs`.
+- Tooling tests use Node's test runner: `npm run test:toolchain`, or one file with `node --test scripts/test/compiler.test.mjs`. The full suite's VSIX checks consume current `out/`; compile first locally or use CI's same-run artifact. A focused case is `node --test --test-name-pattern="compiler launcher" scripts/test/compiler.test.mjs`.
 - `npm run test:live` builds the Docker reviewer and makes real Claude calls; it requires `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`. Set `MALT_LIVE_MODEL=haiku` in the environment for a cheaper check. It is separate from `verify`.
 
 ## Runtime and packaging boundaries

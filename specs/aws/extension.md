@@ -4,6 +4,7 @@ This is Task 5, after the runtime in [runtime](runtime.md). Follow
 `.agents/AGENTS.md`, `docs/design.md`, `docs/editor-testing.md` and approved F-3.
 Use native VS Code UI and the existing Docker HTTP client/tar writer. The
 extension calls parsed admin APIs; it never imports AWS service implementations.
+Public independent-test seams are in [extension APIs](extension-apis.md).
 
 ## Lifecycle
 
