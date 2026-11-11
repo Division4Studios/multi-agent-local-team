@@ -1,5 +1,6 @@
 // @ts-check
 import js from '@eslint/js';
+import { builtinRules } from 'eslint/use-at-your-own-risk';
 import tseslint from 'typescript-eslint';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -119,6 +120,33 @@ const serviceImports = {
   },
 };
 
+// Reuse the core matcher so runtime loads obey the same paths, patterns and messages.
+const restrictedImports = builtinRules.get('no-restricted-imports');
+if (!restrictedImports) {
+  throw new Error('ESLint must provide no-restricted-imports for runtime import policy.');
+}
+/** @type {import('eslint').Rule.RuleModule} */
+const runtimeImports = {
+  meta: restrictedImports.meta,
+  create(context) {
+    const checkImport = restrictedImports.create(context).ExportAllDeclaration;
+    const check = (node, source) => {
+      if (source?.type === 'Literal' && typeof source.value === 'string') {
+        // Like a namespace re-export, a runtime load exposes the entire module.
+        checkImport?.({ ...node, type: 'ExportAllDeclaration', source });
+      }
+    };
+    return {
+      ImportExpression: node => check(node, node.source),
+      CallExpression: node => {
+        if (node.callee.type === 'Identifier' && node.callee.name === 'require') {
+          check(node, node.arguments[0]);
+        }
+      },
+    };
+  },
+};
+
 /** @param {import('eslint').Linter.Config[]} configs */
 const asErrors = (configs) =>
   configs.map((config) => {
@@ -136,6 +164,10 @@ const asErrors = (configs) =>
         rules[name] = entry;
       }
     }
+    // Mirror every static-policy override, including the approved process launchers.
+    if (rules['no-restricted-imports'] !== undefined) {
+      rules['malt/runtime-imports'] = rules['no-restricted-imports'];
+    }
     return { ...config, rules };
   });
 
@@ -147,6 +179,7 @@ export default asErrors(
         '.agents/skills/**', '.claude/skills/**', '.codex/skills/**'],
     },
     {
+      plugins: { malt: { rules: { 'service-imports': serviceImports, 'runtime-imports': runtimeImports } } },
       linterOptions: {
         noInlineConfig: true,
         reportUnusedDisableDirectives: 'error',
@@ -236,7 +269,6 @@ export default asErrors(
     },
     {
       files: ['src/**/*.ts'],
-      plugins: { malt: { rules: { 'service-imports': serviceImports } } },
       rules: { 'malt/service-imports': 'error' },
     },
     {

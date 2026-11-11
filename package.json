@@ -858,7 +858,7 @@
     "test:toolchain": "node --test scripts/test/*.test.mjs",
     "test:live": "npm run compile && node out/test/live/reviewerLive.js",
     "test:compiler-sandbox": "node scripts/compiler.mts sandbox-test",
-    "verify": "npm run check-deps && npm run check:aws-models && npm run check-types && npm run lint && npm run test:toolchain && npm run test:compiler-sandbox && npm test",
+    "verify": "npm run check-deps && npm run check:aws-models && npm run check-types && npm run lint && npm run compile && npm run test:toolchain && npm run test:compiler-sandbox && npm run test:compiled",
     "test": "npm run compile && npm run test:compiled",
     "test:compiled": "node out/test/runTest.js",
     "vscode:prepublish": "npm run compile",
