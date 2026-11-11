@@ -18,9 +18,9 @@ export function compilerArguments(mode: CompilerMode): string[][] {
     return [['--version']];
   }
   if (mode === 'check') {
-    return [['-p', '.', '--noEmit'], ['-p', 'scripts', '--noEmit']];
+    return [['-p', '.', '--noEmit', '--singleThreaded'], ['-p', 'scripts', '--noEmit', '--singleThreaded']];
   }
-  const args = ['-p', '.', '--outDir', '/workspace/out', '--noEmitOnError'];
+  const args = ['-p', '.', '--outDir', '/workspace/out', '--noEmitOnError', '--singleThreaded'];
   if (mode === 'watch') {
     args.push('--watch', '--preserveWatchOutput');
   }

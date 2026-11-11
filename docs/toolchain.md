@@ -21,6 +21,8 @@ npm run vsix
 
 `compile`, `check-types`, and `watch` launch the native compiler inside Docker. F5 uses `watch`; start Docker first. An unavailable Docker engine causes the build to fail; there is no automatic host-compiler fallback. The reviewer backend selection is independent: using a host reviewer does not change compiler isolation.
 
+Both project checks and compile/watch use `--singleThreaded` to serialize native compiler work, including file reads, and avoid exhausting the container's 128-task limit. CPU quotas do not bound threads blocked in filesystem calls; serialization keeps full-source checking and all sandbox limits in force.
+
 The first build downloads the digest-pinned Node image and installs dependencies from the lockfile. Install scripts remain disabled, and the image build checks advisories and registry signatures. Subsequent invocations reuse Docker's build cache. Dependency or Dockerfile changes rebuild the relevant layers. The build context contains only `package.json`, `package-lock.json`, `.npmrc`, and the compiler Dockerfile; source code and Git metadata are not uploaded as build context.
 
 Each compiler invocation has no external network, a read-only root filesystem, no Linux capabilities, no privilege escalation, and CPU, memory, and process limits. Only `src/`, `scripts/`, and the root TypeScript configurations are mounted read-only. Compilation/watch additionally mount `out/` writable; type-checking does not. The compiler has bounded temporary storage inside its container. Credentials, Git metadata, the Docker socket, and `.malt/` are not mounted. The launcher rejects linked mount roots and paths containing Docker mount delimiters.
@@ -29,12 +31,24 @@ Each compiler invocation has no external network, a read-only root filesystem, n
 
 Do not run `npx tsc` as a substitute for the npm scripts: it invokes the native compiler on the host, outside the build container. `npm run test:compiled` deliberately skips compilation and tests the existing `out/`; use it only with output just built for the current source. Normal `npm test` always compiles first.
 
-`npm run verify` compiles before the tooling suite, then reuses that output for
-editor tests. Tooling's VSIX regression packages an owned staging copy of current
+`npm run verify` compiles, runs the AWS runtime suite with its executed-evidence
+reporter, then reuses that output for tooling and editor tests. `npm run test:aws`
+compiles then tests AWS; `npm run test:aws:compiled` tests existing output without
+compiling. The reporter invalidates any old receipt before consuming events and
+publishes deterministic `out/aws/test-evidence.json` only after a successful full
+run with an unchanged runtime digest. See [the evidence contract](../specs/aws/evidence.md).
+
+Tooling's VSIX regression packages an owned staging copy of current
 `out/` with only the staged prepublish hook removed. It proves the compiled
-files remain byte-identical while Docker is unavailable. Run `npm run compile`
+files remain byte-identical while Docker is unavailable. Run `npm run test:aws`
 before a standalone full `npm run test:toolchain` in a fresh checkout; CI supplies
-its same-run compiled artifact instead.
+its same-run compiled artifact and evidence instead.
+
+`npm run vsix` calls VSCE directly. VSCE explicitly runs `vscode:prepublish`, which
+chains Docker compilation and `test:aws:compiled` once even with npm lifecycle
+hooks disabled. The exact evidence asset is allowlisted in the VSIX. Release
+uses the same hook and compares the entire regenerated `out/`, including evidence,
+byte-for-byte with its same-run CI artifact before publishing.
 
 ## Editor
 
@@ -44,6 +58,6 @@ The language server runs under VS Code's normal host permissions. It is separate
 
 ## CI and dependency updates
 
-The Linux compile job runs the native compiler and the sandbox checks, then uploads its JavaScript output. Windows, Linux, and macOS jobs download that artifact from the **same workflow run**, run the unchanged strict ESLint rules and dependency checks, and test it in real VS Code hosts. Linux also runs the architecture-publication browser check, and every job checks the VSIX contents with `vsce ls`. No job falls back to TypeScript 6 compilation, and no privileged follow-up workflow executes artifacts from another run.
+The Linux compile job runs the native compiler and the sandbox checks, then runs the AWS suite/reporter before uploading `out/` with its evidence. Windows, Linux, and macOS jobs download that artifact from the **same workflow run**, run the unchanged strict ESLint rules and dependency checks, and test AWS and real VS Code hosts without recompiling. Their local receipt regeneration does not replace the producer artifact. Linux also runs the architecture-publication browser check, and every job checks the VSIX contents with `vsce ls`. No job falls back to TypeScript 6 compilation, and no privileged follow-up workflow executes artifacts from another run.
 
 Dependabot remains enabled for the npm aliases and actions. Review compiler, compatibility-package and TypeScript ESLint updates together; retain exact pins and refresh the lockfile. Run `npm ci`, `npm run verify`, `npm run audit`, and `npm run vsix`. Check `node scripts/compiler.mts version` to confirm the container's compiler version. Keep the reviewed minimatch overrides until each upstream dependency supports a patched release, as described in [SECURITY.md](../SECURITY.md).
