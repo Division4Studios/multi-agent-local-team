@@ -138,7 +138,7 @@ test(evidence(['sqs.CreateQueue', 'sqs.GetQueueUrl', 'sqs.SendMessage', 'sqs.Rec
   const other = json(await jsonCall(server, 'CreateQueue', { QueueName: 'regional' }, { region: 'ap-southeast-2' })).QueueUrl;
   assert.notEqual(other, QueueUrl);
   assert.equal(other, `${server.gatewayUrl}/000000000000/ap-southeast-2/regional`);
-  assert.equal(json(await jsonCall(server, 'GetQueueUrl', { QueueName: 'regional' }, { headers: { authorization: signing('sqs', 'us-east-1', 'OTHER_SYNTHETIC_KEY') } })).QueueUrl, QueueUrl);
+  assert.equal(json(await jsonCall(server, 'GetQueueUrl', { QueueName: 'regional' }, { headers: { authorization: signing('sqs', 'us-east-1', 'OTHERSYNTHETICKEY2026') } })).QueueUrl, QueueUrl);
   awsFailure(await jsonCall(server, 'GetQueueUrl', { QueueName: 'regional', QueueOwnerAWSAccountId: '111122223333' }), 'json');
   awsFailure(await jsonCall(server, 'SendMessage', { QueueUrl, MessageBody: 'wrong scope' }, { region: 'ap-southeast-2' }), 'json');
   assert.deepEqual(json(await jsonCall(server, 'ReceiveMessage', { QueueUrl })), {});

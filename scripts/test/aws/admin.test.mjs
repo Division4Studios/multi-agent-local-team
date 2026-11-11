@@ -95,7 +95,7 @@ test('coverage includes every pinned operation with honest statuses limitations 
 test(evidence(['sts.GetCallerIdentity'], 'protocol', 'admin resources and root-permission traces redact credentials body text and receipts'), { timeout: 15000 }, async (t) => {
   const f = await fixture(t);
   const server = await f.start();
-  const key = 'SYNTHETIC_ACCESS_KEY_NEVER_LOG';
+  const key = 'SYNTHETICACCESSKEYNEVERLOG2026';
   const token = 'SYNTHETIC_SESSION_TOKEN_NEVER_LOG';
   const body = 'SYNTHETIC_MESSAGE_BODY_NEVER_LOG';
   const headers = { authorization: signing('sqs', 'us-east-1', key), 'x-amz-security-token': token };
