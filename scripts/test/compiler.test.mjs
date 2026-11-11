@@ -39,20 +39,46 @@ test('compiler launcher rejects arbitrary commands and confines output', () => {
   for (const invalid of [undefined, '', 'host', '--outDir', 'compile && whoami']) {
     assert.throws(() => parseCompilerMode(invalid));
   }
-  assert.deepEqual(compilerArguments('check'), [['-p', '.', '--noEmit'], ['-p', 'scripts', '--noEmit']]);
-  assert.deepEqual(compilerArguments('version'), [['--version']]);
+  // Keep the fixed project/no-emit contract independent of the serial flag's position.
+  assert.deepEqual(compilerArguments('check').map(args => args.filter(arg => arg !== '--singleThreaded')),
+    [['-p', '.', '--noEmit'], ['-p', 'scripts', '--noEmit']]);
   for (const mode of ['compile', 'watch']) {
-    const [args] = compilerArguments(mode);
+    const commands = compilerArguments(mode);
+    assert.equal(commands.length, 1);
+    const [args] = commands;
+    assert.ok(args.includes('-p'));
+    assert.equal(args[args.indexOf('-p') + 1], '.');
     assert.ok(args.includes('--noEmitOnError'));
+    assert.equal(args.includes('--noEmit'), false);
     assert.equal(args[args.indexOf('--outDir') + 1], '/workspace/out');
+    assert.equal(args.includes('--watch'), mode === 'watch');
+    assert.equal(args.includes('--preserveWatchOutput'), mode === 'watch');
   }
+});
+
+for (const [mode, index, invocation] of [
+  ['check', 0, 'source check'], ['check', 1, 'scripts check'],
+  ['compile', 0, 'compile'], ['watch', 0, 'watch'],
+]) {
+  test(`compiler launcher serializes file reads for ${invocation}`, () => {
+    const args = compilerArguments(mode)[index];
+    assert.ok(args !== undefined, `${invocation} invocation must exist`);
+    assert.equal(args.filter(arg => arg === '--singleThreaded').length, 1,
+      `${invocation} must enable --singleThreaded; checker/CPU limits do not serialize file reads`);
+    assert.notEqual(args[args.indexOf('--singleThreaded') + 1], 'false');
+  });
+}
+
+test('compiler launcher preserves version and sandbox probe entry contracts', () => {
+  assert.deepEqual(compilerArguments('version'), [['--version']]);
+  assert.deepEqual(compilerArguments('sandbox-test'), [['/workspace/scripts/test/compiler-probe.mjs']]);
 });
 
 test('container security restrictions cannot be replaced by source paths', () => {
   const mount = 'type=bind,source=C:\\work with spaces\\src,target=/workspace/src,readonly';
   const args = containerArguments('fixture', '1000:1000', [mount]);
   for (const option of ['--network=none', '--read-only', '--cap-drop=ALL',
-    '--security-opt=no-new-privileges', '--pids-limit=128', '--memory=2g', '--memory-swap=2g']) {
+    '--security-opt=no-new-privileges', '--pids-limit=128', '--memory=2g', '--memory-swap=2g', '--cpus=2']) {
     assert.ok(args.includes(option), option);
   }
   assert.equal(args[args.indexOf('--mount') + 1], mount);
