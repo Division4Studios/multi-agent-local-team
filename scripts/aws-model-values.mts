@@ -176,7 +176,7 @@ export const literal = (value: ModelValue): string => {
 const objectLiteral = (value: ModelObject): string => {
   const entries = Object.entries(value).sort(([a], [b]) => a < b ? -1 : Number(a > b));
   return `{ ${entries.map(([key, child]) => {
-    const name = key === '__proto__' ? '["__proto__"]' : JSON.stringify(key);
+    const name = key === '__proto__' ? '["__proto__"]' : literal(key);
     return `${name}: ${literal(child)}`;
   }).join(', ')} }`;
 };

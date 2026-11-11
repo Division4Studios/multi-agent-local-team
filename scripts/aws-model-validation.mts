@@ -99,6 +99,18 @@ export interface ValidatedModel {
   readonly shapes: ReadonlyMap<string, ModelShape>;
 }
 
+const validateShapeIds = (shapes: ReadonlyMap<string, ModelShape>): void => {
+  const seen = new Map<string, string>();
+  for (const id of shapes.keys()) {
+    const folded = id.toLowerCase();
+    const previous = seen.get(folded);
+    if (previous !== undefined) {
+      throw modelError('shape IDs', `case-insensitive conflict between ${previous} and ${id}`);
+    }
+    seen.set(folded, id);
+  }
+};
+
 export const validateModel = (input: unknown, signingName: string): ValidatedModel => {
   const root = record(input, 'root');
   const smithy = text(root['smithy'], 'version');
@@ -108,6 +120,7 @@ export const validateModel = (input: unknown, signingName: string): ValidatedMod
   const shapes = new Map(Object.entries(record(root['shapes'], 'shapes'))
     .map(([id, value]): [string, ModelShape] => [shapeId(id, 'shape key'), parseShape(value, id)]));
   const all = new Map([...preludeShapes(), ...shapes]);
+  validateShapeIds(all);
   for (const [id, shape] of shapes) {
     validateEdges(id, shape, all);
   }
