@@ -3,9 +3,98 @@ import { link, lstat, mkdir, readFile, rename, rm, stat, symlink, utimes, writeF
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { context, evidence, sqsHarness, stsBackend } from './contract-helpers.mjs';
-import { admin, fixture, json, jsonCall } from './http-helpers.mjs';
+import { admin, awsFailure, fixture, json, jsonCall } from './http-helpers.mjs';
 import { cloneDocument, delivered, durableState, invalidStateCases, liveStateFixture,
   portableDocument, stateScope } from './state-integrity-fixtures.mjs';
+
+function dirtyMutationId(response) {
+  if (response.status !== 200) {
+    awsFailure(response, 'json', { allowServerFault: true });
+    return undefined;
+  }
+  const { MessageId } = json(response);
+  assert.equal(typeof MessageId, 'string');
+  assert.ok(MessageId.length > 0);
+  return MessageId;
+}
+
+function assertRetriedMutation(messages, body, messageId) {
+  assert.ok(messages.some((message) => message.body === body && (messageId === undefined || message.id === messageId)));
+}
+
+const successResponse = (value) => ({ status: 200, text: JSON.stringify(value), headers: { 'content-type': 'application/x-amz-json-1.0' } });
+const lifecycleResponse = () => ({ status: 500, text: '{"__type":"InternalFailure","message":"original synthetic flush failure"}',
+  headers: { 'content-type': 'application/x-amz-json-1.0', 'x-amzn-requestid': 'original-fixture-request', 'x-amzn-errortype': 'InternalFailure' } });
+
+test('state lifecycle response oracle accepts a successful SendMessage identity', () => {
+  assert.equal(dirtyMutationId(successResponse({ MessageId: 'original-message-id' })), 'original-message-id');
+});
+
+test('state lifecycle response oracle accepts a genuine flush failure without requiring a message ID', () => {
+  assert.equal(dirtyMutationId(lifecycleResponse()), undefined);
+});
+
+test('state lifecycle response oracle rejects missing success identity and malformed failure envelopes', () => {
+  for (const value of [{}, { MessageId: '' }, { MessageId: 7 }]) {
+    assert.throws(() => dirtyMutationId(successResponse(value)));
+  }
+  for (const response of [
+    { ...lifecycleResponse(), status: 302 },
+    { ...lifecycleResponse(), text: '{}' },
+    { ...lifecycleResponse(), headers: { 'content-type': 'application/json' } },
+  ]) assert.throws(() => dirtyMutationId(response));
+});
+
+test('state recovery identity oracle uses the unique body when no ID was returned and enforces any returned ID', () => {
+  const messages = [{ id: 'original-message-id', body: 'unique dirty mutation' }];
+  assertRetriedMutation(messages, 'unique dirty mutation', undefined);
+  assertRetriedMutation(messages, 'unique dirty mutation', 'original-message-id');
+  assert.throws(() => assertRetriedMutation(messages, 'wrong body', undefined));
+  assert.throws(() => assertRetriedMutation(messages, 'unique dirty mutation', 'wrong-id'));
+  assert.throws(() => assertRetriedMutation([], 'unique dirty mutation', undefined));
+});
+
+function timestampDocument() {
+  const document = portableDocument();
+  document.data.queues[0].name = 'Integrity';
+  const message = document.data.queues[0].messages[0];
+  Object.assign(message, { availableAt: message.sentAt + 30000, receiveCount: 2,
+    firstReceivedAt: message.sentAt, currentReceipt: 'current-receipt', oldReceipts: ['old-receipt'] });
+  return document;
+}
+
+function assertTimeRelationships(document) {
+  const message = delivered(document);
+  const retention = Number(document.data.queues[0].attributes.MessageRetentionPeriod) * 1000;
+  assert.ok(message.availableAt >= message.sentAt, 'availability ordering must remain valid');
+  assert.ok(message.firstReceivedAt >= message.sentAt, 'first-receive ordering must remain valid');
+  assert.ok(message.expiresAt > message.sentAt, 'expiry ordering must remain valid');
+  assert.equal(message.expiresAt - message.sentAt, retention, 'retention equation must remain valid');
+}
+
+for (const kind of ['fractional', 'negative']) {
+  for (const field of ['sentAt', 'availableAt', 'expiresAt', 'firstReceivedAt']) {
+    test(`state scalar fixture ${kind} ${field} preserves independent timestamp relationships`, () => {
+      const original = timestampDocument();
+      assertTimeRelationships(original);
+      const document = cloneDocument(original);
+      const [label, mutate] = invalidStateCases.find(([name]) => name === `${kind} ${field}`);
+      mutate(document);
+      const message = delivered(document);
+      const times = [message.sentAt, message.availableAt, message.expiresAt, message.firstReceivedAt];
+      assert.ok(times.every(Number.isFinite));
+      if (kind === 'fractional') {
+        assert.equal(Number.isInteger(message[field]), false, label);
+        assert.ok(times.every((time) => time >= 0));
+        if (field === 'availableAt' || field === 'firstReceivedAt') assert.equal(message[field], delivered(original)[field] + 0.5);
+      } else {
+        assert.ok(message[field] < 0, label);
+        assert.ok(times.every(Number.isInteger));
+      }
+      assertTimeRelationships(document);
+    });
+  }
+}
 
 for (const [label, mutate] of invalidStateCases) {
   test(evidence(['sqs.DeleteMessage', 'sqs.ReceiveMessage'], 'lifecycle', `state v1 rejects ${label} atomically`), { timeout: 5000 }, async () => {
@@ -17,6 +106,7 @@ for (const [label, mutate] of invalidStateCases) {
     assert.deepEqual(h.backend.exportState(stateScope), original, label);
     assert.deepEqual(h.backend.exportState(neighbor), otherState, `${label}: neighboring scope`);
     await h.call('DeleteMessage', { QueueUrl, ReceiptHandle: current.ReceiptHandle });
+    h.advance(30001); // Expose a no-op deletion after the original 30-second visibility deadline.
     const result = await h.call('ReceiveMessage', { QueueUrl, MaxNumberOfMessages: 10 });
     assert.deepEqual(result.Messages.map(({ Body }) => Body), ['original available body']);
   });
@@ -145,7 +235,7 @@ for (const kind of ['hardlink', 'symlink']) {
     const good = await readFile(path);
     await writeFile(outside, good);
     await rename(path, backup);
-    let sent;
+    let sentId;
     let unavailable = false;
     try {
       try {
@@ -157,7 +247,7 @@ for (const kind of ['hardlink', 'symlink']) {
         t.skip(`file symlinks unavailable: ${error.code}; no AWS evidence`);
       }
       if (!unavailable) {
-        sent = json(await jsonCall(server, 'SendMessage', { QueueUrl, MessageBody: 'retry the dirty mutation' }));
+        sentId = dirtyMutationId(await jsonCall(server, 'SendMessage', { QueueUrl, MessageBody: 'retry the dirty mutation' }));
         const failed = await admin(server, '/save', { method: 'POST', body: '{}' });
         assert.ok(failed.status >= 400 && failed.status < 600, 'unsafe destination must fail save');
         assert.notEqual(json(failed, failed.status)?.saved, true);
@@ -175,7 +265,7 @@ for (const kind of ['hardlink', 'symlink']) {
     assert.deepEqual(json(await admin(server, '/save', { method: 'POST', body: '{}' })), { saved: true });
     const persisted = JSON.parse(await readFile(path, 'utf8'));
     const messages = persisted.documents.find((d) => d.service === 'sqs').data.queues.find((q) => q.name === 'WriteContainment').messages;
-    assert.ok(messages.some((m) => m.id === sent.MessageId && m.body === 'retry the dirty mutation'));
+    assertRetriedMutation(messages, 'retry the dirty mutation', sentId);
     assert.deepEqual(await readFile(outside), good);
   });
 }

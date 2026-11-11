@@ -39,6 +39,13 @@ export const primaryQueue = (document) => document.data.queues.find(({ name }) =
 export const delivered = (document) => primaryQueue(document).messages.find(({ receiveCount }) => receiveCount > 0);
 export const untouched = (document) => primaryQueue(document).messages.find(({ receiveCount }) => receiveCount === 0);
 
+function retimeDelivery(document, sentAt) {
+  const message = delivered(document);
+  message.sentAt = sentAt;
+  message.expiresAt = sentAt + Number(primaryQueue(document).attributes.MessageRetentionPeriod) * 1000;
+  return message;
+}
+
 export const invalidStateCases = [
   ['missing queues', (d) => { delete d.data.queues; }],
   ['non-array queues', (d) => { d.data.queues = {}; }],
@@ -90,10 +97,22 @@ export const invalidStateCases = [
 ];
 
 for (const field of ['sentAt', 'availableAt', 'expiresAt', 'firstReceivedAt']) {
-  for (const [name, value] of [['NaN', NaN], ['infinite', Infinity], ['negative', -1], ['fractional', 1.5]]) {
+  for (const [name, value] of [['NaN', NaN], ['infinite', Infinity]]) {
     invalidStateCases.push([`${name} ${field}`, (d) => { delivered(d)[field] = value; }]);
   }
 }
+// Isolate integer/nonnegative checks from the separately tested time relationships.
+// Send and expiry move together because retention is an integer-millisecond span.
+invalidStateCases.push(
+  ['fractional sentAt', (d) => { retimeDelivery(d, delivered(d).sentAt - 0.5); }],
+  ['fractional availableAt', (d) => { delivered(d).availableAt += 0.5; }],
+  ['fractional expiresAt', (d) => { retimeDelivery(d, delivered(d).sentAt - 1.5); }],
+  ['fractional firstReceivedAt', (d) => { delivered(d).firstReceivedAt += 0.5; }],
+  ['negative sentAt', (d) => { retimeDelivery(d, -1); }],
+  ['negative availableAt', (d) => { retimeDelivery(d, -1).availableAt = -1; }],
+  ['negative expiresAt', (d) => { retimeDelivery(d, -Number(primaryQueue(d).attributes.MessageRetentionPeriod) * 1000 - 1); }],
+  ['negative firstReceivedAt', (d) => { retimeDelivery(d, -1).firstReceivedAt = -1; }],
+);
 for (const [name, value] of [['negative', -1], ['fractional', 1.5], ['NaN', NaN], ['infinite', Infinity],
   ['unsafe', Number.MAX_SAFE_INTEGER + 1], ['string', '2']]) {
   invalidStateCases.push([`${name} receive count`, (d) => { delivered(d).receiveCount = value; }]);
