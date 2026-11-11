@@ -71,7 +71,9 @@ const asErrors = (configs) =>
 export default asErrors(
   tseslint.config(
     {
-      ignores: ['out/**', 'node_modules/**', '.vscode-test/**', '*.vsix'],
+      // Imported skill examples/helpers are independent of MALT's application toolchain.
+      ignores: ['out/**', 'node_modules/**', '.vscode-test/**', '*.vsix',
+        '.agents/skills/**', '.claude/skills/**', '.codex/skills/**'],
     },
     {
       linterOptions: {

@@ -17,3 +17,7 @@ Thumbs.db
 
 # Generated local review standards
 .malt/
+
+# Local skill-directory links created by node .agents/setup.mjs
+/.claude/skills
+/.codex/skills
