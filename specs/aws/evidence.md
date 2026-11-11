@@ -70,6 +70,16 @@ verifies that the generated artifact credits only the executed operation/kind
 pairs. The existing verification and packaging commands explicitly order Docker
 compilation, runtime tests/reporting, and VSIX creation (npm hooks are disabled).
 
+CI's Linux producer runs the AWS suite and reporter after its sole compilation,
+then uploads `out/` including the generated evidence. Platform consumers test
+that compiled artifact without recompiling; their local evidence regeneration
+does not replace the producer's uploaded artifact. Local verification runs AWS
+tests before archive-consuming tooling tests. The explicit VSCE prepublish
+command compiles and runs AWS tests before packaging, including in Release.
+Keep the receipt deterministic (no run timestamps or host paths) and retain
+Release's whole-`out/` byte comparison with the same-run CI artifact. A mismatch
+fails the release rather than stripping evidence or weakening the comparison.
+
 ## Independently testable APIs
 
 `src/aws/coverage/evidence.ts` exports:
