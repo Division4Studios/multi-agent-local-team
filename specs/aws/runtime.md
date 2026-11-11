@@ -141,7 +141,7 @@ parsing, and no stack exposure apply. Mutations require application/json.
 | Route | Response / action |
 | --- | --- |
 | GET /health | `{ status: 'running', requestCount: number, services: ['sqs', 'sts'] }` |
-| GET /resources | `{ resources: [{ service, account, region, type, name, id, details }] }`; queue metadata/counts only, no bodies or receipts |
+| GET /resources | `AwsResources` as defined below; queue metadata/counts only |
 | GET /coverage | `{ services: [{ service, operations: [{ operation, status, testKinds, limitations }] }] }`; every modeled operation appears |
 | GET /traces | `{ traces: [{ id, service, operation, account, region, principalArn, identity, statusCode, durationMs, decision }] }`, newest first |
 | POST /save | Body `{}`; flush dirty state; `{ saved: true }` |
@@ -161,6 +161,57 @@ operations and test kinds only after success. Versioned evidence is shipped with
 the runtime through an explicit asset path. The generation/drift contract is
 specified separately before that implementation; runtime tests may first assert
 the inventory, statuses and limitations with empty testKinds.
+
+### Queue resources
+
+Public shared DTOs under `src/shared/aws/` have these exact shapes:
+
+```ts
+interface AwsResources { readonly resources: readonly AwsQueueResource[]; }
+interface AwsQueueResource {
+  readonly service: 'sqs';
+  readonly account: string;
+  readonly region: string;
+  readonly type: 'queue';
+  readonly name: string;
+  readonly id: string;
+  readonly details: {
+    readonly queueUrl: string;
+    readonly attributes: {
+      readonly VisibilityTimeout: string;
+      readonly DelaySeconds: string;
+      readonly MessageRetentionPeriod: string;
+      readonly MaximumMessageSize: string;
+      readonly ReceiveMessageWaitTimeSeconds: string;
+    };
+    readonly messageCounts: {
+      readonly available: number;
+      readonly delayed: number;
+      readonly inFlight: number;
+    };
+  };
+}
+```
+
+`account` is a 12-digit account ID, `region` a valid signing region, and `name`
+the case-sensitive scoped queue name. `id` is exactly
+`arn:aws:sqs:<region>:<account>:<name>`, stable across advertised gateway port
+changes. `queueUrl` uses the current advertised origin and scoped path specified
+above; its account/region/name must agree with the resource and ARN. Attributes
+are exactly the five effective decimal-string values, including defaults, with
+the [SQS constraints](sqs/queues-and-messages.md#createqueue).
+
+Counts are finite nonnegative safe integers. At one snapshot time `now`, omit
+messages with `expiresAt <= now`; count each remaining message exactly once:
+`availableAt <= now` is available; otherwise `receiveCount === 0` is delayed and
+`receiveCount > 0` is inFlight (see [state](state.md)). A previously received
+message becomes available again when its visibility deadline expires.
+
+Every field is required. Reject unknown fields at every DTO layer: envelope,
+resource, details, attributes and messageCounts. Expose only metadata derived
+from supported behavior, never message bodies, receipts, keys, tokens or extra
+nested fields. STS contributes no resources; an empty inventory is
+`{ resources: [] }`.
 
 ## Persistent state
 

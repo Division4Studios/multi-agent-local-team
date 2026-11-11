@@ -28,9 +28,11 @@ Scope is `'all'` or `{ account, region }`. The response objects are the shapes i
 Reject non-2xx, non-JSON, malformed/oversized/truncated responses and invalid
 fields. Cap responses at 2 MiB and requests at a five-second deadline. Never
 follow redirects or include the token/body in errors. Count/duration values are
-finite nonnegative numbers (counts integers); statuses/test kinds are the defined
-unions. Resources expose metadata/counts only, and traces contain only the fixed
-runtime trace fields. Invalid or extra secret-bearing fields are rejected.
+finite nonnegative numbers (counts safe integers); statuses/test kinds are the
+defined unions. Require the specified fields and reject unknown fields at every
+DTO layer. Resources use the strict `AwsResources` / `AwsQueueResource` shapes in
+[runtime](runtime.md#queue-resources); traces contain only the fixed runtime
+trace fields. Secret-bearing extras are rejected, never silently dropped.
 
 ## Backends and lifecycle
 
@@ -113,6 +115,62 @@ failure as error rather than claiming state was saved. A stopped backend does
 not retain timers or client access. Restart is
 stop then start using fresh settings at the command adapter.
 
+## Command adapter
+
+`src/cloud/commands.ts` exports these structural dependencies and entry points.
+`AwsQueueResource`, `AwsCoverage` and `AwsTraces` are public shared DTOs under
+`src/shared/aws/`; the latter two are the complete runtime response envelopes.
+
+```ts
+interface AwsCommandDependencies {
+  readonly manager: {
+    readonly status: AwsManager['status'];
+    readonly client: AwsAdminApi | undefined;
+    start(request: AwsStartRequest): Promise<void>;
+    stop(): Promise<void>;
+  };
+  readonly startRequest: () => AwsStartRequest | undefined;
+  readonly confirmReset: () => Promise<boolean>;
+  readonly refresh: () => Promise<void>;
+  showDocument(kind: 'resource', value: AwsQueueResource): Promise<void>;
+  showDocument(kind: 'coverage', value: AwsCoverage): Promise<void>;
+  showDocument(kind: 'traces', value: AwsTraces): Promise<void>;
+  readonly createTerminal: (options: vscode.TerminalOptions) => void;
+  readonly onUserFocus: () => void;
+  readonly reportError: (message: string) => void;
+}
+export function createAwsCommandHandlers(deps: AwsCommandDependencies):
+  ReadonlyMap<string, (...args: unknown[]) => Promise<void>>;
+export function registerAwsCommands(deps: AwsCommandDependencies): vscode.Disposable;
+```
+
+The map contains exactly the nine IDs with prefix `malt.aws.`: `start`, `stop`,
+`restart`, `reset`, `refresh`, `showCoverage`, `showTraces`, `openResource` and
+`openTerminal`. Registration uses these same handlers with native
+`vscode.commands.registerCommand`; its disposable unregisters all nine.
+
+Each returned handler calls `onUserFocus` and validates the current
+`startRequest()`: undefined means no workspace, and `trusted: false` is refused.
+Report either failure before dispatching any mutation. The shared handler wrapper
+catches failures and calls `reportError` with a clear, secret-free message, never
+raw errors, response bodies or command arguments. Runtime wiring connects
+`onUserFocus` to `AttentionGuard.noteUserActivity`, preserving the user-command
+pattern in `src/commands.ts` and `.agents/malt-reference.md:71`. Background
+health/tree refresh never invokes this hook or the user-command handlers.
+
+Start/stop delegate to the manager; restart awaits stop then reads and validates
+a fresh start request before starting. Reset awaits `confirmReset()`; refusal
+does not call any admin API or refresh. Acceptance awaits `client.reset('all')`
+then refreshes. Admin commands require a running client. Refresh delegates to
+`refresh`; coverage/traces fetch their parsed envelopes and pass them to
+`showDocument`. Open-resource validates its first unknown argument as the strict
+queue DTO before showing it. Open-terminal uses `createTerminal` with the name,
+environment and lifecycle behavior specified in [extension](extension.md#ui-and-terminals).
+
+Tests invoke returned handlers with structural manager/UI fakes. Runtime wiring
+uses native document, terminal and confirmation APIs; no global VS Code methods
+need replacement to test trust, reset refusal, ordering, focus or error handling.
+
 ## Native views and testable adapters
 
 `src/cloud/resourcesView.ts` exports `AwsResourcesProvider(manager)` implementing
@@ -132,14 +190,14 @@ filesystem paths or writable editors. Register/dispose it with the feature.
 `src/cloud/terminal.ts` exports the `terminalEnvironment` function already
 specified in extension.md. Test native command registration/contributions using
 the real manifest and activated extension. Consent/trust/reset confirmation
-behavior uses injected manager dependencies and the command adapter as needed;
+behavior uses injected manager dependencies and the command adapter above;
 do not add a production command that bypasses these boundaries for tests.
 
 Real host/Docker startup, terminal-created CLI/SDK requests, and theme/focus
 acceptance remain integration checks; fake dependencies alone do not establish
 those results. `AwsHostBackend` is exported from the existing approved
-`src/backend/hostBackend.ts`; `AwsDockerBackend` lives under `src/cloud` and uses
-the existing Docker HTTP client. Both constructors accept one options object
-`{ extensionRoot, log }`, with `socketPath` also required for Docker. Tests may
-use a local fake Docker socket for concrete
+`src/backend/hostBackend.ts`; `AwsDockerBackend` is exported from
+`src/cloud/dockerBackend.ts` and uses the existing Docker HTTP client. Both
+constructors accept one options object `{ extensionRoot, log }`, with `socketPath`
+also required for Docker. Tests may use a local fake Docker socket for concrete
 container requests and ownership checks. No Docker CLI enters runtime code.
