@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { clearTimeout, setTimeout } from 'node:timers';
 import { URL, URLSearchParams } from 'node:url';
 import { models, namespaces } from './contract-helpers.mjs';
+import { errorStructure, parseXmlDocument, queryStructure, queryValue } from './xml-oracle.mjs';
 
 const require = createRequire(import.meta.url);
 export const ADMIN_TOKEN = 'synthetic-local-admin-token-0123456789abcdef';
@@ -165,24 +166,24 @@ export function requestId(response) {
 }
 
 export function xmlText(response, tag) {
-  const match = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'u').exec(response.text);
-  assert.ok(match, `missing <${tag}> in ${response.text}`);
-  return match[1].replace(/&#x([\da-f]+);/giu, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);/gu, (_, number) => String.fromCodePoint(Number(number)))
-    .replace(/&lt;/gu, '<').replace(/&gt;/gu, '>').replace(/&quot;/gu, '"').replace(/&apos;/gu, "'").replace(/&amp;/gu, '&');
+  return queryValue(parseXmlDocument(response.text), tag);
 }
 
 export function querySuccess(response, service, operation) {
   assert.equal(response.status, 200, response.text);
   assert.match(response.headers['content-type'] ?? '', /xml/u);
-  assert.ok(response.text.includes(`xmlns="${namespaces[service]}"`) || response.text.includes(`xmlns='${namespaces[service]}'`), response.text);
-  assert.match(response.text, new RegExp(`<${operation}Response(?:\\s|>)`, 'u'));
-  assert.match(response.text, /<ResponseMetadata>/u);
-  assert.equal(xmlText(response, 'RequestId'), requestId(response));
+  const root = parseXmlDocument(response.text);
+  assert.equal(root.name, `${operation}Response`);
+  assert.equal(root.namespace, namespaces[service]);
+  const modeled = models[service].shapes[`com.amazonaws.${service}#${operation}`];
+  assert.ok(modeled, `unknown modeled operation ${service}.${operation}`);
+  queryStructure(root, operation, modeled.output.target === 'smithy.api#Unit');
+  assert.equal(queryValue(root, 'RequestId'), requestId(response));
 }
 
 export function awsFailure(response, protocol, expected = {}) {
-  assert.ok(response.status >= 400 && response.status < 600, response.text);
+  const upperStatus = expected.allowServerFault === true ? 600 : 500;
+  assert.ok(response.status >= 400 && response.status < upperStatus, `expected ${upperStatus === 500 ? 'client 4xx' : 'lifecycle 4xx/5xx'} failure: ${response.status} ${response.text}`);
   if (expected.statusCode !== undefined) assert.equal(response.status, expected.statusCode, response.text);
   requestId(response);
   assert.doesNotMatch(response.text, /\bat (?:[\w.]+ \()?[^\n]+:\d+:\d+|node:internal/u);
@@ -195,12 +196,12 @@ export function awsFailure(response, protocol, expected = {}) {
     message = value.message;
     assert.ok(response.headers['x-amzn-errortype'].includes(code));
   } else {
-    assert.match(response.text, /<ErrorResponse(?:\s|>)/u);
-    assert.match(response.text, /<Error>/u);
-    assert.equal(xmlText(response, 'Type'), response.status < 500 ? 'Sender' : 'Receiver');
-    assert.equal(xmlText(response, 'RequestId'), requestId(response));
-    code = xmlText(response, 'Code');
-    message = xmlText(response, 'Message');
+    const root = parseXmlDocument(response.text);
+    errorStructure(root);
+    assert.equal(queryValue(root, 'Type'), response.status >= 500 && expected.allowServerFault === true ? 'Receiver' : 'Sender');
+    assert.equal(queryValue(root, 'RequestId'), requestId(response));
+    code = queryValue(root, 'Code');
+    message = queryValue(root, 'Message');
   }
   assert.equal(typeof message, 'string');
   assert.ok(message.length > 0);

@@ -57,7 +57,7 @@ export async function rejectsAws(action, expected = {}) {
     assert.ok(error instanceof AwsError, `expected AwsError, received ${error}`);
     assert.ok(error.code.length > 0);
     assert.ok(error.message.length > 0);
-    assert.ok(error.statusCode >= 400 && error.statusCode < 600);
+    assert.ok(error.statusCode >= 400 && error.statusCode < 500, 'invalid backend input must produce a client 4xx error');
     assert.equal(error.fault, 'Sender');
     for (const [key, value] of Object.entries(expected)) {
       if (value instanceof RegExp) assert.match(error[key], value);

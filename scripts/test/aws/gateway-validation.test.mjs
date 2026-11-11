@@ -79,7 +79,8 @@ test(evidence(['sqs.SendMessage', 'sqs.ReceiveMessage'], 'protocol', 'typed nume
     { MessageAttributeNames: ['All'] }, { ReceiveRequestAttemptId: 'unsupported' }]) {
     awsFailure(await jsonCall(server, 'ReceiveMessage', { QueueUrl, ...input }), 'json');
   }
-  for (const input of [{ MessageBody: '' }, { MessageBody: '\ud800' }, { DelaySeconds: '1' },
+  awsFailure(await jsonCall(server, 'SendMessage', { QueueUrl, MessageBody: '\ud800' }), 'json', { code: 'InvalidMessageContents', statusCode: 400 });
+  for (const input of [{ MessageBody: '' }, { DelaySeconds: '1' },
     { MessageGroupId: 'group' }, { MessageAttributes: { custom: { DataType: 'String', StringValue: 'value' } } }]) {
     awsFailure(await jsonCall(server, 'SendMessage', { QueueUrl, MessageBody: 'rejected', ...input }), 'json');
   }

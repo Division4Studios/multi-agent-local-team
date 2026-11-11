@@ -12,13 +12,23 @@ test('every admin route including health and unknown paths requires the exact pe
   const server = await f.start();
   assert.equal(new URL(server.adminUrl).hostname, '127.0.0.1');
   assert.notEqual(new URL(server.adminUrl).port, new URL(server.gatewayUrl).port);
-  for (const path of ['/health', '/resources', '/coverage', '/traces', '/save', '/reset', '/shutdown', '/unknown']) {
+  const QueueUrl = json(await jsonCall(server, 'CreateQueue', { QueueName: 'auth-survivor' })).QueueUrl;
+  json(await jsonCall(server, 'SendMessage', { QueueUrl, MessageBody: 'unauthorized mutations must preserve me' }));
+  const routes = [
+    ['GET', '/health', ''], ['GET', '/resources', ''], ['GET', '/coverage', ''], ['GET', '/traces', ''],
+    ['POST', '/save', '{}'], ['POST', '/reset', '{"scope":"all"}'], ['POST', '/shutdown', '{}'],
+    ['GET', '/unknown', ''], ['POST', '/unknown', '{}'],
+  ];
+  for (const [method, path, body] of routes) {
     for (const authorization of [undefined, `Bearer ${ADMIN_TOKEN}wrong`, `bearer ${ADMIN_TOKEN}`, `Bearer  ${ADMIN_TOKEN}`]) {
-      const response = await request(`${server.adminUrl}${path}`, { headers: authorization === undefined ? {} : { authorization } });
+      const response = await request(`${server.adminUrl}${path}`, { method, body,
+        headers: { 'content-type': 'application/json', ...(authorization === undefined ? {} : { authorization }) } });
       json(response, 401);
       assert.ok(!response.text.includes(ADMIN_TOKEN));
     }
   }
+  assert.equal(json(await jsonCall(server, 'GetQueueUrl', { QueueName: 'auth-survivor' })).QueueUrl, QueueUrl);
+  assert.equal(json(await jsonCall(server, 'ReceiveMessage', { QueueUrl })).Messages[0].Body, 'unauthorized mutations must preserve me');
   json(await admin(server, '/unknown'), 404);
   const health = json(await admin(server, '/health'));
   assert.equal(health.status, 'running');

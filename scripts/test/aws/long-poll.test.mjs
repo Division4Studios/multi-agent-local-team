@@ -55,7 +55,7 @@ test(evidence(['sqs.ReceiveMessage'], 'protocol', 'real long poll wakes for visi
   const QueueUrl = json(await jsonCall(server, 'CreateQueue', { QueueName: 'poll-visibility' })).QueueUrl;
   json(await jsonCall(server, 'SendMessage', { QueueUrl, MessageBody: 'visible again' }));
   const first = json(await jsonCall(server, 'ReceiveMessage', { QueueUrl, VisibilityTimeout: 1 })).Messages[0];
-  const pending = pendingReceive(server, QueueUrl, { WaitTimeSeconds: 2 });
+  const pending = pendingReceive(server, QueueUrl); // Twenty seconds, well beyond the 2.5-second completion bound.
   await assertWaiting(pending);
   const { response, error } = await deadline(pending.outcome, 2500, 'visibility deadline must wake long poll');
   assert.ifError(error);
@@ -69,7 +69,7 @@ test(evidence(['sqs.ReceiveMessage'], 'protocol', 'real long poll wakes when a d
   const server = await f.start();
   const QueueUrl = json(await jsonCall(server, 'CreateQueue', { QueueName: 'poll-delay' })).QueueUrl;
   const sent = json(await jsonCall(server, 'SendMessage', { QueueUrl, MessageBody: 'delayed arrival', DelaySeconds: 1 }));
-  const pending = pendingReceive(server, QueueUrl, { WaitTimeSeconds: 2 });
+  const pending = pendingReceive(server, QueueUrl); // A timeout-only recheck must fail the 2.5-second bound.
   await assertWaiting(pending);
   const { response, error } = await deadline(pending.outcome, 2500, 'delay deadline must wake long poll');
   assert.ifError(error);
@@ -102,7 +102,7 @@ test(evidence(['sqs.ReceiveMessage'], 'lifecycle', 'idempotent close wakes pendi
   const result = await deadline(pending.outcome, 1000, 'closed receive must settle');
   if (result.error) assert.ok(['ECONNRESET', 'ECONNREFUSED', 'EPIPE'].includes(result.error.code), result.error.message);
   else if (result.response.status === 200) assert.deepEqual(json(result.response), {});
-  else awsFailure(result.response, 'json');
+  else awsFailure(result.response, 'json', { allowServerFault: true }); // Shutdown may explicitly report a Receiver/5xx failure.
   await server.close();
   const reopened = await f.start();
   assert.equal(json(await jsonCall(reopened, 'GetQueueUrl', { QueueName: 'poll-close' })).QueueUrl,
