@@ -1,3 +1,7 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import ts from 'typescript';
+
 // Original synthetic Smithy 2.0 AST, not copied from an AWS service model.
 // Syntax: https://smithy.io/2.0/spec/json-ast.html
 // Signing trait: https://smithy.io/2.0/aws/aws-auth.html#aws-auth-sigv4-trait
@@ -180,3 +184,161 @@ const literals = (value) => {
   return [JSON.stringify(value)];
 };
 export const literalMultiset = (value) => literals(value).sort();
+
+// Pure test oracle, independently runnable before implementation modules exist.
+const codeLines = (source) => {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, source.text);
+  const lines = new Set();
+  for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan()) {
+    const first = source.getLineAndCharacterOfPosition(scanner.getTokenPos()).line;
+    const last = source.getLineAndCharacterOfPosition(scanner.getTextPos() - 1).line;
+    for (let line = first; line <= last; line += 1) {
+      lines.add(line);
+    }
+  }
+  return lines.size;
+};
+
+const propertyName = (node) => {
+  if (ts.isComputedPropertyName(node)) {
+    assert.ok(ts.isStringLiteral(node.expression), 'computed data keys must be literal strings');
+    return node.expression.text;
+  }
+  assert.ok(ts.isIdentifier(node) || ts.isStringLiteral(node) || ts.isNumericLiteral(node), 'literal property name');
+  assert.notEqual(node.text, '__proto__', 'an uncomputed __proto__ key changes an object prototype instead of preserving a member');
+  return node.text;
+};
+
+const readObject = (node, facts, bindings) => {
+  const entries = [];
+  for (const property of node.properties) {
+    if (ts.isShorthandPropertyAssignment(property)) {
+      assert.equal(property.objectAssignmentInitializer, undefined, 'no executable default expressions');
+      facts.add(property.name.text);
+      entries.push([property.name.text, readData(property.name, facts, bindings)]);
+    } else {
+      assert.ok(ts.isPropertyAssignment(property), 'data objects cannot contain methods, accessors or dynamic spreads');
+      const name = propertyName(property.name);
+      facts.add(name);
+      entries.push([name, readData(property.initializer, facts, bindings)]);
+    }
+  }
+  return ['object', entries.sort(([left], [right]) => left.localeCompare(right))];
+};
+
+const readScalar = (node, facts, bindings) => {
+  const constants = new Map([[ts.SyntaxKind.TrueKeyword, true], [ts.SyntaxKind.FalseKeyword, false], [ts.SyntaxKind.NullKeyword, null]]);
+  if (constants.has(node.kind)) {
+    facts.add(constants.get(node.kind));
+    return constants.get(node.kind);
+  } else if (ts.isPrefixUnaryExpression(node)) {
+    assert.equal(node.operator, ts.SyntaxKind.MinusToken, 'only a negative numeric literal is data');
+    assert.ok(ts.isNumericLiteral(node.operand));
+    facts.add(-Number(node.operand.text));
+    return -Number(node.operand.text);
+  } else if (ts.isIdentifier(node)) {
+    assert.ok(bindings.has(node.text), `data reference ${node.text} must be a static local/imported binding`);
+    return ['reference', node.text];
+  } else {
+    assert.fail(`generated initializer is executable or non-data: ${ts.SyntaxKind[node.kind]}`);
+  }
+};
+
+const readData = (node, facts, bindings) => {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    facts.add(node.text);
+    return node.text;
+  } else if (ts.isNumericLiteral(node)) {
+    facts.add(Number(node.text));
+    return Number(node.text);
+  } else if (ts.isObjectLiteralExpression(node)) {
+    return readObject(node, facts, bindings);
+  } else if (ts.isArrayLiteralExpression(node)) {
+    return ['array', node.elements.map((element) => readData(element, facts, bindings))];
+  } else if (ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node)) {
+    return readData(node.expression, facts, bindings);
+  } else {
+    return readScalar(node, facts, bindings);
+  }
+};
+
+const checkModuleReference = (statement, filename, files) => {
+  if (statement.isTypeOnly || statement.importClause?.isTypeOnly || !statement.moduleSpecifier) {
+    return;
+  }
+  assert.ok(ts.isStringLiteral(statement.moduleSpecifier));
+  const specifier = statement.moduleSpecifier.text;
+  assert.ok(specifier.startsWith('.'), 'runtime imports/re-exports must stay in the generated data file set');
+  const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(filename.replaceAll('\\', '/')), specifier));
+  const candidates = [resolved, resolved.replace(/\.js$/u, '.ts'), `${resolved}.ts`];
+  assert.ok([...files.keys()].some((key) => candidates.includes(key.replaceAll('\\', '/'))), `missing generated dependency: ${specifier}`);
+};
+
+const inspectStatement = (statement, context) => {
+  const { facts, data, bindings, filename, files } = context;
+  if (ts.isVariableStatement(statement)) {
+    assert.ok(statement.declarationList.flags & ts.NodeFlags.Const, 'generated data bindings must be const');
+    for (const declaration of statement.declarationList.declarations) {
+      assert.ok(ts.isIdentifier(declaration.name));
+      assert.ok(declaration.initializer, 'data bindings need an initializer');
+      data.push([filename, declaration.name.text, readData(declaration.initializer, facts, bindings)]);
+    }
+  } else if (ts.isExportAssignment(statement)) {
+    data.push([filename, statement.isExportEquals ? 'export=' : 'default', readData(statement.expression, facts, bindings)]);
+  } else if (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) {
+    checkModuleReference(statement, filename, files);
+  } else {
+    assert.ok(ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement) || ts.isEmptyStatement(statement), 'generated modules contain data and types, not handlers or statements');
+  }
+};
+
+export const inspectGenerated = (files) => {
+  assert.equal(typeof files?.entries, 'function', 'public result is a filename -> source ReadonlyMap');
+  assert.equal(typeof files[Symbol.iterator], 'function');
+  assert.ok(files.size > 0, 'generation must produce data');
+  const facts = new Set();
+  const data = [];
+  for (const [filename, text] of files) {
+    assert.equal(typeof filename, 'string');
+    assert.equal(path.posix.parse(filename).root, '', 'no POSIX absolute path');
+    assert.equal(path.win32.parse(filename).root, '', 'no Windows absolute/drive-relative path');
+    assert.ok(!filename.includes('\0'));
+    assert.ok(filename.split(/[\\/]/u).every((part) => part !== '..'), 'paths stay in the service output directory');
+    assert.equal(path.extname(filename), '.ts');
+    assert.equal(typeof text, 'string');
+    const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    assert.deepEqual(source.parseDiagnostics.map((item) => ts.flattenDiagnosticMessageText(item.messageText, '\n')), [], filename);
+    assert.ok(codeLines(source) < 400, `${filename} must have fewer than 400 non-comment/nonblank lines`);
+    const bindings = new Set();
+    for (const statement of source.statements) {
+      if (ts.isVariableStatement(statement)) {
+        statement.declarationList.declarations.forEach((item) => bindings.add(item.name.getText(source)));
+      } else if (ts.isImportDeclaration(statement) && statement.importClause) {
+        const visit = (node) => { if (ts.isIdentifier(node)) { bindings.add(node.text); } ts.forEachChild(node, visit); };
+        visit(statement.importClause);
+      }
+    }
+    source.statements.forEach((statement) => inspectStatement(statement, { facts, data, bindings, filename, files }));
+  }
+  return { facts, data: data.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))) };
+};
+
+export const assertInitializerAssociations = () => {
+  const parse = (source) => inspectGenerated(new Map([['fixture.ts', source]])).data;
+  const original = parse('export const table = { left: "A", right: "B" };');
+  const annotated = parse('/* changed provenance */ export const table: unknown = { right: \'B\', left: \'A\' };');
+  const rewired = parse('export const table = { left: "B", right: "A" };');
+  assert.deepEqual(annotated, original);
+  assert.deepEqual(literalMultiset(rewired), literalMultiset(original));
+  assert.notDeepEqual(rewired, original);
+  const factored = parse('const left = "A", right = "B"; export const table = { left, right };');
+  const swapped = parse('const left = "B", right = "A"; export const table = { left, right };');
+  assert.deepEqual(literalMultiset(swapped), literalMultiset(factored));
+  assert.notDeepEqual(swapped, factored, 'referenced constant swaps must retain binding associations');
+  assert.deepEqual(parse('/* reordered */ const right = "B", left = "A"; export const table = { right, left };'), factored);
+  const modules = (left, right) => inspectGenerated(new Map([
+    ['left.ts', `export const value = ${JSON.stringify(left)};`],
+    ['right.ts', `export const value = ${JSON.stringify(right)};`],
+  ])).data;
+  assert.notDeepEqual(modules('A', 'B'), modules('B', 'A'), 'equal binding names in different modules remain distinct');
+};
