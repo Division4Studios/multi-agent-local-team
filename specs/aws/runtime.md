@@ -75,6 +75,8 @@ interface AwsServerOptions {
   readonly host?: string; // default 127.0.0.1
   readonly port?: number; // default 4566; zero permitted for tests
   readonly adminPort?: number; // default zero
+  readonly adminHost?: '127.0.0.1' | '0.0.0.0'; // default 127.0.0.1
+  readonly endpoint?: string; // advertised HTTP origin; defaults to local listener
   readonly adminToken: string; // caller-generated, at least 32 characters
   readonly stateDirectory: string; // absolute, caller-approved directory
 }
@@ -86,8 +88,12 @@ interface RunningAws {
 export const startAwsServer = (options: AwsServerOptions): Promise<RunningAws>;
 ```
 
-Admin always binds 127.0.0.1. Gateway binding is explicit; the extension handles
-the approved wider-binding warning. Validate configuration before listening.
+Admin binds 127.0.0.1 on the host. Docker startup explicitly selects 0.0.0.0
+inside its isolated container and publishes that port only on host 127.0.0.1;
+the bearer token remains required. Gateway binding is explicit; the extension
+handles the approved wider-binding warning. The advertised endpoint lets a
+Docker gateway return URLs using its host-published port. Validate configuration
+before listening; an endpoint is an HTTP origin, without userinfo/path/query.
 If either listener fails, close the other and release owned state handles.
 `close()` is idempotent, wakes pending polls, stops accepting work, flushes state,
 and releases listeners and the state lock. No background activity survives close.
@@ -140,6 +146,7 @@ parsing, and no stack exposure apply. Mutations require application/json.
 | GET /traces | `{ traces: [{ id, service, operation, account, region, principalArn, identity, statusCode, durationMs, decision }] }`, newest first |
 | POST /save | Body `{}`; flush dirty state; `{ saved: true }` |
 | POST /reset | Body `{ scope: 'all' }` or `{ scope: { account, region } }`; reset and save; `{ reset: true }` |
+| POST /shutdown | Body `{}`; acknowledge `{ stopping: true }`, then close listeners, flush and release state; permits graceful host shutdown on Windows |
 
 The initial trace ring stores at most 200 entries, and never stores Authorization,
 access keys, session tokens, message text or receipts. `decision` is a short
