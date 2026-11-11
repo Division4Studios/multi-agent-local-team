@@ -121,3 +121,62 @@ export const reverseObjectKeys = (value) => {
   }
   return value;
 };
+
+// Anchors retain both endpoints even when the two Route operations are rewired.
+// A balanced swap changes relationships without changing the AST's literal bag.
+export const operationEdgeFixtures = (field) => {
+  const original = { smithy: '2.0', shapes: {
+    [shapeId('Ledger')]: {
+      type: 'service', version: '2041-03-09',
+      operations: ['AnchorA', 'AnchorB', 'RouteA', 'RouteB'].map(ref),
+      traits: { 'aws.auth#sigv4': { name: 'malt-fixture' }, 'aws.protocols#awsJson1_0': {} },
+    },
+  } };
+  for (const suffix of ['A', 'B']) {
+    for (const kind of ['Input', 'Output', 'Error']) {
+      original.shapes[shapeId(`${kind}${suffix}`)] = {
+        type: 'structure', members: { value: text() },
+        ...(kind === 'Error' ? { traits: { 'smithy.api#error': 'client' } } : {}),
+      };
+    }
+    for (const name of ['Anchor', 'Route']) {
+      original.shapes[shapeId(`${name}${suffix}`)] = {
+        type: 'operation', input: ref(`Input${suffix}`), output: ref(`Output${suffix}`), errors: [ref(`Error${suffix}`)],
+      };
+    }
+  }
+  const rewired = JSON.parse(JSON.stringify(original));
+  const left = rewired.shapes[shapeId('RouteA')];
+  const right = rewired.shapes[shapeId('RouteB')];
+  [left[field], right[field]] = [right[field], left[field]];
+  const anchored = JSON.parse(JSON.stringify(original));
+  delete anchored.shapes[shapeId('RouteA')][field];
+  delete anchored.shapes[shapeId('RouteB')][field];
+  return { original, rewired, anchored };
+};
+
+const targetReferences = (value) => {
+  if (Array.isArray(value)) { return value.flatMap(targetReferences); }
+  if (value === null || typeof value !== 'object') { return []; }
+  return Object.entries(value).flatMap(([key, child]) => key === 'target' && typeof child === 'string' ? [child] : targetReferences(child));
+};
+
+export const reachableShapeIds = (model) => {
+  const seen = new Set();
+  const pending = [shapeId('Ledger')];
+  for (const id of pending) {
+    if (seen.has(id)) { continue; }
+    seen.add(id);
+    pending.push(...targetReferences(model.shapes[id]));
+  }
+  return [...seen].sort();
+};
+
+const literals = (value) => {
+  if (Array.isArray(value)) { return value.flatMap(literals); }
+  if (value !== null && typeof value === 'object') {
+    return Object.entries(value).flatMap(([key, child]) => [JSON.stringify(key), ...literals(child)]);
+  }
+  return [JSON.stringify(value)];
+};
+export const literalMultiset = (value) => literals(value).sort();

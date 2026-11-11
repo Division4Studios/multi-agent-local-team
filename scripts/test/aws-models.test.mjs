@@ -3,7 +3,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import ts from 'typescript';
 import { generateModelFiles } from '../aws-model-data.mts';
-import { HOSTILE_VALUE, modelFixture, reverseObjectKeys, shapeId } from './aws-model-fixture.mjs';
+import { HOSTILE_VALUE, literalMultiset, modelFixture, operationEdgeFixtures, reachableShapeIds, reverseObjectKeys, shapeId } from './aws-model-fixture.mjs';
 
 // Independent oracle: specs/aws/foundations.md and Smithy's JSON AST reference.
 // Inspect literal data, never execute generated source. The existing TypeScript
@@ -44,29 +44,35 @@ const propertyName = (node) => {
 };
 
 const readObject = (node, facts, bindings) => {
+  const entries = [];
   for (const property of node.properties) {
     if (ts.isShorthandPropertyAssignment(property)) {
       assert.equal(property.objectAssignmentInitializer, undefined, 'no executable default expressions');
       facts.add(property.name.text);
-      readData(property.name, facts, bindings);
+      entries.push([property.name.text, readData(property.name, facts, bindings)]);
     } else {
       assert.ok(ts.isPropertyAssignment(property), 'data objects cannot contain methods, accessors or dynamic spreads');
-      facts.add(propertyName(property.name));
-      readData(property.initializer, facts, bindings);
+      const name = propertyName(property.name);
+      facts.add(name);
+      entries.push([name, readData(property.initializer, facts, bindings)]);
     }
   }
+  return ['object', entries.sort(([left], [right]) => left.localeCompare(right))];
 };
 
 const readScalar = (node, facts, bindings) => {
   const constants = new Map([[ts.SyntaxKind.TrueKeyword, true], [ts.SyntaxKind.FalseKeyword, false], [ts.SyntaxKind.NullKeyword, null]]);
   if (constants.has(node.kind)) {
     facts.add(constants.get(node.kind));
+    return constants.get(node.kind);
   } else if (ts.isPrefixUnaryExpression(node)) {
     assert.equal(node.operator, ts.SyntaxKind.MinusToken, 'only a negative numeric literal is data');
     assert.ok(ts.isNumericLiteral(node.operand));
     facts.add(-Number(node.operand.text));
+    return -Number(node.operand.text);
   } else if (ts.isIdentifier(node)) {
     assert.ok(bindings.has(node.text), `data reference ${node.text} must be a static local/imported binding`);
+    return ['reference', node.text];
   } else {
     assert.fail(`generated initializer is executable or non-data: ${ts.SyntaxKind[node.kind]}`);
   }
@@ -75,16 +81,18 @@ const readScalar = (node, facts, bindings) => {
 const readData = (node, facts, bindings) => {
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
     facts.add(node.text);
+    return node.text;
   } else if (ts.isNumericLiteral(node)) {
     facts.add(Number(node.text));
+    return Number(node.text);
   } else if (ts.isObjectLiteralExpression(node)) {
-    readObject(node, facts, bindings);
+    return readObject(node, facts, bindings);
   } else if (ts.isArrayLiteralExpression(node)) {
-    node.elements.forEach((element) => readData(element, facts, bindings));
+    return ['array', node.elements.map((element) => readData(element, facts, bindings))];
   } else if (ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node)) {
-    readData(node.expression, facts, bindings);
+    return readData(node.expression, facts, bindings);
   } else {
-    readScalar(node, facts, bindings);
+    return readScalar(node, facts, bindings);
   }
 };
 
@@ -101,16 +109,16 @@ const checkModuleReference = (statement, filename, files) => {
 };
 
 const inspectStatement = (statement, context) => {
-  const { facts, bindings, filename, files } = context;
+  const { facts, data, bindings, filename, files } = context;
   if (ts.isVariableStatement(statement)) {
     assert.ok(statement.declarationList.flags & ts.NodeFlags.Const, 'generated data bindings must be const');
     for (const declaration of statement.declarationList.declarations) {
       assert.ok(ts.isIdentifier(declaration.name));
       assert.ok(declaration.initializer, 'data bindings need an initializer');
-      readData(declaration.initializer, facts, bindings);
+      data.push(readData(declaration.initializer, facts, bindings));
     }
   } else if (ts.isExportAssignment(statement)) {
-    readData(statement.expression, facts, bindings);
+    data.push(readData(statement.expression, facts, bindings));
   } else if (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) {
     checkModuleReference(statement, filename, files);
   } else {
@@ -123,6 +131,7 @@ const inspectGenerated = (files) => {
   assert.equal(typeof files[Symbol.iterator], 'function');
   assert.ok(files.size > 0, 'generation must produce data');
   const facts = new Set();
+  const data = [];
   for (const [filename, text] of files) {
     assert.equal(typeof filename, 'string');
     assert.equal(path.posix.parse(filename).root, '', 'no POSIX absolute path');
@@ -143,18 +152,28 @@ const inspectGenerated = (files) => {
         visit(statement.importClause);
       }
     }
-    source.statements.forEach((statement) => inspectStatement(statement, { facts, bindings, filename, files }));
+    source.statements.forEach((statement) => inspectStatement(statement, { facts, data, bindings, filename, files }));
   }
-  return facts;
+  return { facts, data: data.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))) };
 };
 
-const requireFact = (facts, value) => {
+const requireFact = ({ facts }, value) => {
   const localName = typeof value === 'string' && value.includes('#') ? value.split('#').at(-1) : value;
   assert.ok(facts.has(value) || facts.has(localName), `missing literal model data: ${String(value)}`);
 };
 const explanatoryError = (error) => error instanceof Error
   && /model|smithy|shape|service|sign|version|operation|member|target|reference|trait|enum|input|output|error|list|map|key|value/iu.test(error.message)
   && !/Cannot (?:read|set|convert)|is not a function|not iterable|Maximum call stack/iu.test(error.message);
+
+test('initializer-data comparison ignores comments and formatting but retains associations', () => {
+  const parse = (source) => inspectGenerated(new Map([['fixture.ts', source]])).data;
+  const original = parse('export const table = { left: "A", right: "B" };');
+  const annotated = parse('/* changed provenance */ export const table: unknown = { right: \'B\', left: \'A\' };');
+  const rewired = parse('export const table = { left: "B", right: "A" };');
+  assert.deepEqual(annotated, original);
+  assert.deepEqual(literalMultiset(rewired), literalMultiset(original));
+  assert.notDeepEqual(rewired, original);
+});
 
 test('preserves service metadata and every operation, including error-only and recursive shapes', () => {
   const model = modelFixture();
@@ -187,7 +206,6 @@ const SEMANTIC_EDITS = [
   ['XML namespace', shapePath('Ledger', 'traits', 'smithy.api#xmlNamespace', 'uri'), 'urn:synthetic:changed'],
   ['HTTP method', shapePath('Record', 'traits', 'smithy.api#http', 'method'), 'PUT'],
   ['HTTP status', shapePath('Record', 'traits', 'smithy.api#http', 'code'), 207],
-  ['operation errors', shapePath('Record', 'errors'), []],
   ['member target', shapePath('RecordInput', 'members', 'search', 'target'), shapeId('ConstrainedText')],
   ['required member', shapePath('RecordInput', 'members', 'token', 'traits', 'smithy.api#required'), REMOVE],
   ['JSON name', shapePath('RecordInput', 'members', 'recordId', 'traits', 'smithy.api#jsonName'), 'identifier_wire'],
@@ -211,36 +229,38 @@ const SEMANTIC_EDITS = [
 for (const [label, keys, value] of SEMANTIC_EDITS) {
   test(`behavioral data cannot be silently discarded: ${label}`, () => {
     const model = modelFixture();
-    const before = orderedFiles(generateModelFiles(model, 'malt-fixture'));
+    const before = inspectGenerated(generateModelFiles(model, 'malt-fixture'));
     edit(model, keys, value);
-    const changed = generateModelFiles(model, 'malt-fixture');
-    assert.notDeepEqual(orderedFiles(changed), before, `${label} must affect the generated data`);
-    const facts = inspectGenerated(changed);
-    if (['string', 'number', 'boolean'].includes(typeof value)) { requireFact(facts, value); }
+    const changed = inspectGenerated(generateModelFiles(model, 'malt-fixture'));
+    assert.notDeepEqual(changed.data, before.data, `${label} must affect initializer data, not just comments`);
+    if (['string', 'number', 'boolean'].includes(typeof value)) { requireFact(changed, value); }
   });
 }
 
-for (const [field, original] of [['input', 'RecordInput'], ['output', 'RecordOutput']]) {
-  test(`preserves the operation ${field} edge, not just a bag of shape names`, () => {
-    const model = modelFixture();
-    model.shapes[shapeId('Alternative')] = JSON.parse(JSON.stringify(model.shapes[shapeId(original)]));
-    const before = orderedFiles(generateModelFiles(model, 'malt-fixture'));
-    model.shapes[shapeId('Record')][field] = { target: shapeId('Alternative') };
-    const changed = generateModelFiles(model, 'malt-fixture');
-    assert.notDeepEqual(orderedFiles(changed), before);
-    requireFact(inspectGenerated(changed), shapeId('Alternative'));
+for (const field of ['input', 'output', 'errors']) {
+  test(`preserves operation ${field} edges with unchanged reachability and literal counts`, () => {
+    const { original, rewired, anchored } = operationEdgeFixtures(field);
+    const closure = reachableShapeIds(original);
+    assert.deepEqual(closure, [...Object.keys(original.shapes), 'smithy.api#String'].sort());
+    assert.notDeepEqual(rewired, original);
+    assert.deepEqual(reachableShapeIds(anchored), closure, 'anchors retain both endpoints without either varied edge');
+    assert.deepEqual(reachableShapeIds(rewired), closure);
+    assert.deepEqual(literalMultiset(rewired), literalMultiset(original));
+    const before = inspectGenerated(generateModelFiles(original, 'malt-fixture'));
+    const after = inspectGenerated(generateModelFiles(rewired, 'malt-fixture'));
+    assert.notDeepEqual(after.data, before.data, 'the relationship swap must affect parsed initializer data');
   });
 }
 
 test('selects by signing name and rejects unknown or ambiguous signing services', () => {
   const model = modelFixture();
   model.shapes[shapeId('Other')] = { type: 'service', version: '2099-12-31', operations: [{ target: shapeId('Inspect') }], traits: { 'aws.auth#sigv4': { name: 'other' }, 'aws.protocols#awsJson1_0': {} } };
-  const primary = generateModelFiles(model, 'malt-fixture');
-  const other = generateModelFiles(model, 'other');
-  assert.notDeepEqual(orderedFiles(primary), orderedFiles(other));
-  requireFact(inspectGenerated(primary), '2041-03-09');
-  requireFact(inspectGenerated(other), '2099-12-31');
-  requireFact(inspectGenerated(other), 'other');
+  const primary = inspectGenerated(generateModelFiles(model, 'malt-fixture'));
+  const other = inspectGenerated(generateModelFiles(model, 'other'));
+  assert.notDeepEqual(primary.data, other.data);
+  requireFact(primary, '2041-03-09');
+  requireFact(other, '2099-12-31');
+  requireFact(other, 'other');
   assert.throws(() => generateModelFiles(model, 'missing'), explanatoryError);
   assert.throws(() => generateModelFiles(model, ''), explanatoryError);
   model.shapes[shapeId('Other')].traits['aws.auth#sigv4'].name = 'malt-fixture';
@@ -258,11 +278,11 @@ test('preserves AWS Query and AWS JSON protocol declarations', () => {
 
 test('the signing name is preserved independently of service identity or SDK display name', () => {
   const model = modelFixture();
-  const before = orderedFiles(generateModelFiles(model, 'malt-fixture'));
+  const before = inspectGenerated(generateModelFiles(model, 'malt-fixture'));
   model.shapes[shapeId('Ledger')].traits['aws.auth#sigv4'].name = 'renamed-signer';
-  const changed = generateModelFiles(model, 'renamed-signer');
-  assert.notDeepEqual(orderedFiles(changed), before);
-  requireFact(inspectGenerated(changed), 'renamed-signer');
+  const changed = inspectGenerated(generateModelFiles(model, 'renamed-signer'));
+  assert.notDeepEqual(changed.data, before.data);
+  requireFact(changed, 'renamed-signer');
 });
 
 test('accepts reference-valid optional AST fields and both Smithy 2 version spellings', () => {
@@ -275,6 +295,8 @@ test('accepts reference-valid optional AST fields and both Smithy 2 version spel
     delete service.operations;
     model.shapes = { [shapeId('Ledger')]: service };
     requireFact(inspectGenerated(generateModelFiles(model, 'malt-fixture')), '2041-03-09');
+    delete service.version;
+    requireFact(inspectGenerated(generateModelFiles(model, 'malt-fixture')), 'malt-fixture');
   }
 });
 
@@ -320,7 +342,7 @@ for (const input of [undefined, null, true, 4, 'model', [], {}, { smithy: '2.0' 
 
 const MALFORMED_EDITS = [
   [['smithy'], REMOVE], [['smithy'], 2], [['smithy'], 'invalid'], [['shapes'], null], [['shapes'], []],
-  [shapePath('Ledger', 'version'), REMOVE], [shapePath('Ledger', 'version'), 2041],
+  [shapePath('Ledger', 'version'), 2041],
   [shapePath('Ledger', 'operations'), {}], [shapePath('Ledger', 'operations', 0), 'Record'],
   [shapePath('Ledger', 'operations', 0), {}], [shapePath('Ledger', 'operations', 0, 'target'), shapeId('Missing')],
   [shapePath('Ledger', 'operations', 0, 'target'), shapeId('ConstrainedText')],
