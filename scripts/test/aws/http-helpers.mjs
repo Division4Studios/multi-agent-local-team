@@ -50,17 +50,34 @@ function rpc(child, command, options, milliseconds = 4000) {
   });
 }
 
+async function quiesceRejectedStart(child, failures) {
+  try {
+    const exited = child.exitCode === null && child.signalCode === null
+      ? once(child, 'exit') : Promise.resolve([child.exitCode, child.signalCode]);
+    if (child.connected) child.disconnect();
+    const [code, signal] = await deadline(exited, 2000, 'rejected AWS process must quiesce');
+    assert.equal(code, 0, `rejected AWS process exited with ${signal ?? code}`);
+  } catch (error) { failures.push(error); }
+  if (child.exitCode === null && child.signalCode === null) {
+    try {
+      const exited = once(child, 'exit');
+      child.kill('SIGKILL');
+      await deadline(exited, 2000, 'isolated AWS process termination');
+    } catch (error) { failures.push(error); }
+  }
+}
+
 export async function fixture(t) {
   // Resolve first so pre-implementation red results name the missing public API.
   require.resolve('../../../out/aws/server.js');
   const base = process.platform === 'win32' ? join(process.env.LOCALAPPDATA, 'Temp', 'opencode') : tmpdir();
   const root = await mkdtemp(join(base, 'malt-aws-runtime-test-'));
   const clients = [];
+  const failures = [];
   t.after(async () => {
-    const failures = [];
     for (const client of clients) {
       try {
-        if (client.child.exitCode === null && client.child.signalCode === null) {
+        if (!client.rejectedStart && client.child.exitCode === null && client.child.signalCode === null) {
           await client.close();
           const exited = once(client.child, 'exit');
           if (client.child.connected) client.child.disconnect();
@@ -77,7 +94,9 @@ export async function fixture(t) {
         }
       }
     }
-    await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+    if (clients.every(({ child }) => child.exitCode !== null || child.signalCode !== null)) {
+      await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+    }
     if (failures.length) throw new AggregateError(failures, 'AWS test cleanup failed');
   });
   const start = async (overrides = {}) => {
@@ -88,7 +107,12 @@ export async function fixture(t) {
     clients.push(client);
     const options = { host: '127.0.0.1', port: 0, adminPort: 0, adminToken: ADMIN_TOKEN, stateDirectory: join(root, 'state'), ...overrides };
     try { Object.assign(client, await rpc(child, 'start', options)); }
-    catch (error) { error.message += diagnostics ? `\n${diagnostics}` : ''; throw error; }
+    catch (error) {
+      client.rejectedStart = true;
+      await quiesceRejectedStart(child, failures);
+      error.message += diagnostics ? `\n${diagnostics}` : '';
+      throw error;
+    }
     return client;
   };
   return { root, stateDirectory: join(root, 'state'), start };
