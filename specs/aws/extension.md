@@ -38,6 +38,8 @@ snapshot settings arrive with their features, not inert controls.
 
 ## Host and Docker backends
 
+Both backends use the [fixed runtime environment mapping](runtime.md#standalone-environment).
+
 Host startup extends only `src/backend/hostBackend.ts`, the approved process
 boundary, to run the fixed `out/aws/main.js` entry point with VS Code's Node
 runtime. It accepts typed emulator startup options, not an arbitrary executable
@@ -69,9 +71,16 @@ Gateway container requirements:
   per-start ownership label. Never delete another container merely because its
   name matches. Cleanup only an ID created by this start or independently
   verified ownership matching all expected labels.
-- Gateway publication uses the selected host binding; admin publication is
-  always 127.0.0.1. Inside-container listeners may bind 0.0.0.0. Return queue URLs
-  with the host-published endpoint, using the advertised-endpoint option.
+- Internal ports equal the selected host ports: gateway `options.port`, admin
+  `options.adminPort`, distinct. Both internal listeners bind `0.0.0.0` via the
+  fixed environment mapping. Exact Engine keys/values are in the
+  [backend APIs](extension-apis.md#backends-and-lifecycle).
+- Gateway publication uses `options.bindAddress`; admin publication and returned
+  admin origin use host `127.0.0.1`. Advertise the host-reachable gateway origin
+  via `MALT_AWS_ENDPOINT`, including returned queue URLs. The create request must
+  set `ExposedPorts` to exactly `{ "<port>/tcp": {}, "<adminPort>/tcp": {} }`,
+  matching the selected listeners and `HostConfig.PortBindings`; no extra
+  published ports.
 - Gracefully shut down and save before removing the owned container. Preserve
   persistent state and report cleanup failure rather than claiming stopped.
 
@@ -95,34 +104,54 @@ terminal named `MALT Local AWS` using `vscode.window.createTerminal`. Set:
 - AWS_ACCESS_KEY_ID=test and AWS_SECRET_ACCESS_KEY=test;
 - AWS_REGION and AWS_DEFAULT_REGION to the configured region;
 - AWS_EC2_METADATA_DISABLED=true and AWS_PAGER empty;
-- remove inherited AWS_SESSION_TOKEN, AWS_SECURITY_TOKEN, AWS_PROFILE and
-  AWS_DEFAULT_PROFILE so
-  real credentials cannot override the local setup.
+- set AWS_SESSION_TOKEN, AWS_SECURITY_TOKEN, AWS_PROFILE and AWS_DEFAULT_PROFILE
+  to `null` to remove their inherited values.
 
 Opt-in terminal injection uses EnvironmentVariableCollection only while the
 gateway is running; stop/dispose clears it. Changing endpoint/region refreshes
 the collection for new terminals. Expose the pure environment function in
 `src/cloud/terminal.ts` as `terminalEnvironment(endpoint, region)` for tests.
 It returns `Record<string, string | null>` matching TerminalOptions.env, using
-null for inherited values that must be deleted.
+exactly those four null removals. Preserve default native terminal inheritance;
+do not set `strictEnv` to bypass user or other-extension environments.
 
 The collection's `delete` removes a mutator, not an inherited environment
 variable. For opt-in injection, use `replace` with empty session/security tokens
 and an isolated `malt-local` profile instead. Write a fixed `terminal-profile.ini`
-under the contained state directory, refusing linked/nonregular destinations.
+under the contained state directory. The destination must be absent or a regular
+single-link file; refuse symbolic links, hardlinks and nonregular destinations.
 It contains only `[profile malt-local]` with the configured region and
 `[malt-local]` with dummy `test` access/secret keys. Set both AWS_PROFILE and
 AWS_DEFAULT_PROFILE to `malt-local`, and both AWS_CONFIG_FILE and
 AWS_SHARED_CREDENTIALS_FILE to this file. Never read or rewrite the user's AWS
 files. The collection is nonpersistent and is cleared on stop/dispose; existing
 terminals retain their environment until closed, as with VS Code's standard
-process-creation mutations. Dedicated Local AWS terminals still use null removals.
+process-creation mutations. Dedicated Local AWS terminal options retain the four
+null removals even while injection is active.
+
+Effective dedicated-terminal child environment at native process creation:
+
+- Injection off: the four profile-selector/token variables are absent.
+- Injection on: native collection precedence may reintroduce only the `malt-local`
+  profile selectors, contained dummy-profile paths and empty session/security
+  token values described above.
+
+Original inherited profile selectors/tokens must not survive in either mode.
+Both modes use the active local endpoint/region and dummy credentials. Never
+temporarily clear the global collection around dedicated-terminal creation.
 
 Authority: VS Code 1.144 `EnvironmentVariableCollection.delete/replace` semantics
 and network-disabled Boto3 1.42.97 probes. Empty/default named profiles without
 configuration failed with ProfileNotFound; the isolated dummy-profile setup
 successfully created a local SQS client with dummy credentials and no session
 token. Actual gateway round trips remain part of Task 5 acceptance.
+
+The [native precedence report](../../.superpowers/sdd/aws-implementation/task-5-terminal-precedence-report.md)
+measured collection replacements after dedicated null removals on Windows 10,
+VS Code **1.144.1**; unrelated inherited environment survived in non-strict cases.
+This scratch native-API evidence does not establish production
+`malt.aws.openTerminal`, CLI/SDK gateway or trust/consent acceptance, or execution
+on other platforms.
 
 ## Verification
 
@@ -134,9 +163,13 @@ Container-shape tests inspect security/mount/publication fields and actual Docke
 acceptance verifies startup, restart/persistence and shutdown.
 
 After npm run verify, exercise the commands in a disposable Extension Development
-Host. From a terminal created by malt.aws.openTerminal, run pinned AWS CLI and an
-AWS SDK against its local endpoint: create queue, send, receive, delete message,
-delete queue, plus an asserted unsupported call. Record actual tool versions and
-commands; no automatic real AWS calls. Record OS/editor/theme, checks performed,
-and any human visual/focus checks still outstanding, rather than claiming a human
-pass from automation alone.
+Host. From a terminal created by malt.aws.openTerminal with
+`malt.aws.terminal.inject=false`, run pinned AWS CLI and an AWS SDK against its
+local endpoint: create queue, send, receive, delete message, delete queue, plus an
+asserted unsupported call. Preserve the pinned-client credential preflight.
+Separately exercise ordinary injected terminals and dedicated terminals with
+injection enabled, verifying their actual process environment and contained
+dummy profile against the rules above. Record actual tool versions and commands;
+no automatic real AWS calls. Record OS/editor/theme, checks performed, and any
+human visual/focus checks still outstanding, rather than claiming a human pass
+from automation alone.

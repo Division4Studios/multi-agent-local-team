@@ -98,6 +98,29 @@ If either listener fails, close the other and release owned state handles.
 `close()` is idempotent, wakes pending polls, stops accepting work, flushes state,
 and releases listeners and the state lock. No background activity survives close.
 
+### Standalone environment
+
+`src/aws/main.ts` (`out/aws/main.js`) is the fixed standalone entry point. It
+maps these environment variables to `AwsServerOptions`:
+
+| Variable | Server option |
+| --- | --- |
+| `MALT_AWS_HOST` | `host` |
+| `MALT_AWS_PORT` | `port` |
+| `MALT_AWS_ADMIN_HOST` | `adminHost` |
+| `MALT_AWS_ADMIN_PORT` | `adminPort` |
+| `MALT_AWS_ADMIN_TOKEN` | `adminToken` (explicitly required) |
+| `MALT_AWS_STATE_DIRECTORY` | `stateDirectory` (explicitly required) |
+| `MALT_AWS_ENDPOINT` | `endpoint` (optional advertised origin) |
+
+Omitted optional values use the server defaults above. Validate every supplied
+value before listening, including decimal-integer port parsing; invalid supplied
+values do not fall back to defaults. `SIGTERM`, `SIGINT` and authenticated
+shutdown use the orderly close behavior above. Unexpected startup failure cleans
+up owned resources, exits nonzero and reports a secret-free error; never log the
+admin token or inherited credentials. Docker listener/publication roles follow
+the [extension backend contract](extension-apis.md#backends-and-lifecycle).
+
 ### Gateway
 
 - Public `GET /_health` returns status running and both service names, without

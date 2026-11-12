@@ -56,6 +56,28 @@ interface AwsBackend {
 }
 ```
 
+For Docker, `port = options.port` and `adminPort = options.adminPort` are distinct
+and retain those same numbers inside the container. Using the
+[fixed runtime mapping](runtime.md#standalone-environment), set both
+`MALT_AWS_HOST` and `MALT_AWS_ADMIN_HOST` to `0.0.0.0`, `MALT_AWS_PORT` to
+`String(options.port)`, and `MALT_AWS_ADMIN_PORT` to `String(options.adminPort)`.
+`HostConfig.PortBindings` has exactly these two keys, each with one binding:
+
+| Key | HostIp | HostPort |
+| --- | --- | --- |
+| `<port>/tcp` | `options.bindAddress` | `String(options.port)` |
+| `<adminPort>/tcp` | `127.0.0.1` | `String(options.adminPort)` |
+
+Return `adminUrl` as `http://127.0.0.1:<adminPort>` using that loopback host port.
+`MALT_AWS_ENDPOINT` supplies the returned host-reachable `gatewayUrl` origin,
+including queue URLs. The create request must set `ExposedPorts` to exactly
+`{ "<port>/tcp": {}, "<adminPort>/tcp": {} }`, matching the selected TCP
+`HostConfig.PortBindings` keys and listeners; no extra published ports. This
+explicit-request rule is a local design choice for dynamic ports and a reusable
+image; Docker may otherwise inherit exposure from image metadata. Matching
+host/internal port numbers also preserves pinned-client acceptance in the
+gateway's shared network namespace.
+
 `src/cloud/manager.ts` exports `AwsManager`, `AwsStatus` and its dependency/start
 types below.
 Use structural interfaces so tests can supply bounded fake backend/network/UI
@@ -202,6 +224,8 @@ then refreshes. Admin commands require a running client. Refresh delegates to
 `showDocument`. Open-resource validates its first unknown argument as the strict
 queue DTO before showing it. Open-terminal uses `createTerminal` with the name,
 environment and lifecycle behavior specified in [extension](extension.md#ui-and-terminals).
+Dedicated options retain the four null entries and default native inheritance;
+the effective injection-off/on child expectations are defined there.
 
 Tests invoke returned handlers with structural manager/UI fakes. Runtime wiring
 uses native document, terminal and confirmation APIs; no global VS Code methods
@@ -227,7 +251,8 @@ class AwsTerminalInjection {
 
 Construction immediately sets `persistent = false` and clears prior mutations.
 Before writing, validate real workspace containment, no linked path components,
-and the fixed `terminal-profile.ini` destination (absent or a regular file).
+and the fixed `terminal-profile.ini` destination (absent or a regular single-link
+file). Refuse symbolic links, hardlinks and nonregular destinations.
 Use the exact dummy-profile contents and variable replacements in
 [extension](extension.md#ui-and-terminals); never read or rewrite user AWS files.
 
