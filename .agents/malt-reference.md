@@ -12,14 +12,14 @@ This repo must model the anti-slop bar it will enforce elsewhere. Keep diffs sma
 
 ```sh
 npm ci                 # install (install scripts are disabled by .npmrc)
-npm run verify         # deps → AWS models → types → lint → Docker compile → tooling → sandbox → compiled editor tests (CI also audits and checks publication/VSIX)
+npm run verify         # deps → AWS models → types → lint → Docker compile → AWS runtime tests/evidence → archive tooling → sandbox → compiled editor tests (CI also audits and checks publication/VSIX)
 npm run compile        # TypeScript 7 in Docker → out/
 npm run check-types    # extension (tsconfig.json) + scripts (scripts/tsconfig.json)
 npm run lint           # ESLint, --max-warnings 0
 npm run check-deps     # dependency allowlist / exact-pin / reviewed-security-overrides guard
 npm run audit          # whole tree (low+) + registry signatures
-npm test               # compile, then run tests in a downloaded VS Code (.vscode-test/)
-npm run vsix           # package .vsix
+npm test               # compile → AWS runtime tests/evidence → editor tests in a downloaded VS Code (.vscode-test/)
+npm run vsix           # VSCE explicitly runs vscode:prepublish (compile + AWS tests once), then packages .vsix
 npm run release:bump -- minor   # next version in package.json/lock + dated CHANGELOG section (docs/releasing.md)
 npm run test:live      # real Claude calls of every kind against the Docker reviewer (needs ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN)
 ```

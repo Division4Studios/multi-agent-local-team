@@ -856,13 +856,15 @@
     "release:bump": "node --permission --allow-fs-read=\"*\" --allow-fs-write=package.json --allow-fs-write=package-lock.json --allow-fs-write=CHANGELOG.md scripts/release.mts bump",
     "audit": "npm audit --audit-level=low && npm audit signatures",
     "test:toolchain": "node --test scripts/test/*.test.mjs",
+    "test:aws": "npm run compile && npm run test:aws:compiled",
+    "test:aws:compiled": "node --test --test-concurrency=2 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/aws-evidence-reporter.mts --test-reporter-destination=stdout scripts/test/aws/*.test.mjs",
     "test:live": "npm run compile && node out/test/live/reviewerLive.js",
     "test:compiler-sandbox": "node scripts/compiler.mts sandbox-test",
-    "verify": "npm run check-deps && npm run check:aws-models && npm run check-types && npm run lint && npm run compile && npm run test:toolchain && npm run test:compiler-sandbox && npm run test:compiled",
-    "test": "npm run compile && npm run test:compiled",
+    "verify": "npm run check-deps && npm run check:aws-models && npm run check-types && npm run lint && npm run compile && npm run test:aws:compiled && npm run test:toolchain && npm run test:compiler-sandbox && npm run test:compiled",
+    "test": "npm run compile && npm run test:aws:compiled && npm run test:compiled",
     "test:compiled": "node out/test/runTest.js",
-    "vscode:prepublish": "npm run compile",
-    "vsix": "npm run compile && vsce package --no-dependencies"
+    "vscode:prepublish": "npm run compile && npm run test:aws:compiled",
+    "vsix": "vsce package --no-dependencies"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

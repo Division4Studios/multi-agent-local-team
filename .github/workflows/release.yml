@@ -141,10 +141,10 @@ jobs:
           name: typescript7-output
           path: ${{ runner.temp }}/tested-out
 
-      - name: Package the extension (compiles with TypeScript 7 in the isolated container)
+      - name: Package the extension (prepublish compiles and tests AWS once)
         run: npx --no-install vsce package --no-dependencies --out "malt-${TAG#v}.vsix"
 
-      - name: Shipped JavaScript is byte-identical to what CI tested
+      - name: Whole compiled output including AWS evidence is byte-identical to CI
         run: diff -r "$RUNNER_TEMP/tested-out" out
 
       - name: Checksum and release notes

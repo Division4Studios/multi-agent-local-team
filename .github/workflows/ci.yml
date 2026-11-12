@@ -51,6 +51,9 @@ jobs:
       - name: Compile once for all editor platforms
         run: npm run compile
 
+      - name: Test AWS runtime and publish executed evidence
+        run: npm run test:aws:compiled
+
       - name: Upload compiled JavaScript
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -106,6 +109,9 @@ jobs:
 
       - name: Lint (zero warnings)
         run: npm run lint
+
+      - name: Test downloaded AWS runtime and regenerate local evidence
+        run: npm run test:aws:compiled
 
       - name: Dependency policy and file selection regression tests
         run: npm run test:toolchain

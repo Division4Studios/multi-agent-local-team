@@ -4,6 +4,7 @@
 !out/*.js
 !out/architecture/**/*.js
 !out/aws/**/*.js
+!out/aws/test-evidence.json
 !out/backend/**/*.js
 !out/cloud/**/*.js
 !out/diff/**/*.js
