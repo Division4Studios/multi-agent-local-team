@@ -8,6 +8,10 @@ import type { ChildProcess } from 'node:child_process';
 import { join } from 'node:path';
 import type { LogSink, ReviewerBackend, StartOptions } from './backend';
 import { createLineSplitter } from '../shared/lineSplitter';
+import { AwsAdminClient } from '../cloud/adminClient';
+import type { AwsBackend, AwsBackendOptions, AwsBackendStart, AwsEndpoint } from '../cloud/backend';
+import { backendEndpoint, validateBackendStart } from '../cloud/startOptions';
+import { pause, runtimeReady } from '../cloud/runtimeReady';
 
 const STOP_GRACE_MS = 3_000;
 
@@ -118,5 +122,79 @@ export class HostBackend implements ReviewerBackend {
     if (this.logLines.length > MAX_LOG_LINES) {
       this.logLines.shift();
     }
+  }
+}
+
+/** The emulator has a fixed entry point and never inherits cloud credentials or Node injection flags. */
+const awsEnvironment = (options: AwsBackendStart): NodeJS.ProcessEnv => {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of ['SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'TMPDIR']) {
+    const value = process.env[key];
+    if (value !== undefined) { env[key] = value; }
+  }
+  return { ...env, ELECTRON_RUN_AS_NODE: '1', MALT_AWS_HOST: options.bindAddress,
+    MALT_AWS_PORT: String(options.port), MALT_AWS_ADMIN_HOST: '127.0.0.1', MALT_AWS_ADMIN_PORT: String(options.adminPort),
+    MALT_AWS_ADMIN_TOKEN: options.token, MALT_AWS_STATE_DIRECTORY: options.stateDirectory,
+    MALT_AWS_ENDPOINT: backendEndpoint(options).gatewayUrl };
+};
+const hasExited = (child: ChildProcess): boolean => child.pid === undefined || child.exitCode !== null || child.signalCode !== null;
+const awaitExit = async (child: ChildProcess, milliseconds: number): Promise<boolean> => {
+  if (hasExited(child)) { return true; }
+  const deadline = Date.now() + milliseconds;
+  while (!hasExited(child) && Date.now() < deadline) { await pause(25); }
+  return hasExited(child);
+};
+
+export class AwsHostBackend implements AwsBackend {
+  public readonly kind = 'host';
+  private readonly options: AwsBackendOptions;
+  private child: ChildProcess | undefined;
+  private admin: AwsAdminClient | undefined;
+  private starting = false;
+  public constructor(options: AwsBackendOptions) { this.options = options; }
+  public async isAvailable(): Promise<boolean> { return await Promise.resolve(true); }
+  public async start(options: AwsBackendStart): Promise<AwsEndpoint> {
+    if (this.starting || this.child !== undefined) { throw new Error('Local AWS host already owns a process.'); }
+    this.starting = true;
+    try {
+      await validateBackendStart(options);
+      const endpoint = backendEndpoint(options);
+      const admin = new AwsAdminClient({ url: endpoint.adminUrl, token: options.token });
+      const child = spawn(process.execPath, [join(this.options.extensionRoot, 'out', 'aws', 'main.js')], {
+        env: awsEnvironment(options), cwd: this.options.extensionRoot, stdio: 'ignore', windowsHide: true,
+      });
+      this.child = child;
+      this.admin = admin;
+      let failed = false;
+      child.on('error', () => { failed = true; });
+      await runtimeReady(admin, () => failed || hasExited(child));
+      this.options.log('Local AWS host is ready.');
+      return endpoint;
+    } catch {
+      await this.stop();
+      throw new Error('Local AWS host startup failed.');
+    } finally { this.starting = false; }
+  }
+  public async stop(): Promise<void> {
+    const child = this.child;
+    if (child === undefined) { return; }
+    // A manager may have just acknowledged shutdown; give that save/exit a chance first.
+    let graceful = await awaitExit(child, 100);
+    if (!graceful) {
+      try { await this.admin?.shutdown(); }
+      catch { this.options.log('Local AWS host shutdown was not acknowledged.'); }
+      graceful = await awaitExit(child, STOP_GRACE_MS);
+    }
+    if (!graceful) { await this.terminate(child); }
+    this.child = undefined;
+    this.admin = undefined;
+    if (!graceful) { throw new Error('Local AWS host needed forced termination; saved state is not confirmed.'); }
+    this.options.log('Local AWS host stopped.');
+  }
+  private async terminate(child: ChildProcess): Promise<void> {
+    child.kill('SIGTERM');
+    if (await awaitExit(child, STOP_GRACE_MS)) { return; }
+    child.kill('SIGKILL');
+    if (!await awaitExit(child, STOP_GRACE_MS)) { throw new Error('Local AWS host process cleanup failed.'); }
   }
 }

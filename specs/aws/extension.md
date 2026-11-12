@@ -146,7 +146,7 @@ configuration failed with ProfileNotFound; the isolated dummy-profile setup
 successfully created a local SQS client with dummy credentials and no session
 token. Actual gateway round trips remain part of Task 5 acceptance.
 
-The [native precedence report](../../.superpowers/sdd/aws-implementation/task-5-terminal-precedence-report.md)
+The [retained native precedence measurement](../../docs/aws-terminal-precedence.md)
 measured collection replacements after dedicated null removals on Windows 10,
 VS Code **1.144.1**; unrelated inherited environment survived in non-strict cases.
 This scratch native-API evidence does not establish production

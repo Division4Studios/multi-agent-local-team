@@ -21,6 +21,7 @@
 !bin/**/*.mjs
 !bin/*.mjs
 !docker/Dockerfile
+!docker/aws/Dockerfile
 !docker/codex/Dockerfile
 !docker/codex/run.mjs
 !package.json

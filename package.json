@@ -48,6 +48,10 @@
     "views": {
       "malt": [
         {
+          "id": "malt.aws",
+          "name": "Local AWS Emulator"
+        },
+        {
           "id": "malt.reviewer",
           "name": "Reviewer"
         },
@@ -77,6 +81,15 @@
       }
     ],
     "commands": [
+      {"command": "malt.aws.start", "title": "Start Local AWS Emulator", "category": "MALT", "icon": "$(play)"},
+      {"command": "malt.aws.stop", "title": "Stop Local AWS Emulator", "category": "MALT", "icon": "$(debug-stop)"},
+      {"command": "malt.aws.restart", "title": "Restart Local AWS Emulator", "category": "MALT", "icon": "$(debug-restart)"},
+      {"command": "malt.aws.reset", "title": "Reset Local AWS Resources", "category": "MALT", "icon": "$(trash)"},
+      {"command": "malt.aws.refresh", "title": "Refresh Local AWS Resources", "category": "MALT", "icon": "$(refresh)"},
+      {"command": "malt.aws.showCoverage", "title": "Show Local AWS Coverage", "category": "MALT", "icon": "$(checklist)"},
+      {"command": "malt.aws.showTraces", "title": "Show Local AWS Recent Traces", "category": "MALT", "icon": "$(output)"},
+      {"command": "malt.aws.openResource", "title": "Open Local AWS Resource", "category": "MALT", "icon": "$(go-to-file)"},
+      {"command": "malt.aws.openTerminal", "title": "Open Local AWS Terminal", "category": "MALT", "icon": "$(terminal)"},
       {"command": "malt.addReviewerAgent", "title": "Add Reviewer Agent", "category": "MALT"},
       {"command": "malt.cancelReviewerAgent", "title": "Cancel Current Task", "category": "MALT"},
       {"command": "malt.stopReviewerAgent", "title": "Stop Agent", "category": "MALT"},
@@ -298,6 +311,14 @@
     ],
     "menus": {
       "view/title": [
+        {"command": "malt.aws.start", "when": "view == malt.aws", "group": "navigation@1"},
+        {"command": "malt.aws.stop", "when": "view == malt.aws", "group": "navigation@2"},
+        {"command": "malt.aws.refresh", "when": "view == malt.aws", "group": "navigation@3"},
+        {"command": "malt.aws.openTerminal", "when": "view == malt.aws", "group": "navigation@4"},
+        {"command": "malt.aws.restart", "when": "view == malt.aws", "group": "aws"},
+        {"command": "malt.aws.reset", "when": "view == malt.aws", "group": "aws"},
+        {"command": "malt.aws.showCoverage", "when": "view == malt.aws", "group": "aws"},
+        {"command": "malt.aws.showTraces", "when": "view == malt.aws", "group": "aws"},
         {
           "command": "malt.beforeCommit",
           "when": "view == malt.changes",
@@ -487,6 +508,30 @@
     "configuration": {
       "title": "MALT",
       "properties": {
+        "malt.aws.backend": {
+          "type": "string", "enum": ["auto", "docker", "host"], "default": "auto", "scope": "machine",
+          "description": "Local AWS backend. Auto prefers Docker with socket consent and offers a host fallback."
+        },
+        "malt.aws.port": {
+          "type": "integer", "minimum": 1, "maximum": 65535, "default": 4566,
+          "description": "Local AWS gateway port. Applies on the next start."
+        },
+        "malt.aws.bindAddress": {
+          "type": "string", "default": "127.0.0.1", "scope": "machine",
+          "description": "Local AWS gateway IP address. Wider binding needs confirmation on every start."
+        },
+        "malt.aws.stateDirectory": {
+          "type": "string", "default": ".malt/aws",
+          "description": "Local AWS persistent state directory, relative and strictly inside the workspace. Linked paths are refused."
+        },
+        "malt.aws.region": {
+          "type": "string", "default": "us-east-1", "pattern": "^[a-z0-9-]+$",
+          "description": "Signing region for new Local AWS terminals."
+        },
+        "malt.aws.terminal.inject": {
+          "type": "boolean", "default": false,
+          "description": "While Local AWS runs, configure new terminals with its endpoint and isolated dummy AWS profile. Existing terminals retain their environment."
+        },
         "malt.architecture.shareAgentHandoffs": {
           "type": "boolean", "default": false, "scope": "machine",
           "description": "Allow connected local MCP clients to publish attributed, revision-scoped peer handoffs. Reading and subscribing work independently."

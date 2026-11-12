@@ -32,6 +32,7 @@ import { runCopilotCall } from './review/copilotRunner';
 import { createCodexRunner } from './review/codexRunner';
 import { registerCommands, revealHunk, startReviewer } from './commands';
 import type { CommandDeps } from './commands';
+import { registerAwsFeature } from './cloud/feature';
 
 /** On start-up, existing changes are only auto-reviewed if there are few of them (to avoid surprise cost). */
 const INITIAL_AUTO_REVIEW_LIMIT = 25;
@@ -190,6 +191,7 @@ export const activate = async (context: vscode.ExtensionContext): Promise<void> 
     highlight,
     attention,
     manager,
+    registerAwsFeature(context, () => { attention.noteUserActivity(); }),
     manager.agentMonitor.onDidChange(() => { queue.resume(); pullRequests.current?.active?.queue.resume(); }),
     new HunkDecorations(store),
     vscode.languages.registerHoverProvider({ scheme: 'file' }, new ReviewHoverProvider(store)),
