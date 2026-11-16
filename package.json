@@ -868,7 +868,7 @@
     "@types/vscode": "1.144.0",
     "@typescript/native": "npm:typescript@7.0.2",
     "@vscode/test-electron": "3.1.0",
-    "@vscode/vsce": "4.1.0",
+    "@vscode/vsce": "4.1.1",
     "eslint": "10.14.0",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "8.72.1"
